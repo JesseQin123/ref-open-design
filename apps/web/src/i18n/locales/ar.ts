@@ -755,6 +755,8 @@ export const ar: Dict = {
     '⌘/Ctrl + Enter للإرسال · الصق الصور · @ للملفات أو المهارات · / للأوامر',
   'chat.cliSettingsTitle': 'إعدادات CLI والنموذج',
   'chat.cliSettingsAria': 'فتح إعدادات CLI والنموذج',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'إرفاق ملفات (أو الصق / اسحب)',
   'chat.attachAria': 'إرفاق ملفات',
   'chat.importTitle': 'استيراد المصادر (قريباً)',

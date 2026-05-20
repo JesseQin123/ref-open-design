@@ -755,6 +755,8 @@ export const hu: Dict = {
     '⌘/Ctrl + Enter: küldés · képek beillesztése · @ fájl vagy skill · / parancsok',
   'chat.cliSettingsTitle': 'CLI- és modellbeállítások',
   'chat.cliSettingsAria': 'CLI- és modellbeállítások megnyitása',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Fájlok csatolása (vagy beillesztés / húzás)',
   'chat.attachAria': 'Fájlok csatolása',
   'chat.importTitle': 'Források importálása (hamarosan)',

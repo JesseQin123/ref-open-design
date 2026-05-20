@@ -644,6 +644,8 @@ export const esES: Dict = {
     '⌘/Ctrl + Intro para enviar · pega imágenes · @ para archivos o skills · / para comandos',
   'chat.cliSettingsTitle': 'Ajustes de CLI y modelo',
   'chat.cliSettingsAria': 'Abrir ajustes de CLI y modelo',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Adjuntar archivos (o pegar / soltar)',
   'chat.attachAria': 'Adjuntar archivos',
   'chat.importTitle': 'Importar fuentes (próximamente)',

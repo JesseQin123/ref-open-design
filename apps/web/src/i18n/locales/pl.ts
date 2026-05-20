@@ -755,6 +755,8 @@ export const pl: Dict = {
       '⌘/Ctrl + Enter aby wysłać · wklej obrazy · @ pliki lub skille · / komendy',
   'chat.cliSettingsTitle': 'Ustawienia CLI i modelu',
   'chat.cliSettingsAria': 'Otwórz ustawienia CLI i modelu',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Załącz pliki (lub wklej / przeciągnij)',
   'chat.attachAria': 'Załącz pliki',
   'chat.importTitle': 'Importuj źródła (wkrótce)',

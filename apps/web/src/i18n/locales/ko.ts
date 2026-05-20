@@ -755,6 +755,8 @@ export const ko: Dict = {
     '⌘/Ctrl + Enter 로 전송 · 이미지 붙여넣기 · @로 파일/스킬 참조 · /로 명령어',
   'chat.cliSettingsTitle': 'CLI 및 모델 설정',
   'chat.cliSettingsAria': 'CLI 및 모델 설정 열기',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': '파일 첨부 (또는 붙여넣기 / 끌어놓기)',
   'chat.attachAria': '파일 첨부',
   'chat.importTitle': '소스 가져오기 (곧 지원 예정)',

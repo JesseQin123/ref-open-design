@@ -707,6 +707,8 @@ export const th: Dict = {
   'chat.composerHint': '⌘/Ctrl + Enter เพื่อส่ง · วางภาพ · @ เพื่ออ้างอิง',
   'chat.cliSettingsTitle': 'ตั้งค่าโมเดลและ CLI',
   'chat.cliSettingsAria': 'ตั้งค่า',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'แนบไฟล์ (วาง / ลาก)',
   'chat.attachAria': 'แนบไฟล์',
   'chat.importTitle': 'นำเข้าจากที่อื่น (เร็วๆ นี้)',

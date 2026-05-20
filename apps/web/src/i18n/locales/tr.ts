@@ -744,6 +744,8 @@ export const tr: Dict = {
     'Göndermek için ⌘/Ctrl + Enter · görsel yapıştır · @ ile dosya veya skill · / ile komut',
   'chat.cliSettingsTitle': 'CLI & model ayarları',
   'chat.cliSettingsAria': 'CLI ve model ayarlarını aç',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Dosyaları iliştirin (veya yapıştırın / sürükleyin)',
   'chat.attachAria': 'Dosyaları iliştirin',
   'chat.importTitle': 'Kaynakları içe aktar (yakında)',

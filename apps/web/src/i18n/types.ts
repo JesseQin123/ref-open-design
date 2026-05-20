@@ -1515,6 +1515,8 @@ export interface Dict {
   'chat.composerHint': string;
   'chat.cliSettingsTitle': string;
   'chat.cliSettingsAria': string;
+  'chat.addResourcesTitle': string;
+  'chat.addResourcesAria': string;
   'chat.attachTitle': string;
   'chat.attachAria': string;
   'chat.importTitle': string;

@@ -986,8 +986,8 @@ export function LiveArtifactViewer({
             type="button"
             className="icon-only"
             onClick={() => setReloadKey((n) => n + 1)}
-            title={t('fileViewer.reload')}
-            aria-label={t('fileViewer.reloadAria')}
+            title={`${t('fileViewer.reload')} ${t('fileViewer.preview')}`}
+            aria-label={`${t('fileViewer.reloadAria')} ${t('fileViewer.preview')}`}
           >
             <Icon name="reload" size={14} />
           </button>
@@ -3204,8 +3204,8 @@ function ReactComponentViewer({
             type="button"
             className="icon-only"
             onClick={() => setReloadKey((n) => n + 1)}
-            title={t('fileViewer.reload')}
-            aria-label={t('fileViewer.reloadAria')}
+            title={`${t('fileViewer.reload')} ${t('fileViewer.preview')}`}
+            aria-label={`${t('fileViewer.reloadAria')} ${t('fileViewer.preview')}`}
           >
             <Icon name="reload" size={14} />
           </button>
@@ -3549,8 +3549,6 @@ function HtmlViewer({
   const [inlinedSource, setInlinedSource] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
   const [previewViewport, setPreviewViewport] = useState<PreviewViewportId>('desktop');
-  const [modeMenuOpen, setModeMenuOpen] = useState(false);
-  const modeMenuRef = useRef<HTMLDivElement | null>(null);
   const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
   const zoomMenuRef = useRef<HTMLDivElement | null>(null);
   const [presentMenuOpen, setPresentMenuOpen] = useState(false);
@@ -3592,6 +3590,8 @@ function HtmlViewer({
   const [boardTool, setBoardTool] = useState<BoardTool>('inspect');
   const [inspectMode, setInspectMode] = useState(false);
   const [palettePopoverOpen, setPalettePopoverOpen] = useState(false);
+  const [manualToolsOpen, setManualToolsOpen] = useState(false);
+  const [agentToolsOpen, setAgentToolsOpen] = useState(false);
   const [selectedPalette, setSelectedPalette] = useState<PaletteId | null>(null);
   const [previewPalette, setPreviewPalette] = useState<PaletteId | null>(null);
   const [drawOverlayOpen, setDrawOverlayOpen] = useState(false);
@@ -5010,23 +5010,6 @@ function HtmlViewer({
   }, [presentMenuOpen]);
 
   useEffect(() => {
-    if (!modeMenuOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (!modeMenuRef.current) return;
-      if (!modeMenuRef.current.contains(e.target as Node)) setModeMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setModeMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [modeMenuOpen]);
-
-  useEffect(() => {
     if (!zoomMenuOpen) return;
     const onDocClick = (e: MouseEvent) => {
       if (!zoomMenuRef.current) return;
@@ -5042,6 +5025,24 @@ function HtmlViewer({
       document.removeEventListener('keydown', onKey);
     };
   }, [zoomMenuOpen]);
+
+  useEffect(() => {
+    if (!manualToolsOpen && !agentToolsOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.artifact-tool-menu-anchor')) return;
+      closeArtifactToolMenus();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeArtifactToolMenus();
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [manualToolsOpen, agentToolsOpen]);
 
   useEffect(() => {
     if (!shareMenuOpen) return;
@@ -5303,7 +5304,6 @@ function HtmlViewer({
   function selectMode(nextMode: 'preview' | 'source') {
     if (nextMode === 'source') setDrawOverlayOpen(false);
     setMode(nextMode);
-    setModeMenuOpen(false);
   }
 
   function activateBoard(nextTool?: BoardTool) {
@@ -5320,6 +5320,105 @@ function HtmlViewer({
     setCommentDraft('');
     setQueuedBoardNotes([]);
     setStrokePoints([]);
+  }
+
+  function closeArtifactToolMenus() {
+    setManualToolsOpen(false);
+    setAgentToolsOpen(false);
+  }
+
+  function activatePaletteTool() {
+    fireArtifactToolbarClick('tweaks');
+    setPalettePopoverOpen((v) => !v);
+    setManualToolsOpen(false);
+    setAgentToolsOpen(false);
+  }
+
+  function activateDrawTool() {
+    fireArtifactToolbarClick('draw');
+    const next = !drawOverlayOpen;
+    if (!next) {
+      setDrawOverlayOpen(false);
+      setAgentToolsOpen(false);
+      return;
+    }
+    const activateDraw = () => {
+      setBoardMode(false);
+      clearBoardComposer();
+      setInspectMode(false);
+      setDrawOverlayMode('draw');
+      setMode('preview');
+      setDrawOverlayOpen(true);
+      closeArtifactToolMenus();
+    };
+    if (manualEditMode) {
+      void exitManualEditModeAfterFlush().then((ok) => {
+        if (ok) activateDraw();
+      });
+      return;
+    }
+    activateDraw();
+  }
+
+  function activateCommentTool() {
+    fireArtifactToolbarClick('comment');
+    capturePreviewScrollPosition();
+    if (boardMode) {
+      setBoardMode(false);
+      clearBoardComposer();
+      setAgentToolsOpen(false);
+      return;
+    }
+    const activateComment = () => {
+      clearBoardComposer();
+      setInspectMode(false);
+      setDrawOverlayOpen(false);
+      setMode('preview');
+      activateBoard(boardTool);
+      closeArtifactToolMenus();
+    };
+    if (manualEditMode) {
+      void exitManualEditModeAfterFlush().then((ok) => {
+        if (ok) activateComment();
+      });
+      return;
+    }
+    activateComment();
+  }
+
+  function activateInspectTool() {
+    fireArtifactToolbarClick('inspect');
+    setInspectMode((v) => {
+      const next = !v;
+      if (next) {
+        setBoardMode(false);
+        clearBoardComposer();
+        setManualEditMode(false);
+        setDrawOverlayOpen(false);
+        setOpenHintBox(true);
+        setMode('preview');
+      }
+      return next;
+    });
+    closeArtifactToolMenus();
+  }
+
+  function activateManualEditTool() {
+    fireArtifactToolbarClick('edit');
+    capturePreviewScrollPosition();
+    if (!manualEditMode) {
+      setBoardMode(false);
+      clearBoardComposer();
+      setInspectMode(false);
+      setDrawOverlayOpen(false);
+      setMode('preview');
+      setManualEditViewportWidth(previewBodyRef.current?.clientWidth ?? null);
+      setManualEditMode(true);
+      closeArtifactToolMenus();
+      return;
+    }
+    closeArtifactToolMenus();
+    void exitManualEditModeAfterFlush();
   }
 
   function queueCurrentDraft() {
@@ -5505,39 +5604,24 @@ function HtmlViewer({
           >
             <Icon name="reload" size={14} />
           </button>
-          <div className="viewer-mode-menu" ref={modeMenuRef}>
-            <button
-              type="button"
-              className="viewer-action viewer-mode-trigger"
-              aria-haspopup="menu"
-              aria-expanded={modeMenuOpen}
-              onClick={() => setModeMenuOpen((v) => !v)}
-            >
-              <span>{mode === 'preview' ? t('fileViewer.preview') : t('fileViewer.source')}</span>
-              <Icon name="chevron-down" size={11} />
-            </button>
-            {modeMenuOpen ? (
-              <div className="viewer-mode-popover" role="menu">
-                {([
-                  ['preview', t('fileViewer.preview')],
-                  ['source', t('fileViewer.source')],
-                ] as const).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`viewer-mode-menu-item${mode === id ? ' active' : ''}`}
-                    role="menuitem"
-                    onClick={() => {
-                      fireArtifactToolbarClick(id);
-                      selectMode(id);
-                    }}
-                  >
-                    <span>{label}</span>
-                    {mode === id ? <Icon name="check" size={13} /> : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+          <div className="viewer-mode-segmented" role="group" aria-label="View mode">
+            {([
+              ['preview', t('fileViewer.preview')],
+              ['source', t('fileViewer.source')],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`viewer-mode-segment${mode === id ? ' active' : ''}`}
+                aria-pressed={mode === id}
+                onClick={() => {
+                  fireArtifactToolbarClick(id);
+                  selectMode(id);
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
           {showPreviewToolbarControls ? (
             <>
@@ -5547,44 +5631,6 @@ function HtmlViewer({
                 onViewport={setPreviewViewport}
                 t={t}
               />
-              <span className="viewer-divider" aria-hidden />
-              <div className="zoom-menu" ref={zoomMenuRef}>
-                <button
-                  type="button"
-                  className="viewer-action zoom-trigger"
-                  aria-haspopup="menu"
-                  aria-expanded={zoomMenuOpen}
-                  onClick={() => {
-                    fireArtifactToolbarClick('zoom_level_dropdown');
-                    setZoomMenuOpen((v) => !v);
-                  }}
-                  style={{ minWidth: 64 }}
-                >
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{zoom}%</span>
-                  <Icon name="chevron-down" size={11} />
-                </button>
-                {zoomMenuOpen ? (
-                  <div className="zoom-menu-popover" role="menu">
-                    {[50, 75, 100, 125, 150, 200].map((level) => (
-                      <button
-                        key={level}
-                        type="button"
-                        className={`zoom-menu-item${zoom === level ? ' active' : ''}`}
-                        role="menuitem"
-                        onClick={() => {
-                          setZoom(level);
-                          setZoomMenuOpen(false);
-                        }}
-                      >
-                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{level}%</span>
-                        {zoom === level ? (
-                          <Icon name="check" size={13} />
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
             </>
           ) : null}
           {showPreviewToolbarControls && effectiveDeck ? (
@@ -5627,21 +5673,22 @@ function HtmlViewer({
         <div className="viewer-toolbar-actions">
           {showPreviewToolbarControls ? (
             <>
-              <div className="palette-tweaks-anchor">
+              <div className="artifact-tool-menu-anchor">
                 <button
                   type="button"
-                  className={`viewer-action${selectedPalette || palettePopoverOpen ? ' active' : ''}`}
-                  data-testid="palette-tweaks-toggle"
-                  title="Tweaks"
-                  aria-haspopup="dialog"
-                  aria-expanded={palettePopoverOpen}
+                  className={`viewer-action artifact-tool-menu-trigger${
+                    selectedPalette || palettePopoverOpen || inspectMode || manualEditMode ? ' active' : ''
+                  }`}
+                  aria-haspopup="menu"
+                  aria-expanded={manualToolsOpen}
                   onClick={() => {
-                    fireArtifactToolbarClick('tweaks');
-                    setPalettePopoverOpen((v) => !v);
+                    setManualToolsOpen((v) => !v);
+                    setAgentToolsOpen(false);
+                    setPalettePopoverOpen(false);
                   }}
                 >
-                  <Icon name="tweaks" size={13} />
-                  <span>Tweaks</span>
+                  <span>Manual</span>
+                  <Icon name="chevron-right" size={13} style={{ transform: 'rotate(90deg)' }} />
                   {selectedPalette ? (
                     <span
                       className="palette-tweaks-badge"
@@ -5657,6 +5704,61 @@ function HtmlViewer({
                     />
                   ) : null}
                 </button>
+                {manualToolsOpen ? (
+                  <div className="artifact-tool-menu" role="menu" aria-label="Manual tools">
+                    <button
+                      type="button"
+                      className={`artifact-tool-menu-item${selectedPalette || palettePopoverOpen ? ' active' : ''}`}
+                      data-testid="palette-tweaks-toggle"
+                      title="Palette"
+                      role="menuitem"
+                      aria-haspopup="dialog"
+                      aria-expanded={palettePopoverOpen}
+                      onClick={activatePaletteTool}
+                    >
+                      <Icon name="palette" size={13} />
+                      <span>Palette</span>
+                      {selectedPalette ? (
+                        <span
+                          className="palette-tweaks-badge"
+                          aria-hidden
+                          style={{
+                            backgroundColor:
+                              selectedPalette === 'coral' ? '#ff5a3c' :
+                              selectedPalette === 'electric' ? '#7c3aed' :
+                              selectedPalette === 'acid-forest' ? '#16a34a' :
+                              selectedPalette === 'risograph' ? '#e11d48' :
+                              '#0a0a0a',
+                          }}
+                        />
+                      ) : null}
+                    </button>
+                    <button
+                      className={`artifact-tool-menu-item${inspectMode ? ' active' : ''}`}
+                      type="button"
+                      data-testid="inspect-mode-toggle"
+                      title="Inspect style"
+                      role="menuitem"
+                      aria-pressed={inspectMode}
+                      onClick={activateInspectTool}
+                    >
+                      <Icon name="tweaks" size={13} />
+                      <span>Inspect style</span>
+                    </button>
+                    <button
+                      className={`artifact-tool-menu-item${manualEditMode ? ' active' : ''}`}
+                      type="button"
+                      data-testid="manual-edit-mode-toggle"
+                      title="Edit content"
+                      role="menuitem"
+                      aria-pressed={manualEditMode}
+                      onClick={activateManualEditTool}
+                    >
+                      <Icon name="edit" size={13} />
+                      <span>Edit content</span>
+                    </button>
+                  </div>
+                ) : null}
                 <PaletteTweaks
                   open={palettePopoverOpen}
                   selected={selectedPalette}
@@ -5687,74 +5789,65 @@ function HtmlViewer({
                   onClose={() => setPalettePopoverOpen(false)}
                 />
               </div>
-              <button
-                className={`viewer-action${drawOverlayOpen ? ' active' : ''}`}
-                type="button"
-                data-testid="draw-overlay-toggle"
-                title={t('fileViewer.draw')}
-                aria-pressed={drawOverlayOpen}
-                onClick={() => {
-                  fireArtifactToolbarClick('draw');
-                  const next = !drawOverlayOpen;
-                  if (!next) {
-                    setDrawOverlayOpen(false);
-                    return;
-                  }
-                  const activateDraw = () => {
-                    setBoardMode(false);
-                    clearBoardComposer();
-                    setInspectMode(false);
-                    setDrawOverlayMode('draw');
-                    setMode('preview');
-                    setDrawOverlayOpen(true);
-                  };
-                  if (manualEditMode) {
-                    void exitManualEditModeAfterFlush().then((ok) => {
-                      if (ok) activateDraw();
-                    });
-                    return;
-                  }
-                  activateDraw();
-                }}
-              >
-                <Icon name="draw" size={13} />
-                <span>{t('fileViewer.draw')}</span>
-              </button>
+              <div className="artifact-tool-menu-anchor">
+                <button
+                  type="button"
+                  className={`viewer-action artifact-tool-menu-trigger${boardMode || drawOverlayOpen ? ' active' : ''}`}
+                  aria-haspopup="menu"
+                  aria-expanded={agentToolsOpen}
+                  onClick={() => {
+                    setAgentToolsOpen((v) => !v);
+                    setManualToolsOpen(false);
+                    setPalettePopoverOpen(false);
+                  }}
+                >
+                  <span>Ask agent</span>
+                  <Icon name="chevron-right" size={13} style={{ transform: 'rotate(90deg)' }} />
+                </button>
+                {agentToolsOpen ? (
+                  <div className="artifact-tool-menu" role="menu" aria-label="Ask agent tools">
+                    <button
+                      type="button"
+                      className={`artifact-tool-menu-item${boardMode ? ' active' : ''}`}
+                      data-testid="board-mode-toggle"
+                      title={t('fileViewer.comment')}
+                      role="menuitem"
+                      aria-pressed={boardMode}
+                      onClick={activateCommentTool}
+                    >
+                      <Icon name="comment" size={13} />
+                      <span>{t('fileViewer.comment')}</span>
+                    </button>
+                    <button
+                      className={`artifact-tool-menu-item${drawOverlayOpen ? ' active' : ''}`}
+                      type="button"
+                      data-testid="draw-overlay-toggle"
+                      title="Draw note"
+                      role="menuitem"
+                      aria-pressed={drawOverlayOpen}
+                      onClick={activateDrawTool}
+                    >
+                      <Icon name="draw" size={13} />
+                      <span>Draw note</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </>
           ) : null}
-          <button
-            type="button"
-            className={`viewer-action viewer-comment-toggle${boardMode ? ' active' : ''}`}
-            data-testid="board-mode-toggle"
-            title={t('fileViewer.comment')}
-            aria-pressed={boardMode}
-            onClick={() => {
-              fireArtifactToolbarClick('comment');
-              capturePreviewScrollPosition();
-              if (boardMode) {
-                setBoardMode(false);
-                clearBoardComposer();
-                return;
-              }
-              const activateComment = () => {
-                clearBoardComposer();
-                setInspectMode(false);
-                setDrawOverlayOpen(false);
-                setMode('preview');
-                activateBoard(boardTool);
-              };
-              if (manualEditMode) {
-                void exitManualEditModeAfterFlush().then((ok) => {
-                  if (ok) activateComment();
-                });
-                return;
-              }
-              activateComment();
-            }}
-          >
-            <Icon name="comment" size={13} />
-            <span>{t('fileViewer.comment')}</span>
-          </button>
+          {!showPreviewToolbarControls ? (
+            <button
+              type="button"
+              className={`viewer-action viewer-comment-toggle${boardMode ? ' active' : ''}`}
+              data-testid="board-mode-toggle"
+              title={t('fileViewer.comment')}
+              aria-pressed={boardMode}
+              onClick={activateCommentTool}
+            >
+              <Icon name="comment" size={13} />
+              <span>{t('fileViewer.comment')}</span>
+            </button>
+          ) : null}
           {boardMode ? (
             <>
               <button
@@ -5785,56 +5878,6 @@ function HtmlViewer({
               </button>
             </>
           ) : null}
-          <button
-            className={`viewer-action${inspectMode ? ' active' : ''}`}
-            type="button"
-            data-testid="inspect-mode-toggle"
-            title="Inspect"
-            aria-pressed={inspectMode}
-            onClick={() => {
-              fireArtifactToolbarClick('inspect');
-              setInspectMode((v) => {
-                const next = !v;
-                if (next) {
-                  setBoardMode(false);
-                  clearBoardComposer();
-                  setManualEditMode(false);
-                  setDrawOverlayOpen(false);
-                  setOpenHintBox(true);
-                  setMode('preview');
-                }
-                return next;
-              });
-            }}
-          >
-            <Icon name="tweaks" size={13} />
-            <span>Inspect</span>
-          </button>
-          <button
-            className={`viewer-action${manualEditMode ? ' active' : ''}`}
-            type="button"
-            data-testid="manual-edit-mode-toggle"
-            title={t('fileViewer.edit')}
-            aria-pressed={manualEditMode}
-            onClick={() => {
-              fireArtifactToolbarClick('edit');
-              capturePreviewScrollPosition();
-              if (!manualEditMode) {
-                setBoardMode(false);
-                clearBoardComposer();
-                setInspectMode(false);
-                setDrawOverlayOpen(false);
-                setMode('preview');
-                setManualEditViewportWidth(previewBodyRef.current?.clientWidth ?? null);
-                setManualEditMode(true);
-                return;
-              }
-              void exitManualEditModeAfterFlush();
-            }}
-          >
-            <Icon name="edit" size={13} />
-            <span>{t('fileViewer.edit')}</span>
-          </button>
         </div>
       </div>
       {((filePrimaryActions: ReactNode) => (
@@ -6427,6 +6470,44 @@ function HtmlViewer({
         ) : (
           <pre className="viewer-source">{source}</pre>
         )}
+        {source !== null && mode === 'preview' ? (
+          <div className="zoom-menu viewer-floating-zoom" ref={zoomMenuRef}>
+            <button
+              type="button"
+              className="viewer-action zoom-trigger"
+              aria-haspopup="menu"
+              aria-expanded={zoomMenuOpen}
+              onClick={() => {
+                fireArtifactToolbarClick('zoom_level_dropdown');
+                setZoomMenuOpen((v) => !v);
+              }}
+            >
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{zoom}%</span>
+              <Icon name="chevron-down" size={11} />
+            </button>
+            {zoomMenuOpen ? (
+              <div className="zoom-menu-popover" role="menu">
+                {[50, 75, 100, 125, 150, 200].map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    className={`zoom-menu-item${zoom === level ? ' active' : ''}`}
+                    role="menuitem"
+                    onClick={() => {
+                      setZoom(level);
+                      setZoomMenuOpen(false);
+                    }}
+                  >
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{level}%</span>
+                    {zoom === level ? (
+                      <Icon name="check" size={13} />
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       {inTabPresent && source ? (
         <div

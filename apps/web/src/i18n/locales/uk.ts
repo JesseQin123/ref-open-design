@@ -777,6 +777,8 @@ export const uk: Dict = {
     '⌘/Ctrl + Enter для надіслання · вставляння зображень · @ для файлів або навичок · / для команд',
   'chat.cliSettingsTitle': 'Налаштування CLI та моделі',
   'chat.cliSettingsAria': 'Відкрити налаштування CLI та моделі',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Прикріпити файли (або вставити / перенести)',
   'chat.attachAria': 'Прикріпити файли',
   'chat.importTitle': 'Імпортувати джерела (скоро)',

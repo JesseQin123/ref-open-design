@@ -777,6 +777,8 @@ export const fa: Dict = {
     '⌘/Ctrl + Enter برای ارسال · چسباندن تصاویر · @ برای فایل‌ها یا مهارت‌ها · / برای دستورها',
   'chat.cliSettingsTitle': 'تنظیمات CLI و مدل',
   'chat.cliSettingsAria': 'باز کردن تنظیمات CLI و مدل',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'ضمیمه کردن فایل‌ها (یا چسباندن / رها کردن)',
   'chat.attachAria': 'ضمیمه کردن فایل‌ها',
   'chat.importTitle': 'وارد کردن منابع (به زودی)',

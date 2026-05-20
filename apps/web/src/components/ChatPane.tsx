@@ -280,7 +280,6 @@ interface Props {
   onTogglePet?: () => void;
   onOpenPetSettings?: () => void;
   projectMetadata?: ProjectMetadata;
-  onProjectMetadataChange?: (metadata: ProjectMetadata) => void;
   currentSkillId?: string | null;
   onProjectSkillChange?: (skillId: string | null) => void;
   researchAvailable?: boolean;
@@ -341,7 +340,6 @@ export function ChatPane({
   onTogglePet,
   onOpenPetSettings,
   projectMetadata,
-  onProjectMetadataChange,
   currentSkillId = null,
   onProjectSkillChange,
   researchAvailable,
@@ -787,7 +785,10 @@ export function ChatPane({
                 onCollapse();
               }}
             >
-              <Icon name="chevron-left" size={15} />
+              <span className="chat-collapse-glyph" aria-hidden>
+                <Icon name="chevron-left" size={13} />
+                <Icon name="chevron-left" size={13} />
+              </span>
             </button>
           ) : null}
         </div>
@@ -944,8 +945,6 @@ export function ChatPane({
             onTogglePet={onTogglePet}
             onOpenPetSettings={onOpenPetSettings}
             researchAvailable={researchAvailable}
-            projectMetadata={projectMetadata}
-            onProjectMetadataChange={onProjectMetadataChange}
             byokApiProtocol={byokApiProtocol}
             byokImageModel={byokImageModel}
             onChangeByokImageModel={onChangeByokImageModel}

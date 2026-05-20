@@ -642,6 +642,8 @@ export const ja: Dict = {
     '⌘/Ctrl + Enter で送信 · 画像を貼り付け · @ でファイル/スキルを参照 · / でコマンド',
   'chat.cliSettingsTitle': 'CLI とモデルの設定',
   'chat.cliSettingsAria': 'CLI とモデルの設定を開く',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'ファイルを添付（または貼り付け / ドロップ）',
   'chat.attachAria': 'ファイルを添付',
   'chat.importTitle': 'ソースをインポート（近日公開）',

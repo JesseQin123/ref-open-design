@@ -29,6 +29,7 @@ import {
   fetchDesignTemplate,
   fetchProjectDesignSystemPackageAudit,
   fetchLiveArtifacts,
+  openFolderDialog,
   fetchProjectFiles,
   fetchSkill,
   patchPreviewCommentStatus,
@@ -3023,6 +3024,30 @@ export function ProjectView({
     [project, onProjectChange],
   );
 
+  const linkedDirs = project.metadata?.linkedDirs ?? [];
+
+  const handleLinkFolder = useCallback(async () => {
+    const selected = await openFolderDialog();
+    if (!selected) return;
+    const base = project.metadata ?? { kind: 'prototype' as const };
+    const existing = base.linkedDirs ?? [];
+    if (existing.includes(selected)) return;
+    const metadata: ProjectMetadata = { ...base, linkedDirs: [...existing, selected] };
+    const result = await patchProject(project.id, { metadata });
+    onProjectChange(result ?? { ...project, metadata });
+  }, [project, onProjectChange]);
+
+  const handleUnlinkFolder = useCallback(async (dir: string) => {
+    const base = project.metadata ?? { kind: 'prototype' as const };
+    const existing = base.linkedDirs ?? [];
+    const metadata: ProjectMetadata = {
+      ...base,
+      linkedDirs: existing.filter((d) => d !== dir),
+    };
+    const result = await patchProject(project.id, { metadata });
+    onProjectChange(result ?? { ...project, metadata });
+  }, [project, onProjectChange]);
+
   const handleSaveInstructions = useCallback(async () => {
     const value = instructionsDraft.trim() || undefined;
     // After a save, land on the review panel so the saved value is read
@@ -3562,34 +3587,68 @@ export function ProjectView({
             >
               {project.name}
             </span>
-            <span className="meta" data-testid="project-meta">{projectMeta}</span>
-            {(project.customInstructions ?? '').trim() ? (
-              <button
-                type="button"
-                className={`project-instructions-chip${instructionsMode !== 'closed' ? ' is-open' : ''}`}
-                data-testid="project-instructions-chip"
-                title={t('project.customInstructions')}
-                aria-expanded={instructionsMode !== 'closed'}
-                onClick={() => setInstructionsMode((m) => (m === 'closed' ? 'review' : 'closed'))}
-              >
-                <Icon name="file" size={11} />
-                <span>{t('project.customInstructions')}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="project-instructions-toggle"
-                data-testid="project-instructions-add"
-                title={t('project.customInstructions')}
-                aria-expanded={instructionsMode !== 'closed'}
-                onClick={() => {
-                  setInstructionsDraft('');
-                  setInstructionsMode((m) => (m === 'closed' ? 'edit' : 'closed'));
-                }}
-              >
-                <Icon name="edit" size={13} />
-              </button>
-            )}
+            {projectMeta !== t('project.metaFreeform') ? (
+              <span className="meta" data-testid="project-meta">{projectMeta}</span>
+            ) : null}
+            {(() => {
+              const hasProjectInstructions = (project.customInstructions ?? '').trim().length > 0;
+              return (
+                <button
+                  type="button"
+                  className={`project-instructions-chip${instructionsMode !== 'closed' ? ' is-open' : ''}`}
+                  data-testid={hasProjectInstructions ? 'project-instructions-chip' : 'project-instructions-add'}
+                  title={t('project.customInstructions')}
+                  aria-expanded={instructionsMode !== 'closed'}
+                  onClick={() => {
+                    if (hasProjectInstructions) {
+                      setInstructionsMode((m) => (m === 'closed' ? 'review' : 'closed'));
+                      return;
+                    }
+                    setInstructionsDraft('');
+                    setInstructionsMode((m) => (m === 'closed' ? 'edit' : 'closed'));
+                  }}
+                >
+                  <Icon name={hasProjectInstructions ? 'file' : 'plus'} size={11} />
+                  <span>{t('project.customInstructions')}</span>
+                </button>
+              );
+            })()}
+            <button
+              type="button"
+              className="project-link-folder-chip"
+              data-testid="project-link-folder"
+              title={t('chat.importFolder')}
+              aria-label={t('chat.importFolder')}
+              onClick={() => {
+                void handleLinkFolder();
+              }}
+            >
+              <Icon name="plus" size={11} />
+              <span>{t('chat.importFolder')}</span>
+            </button>
+            {linkedDirs.length > 0 ? (
+              <span className="project-linked-dirs" data-testid="project-linked-dirs">
+                {linkedDirs.map((dir) => (
+                  <span key={dir} className="linked-dir-chip">
+                    <Icon name="folder" size={13} />
+                    <span className="linked-dir-name" title={dir}>
+                      {dir.split('/').pop() || dir}
+                    </span>
+                    <button
+                      type="button"
+                      className="staged-remove"
+                      onClick={() => {
+                        void handleUnlinkFolder(dir);
+                      }}
+                      title={t('chat.linkedFolderRemoveAria', { path: dir })}
+                      aria-label={t('chat.linkedFolderRemoveAria', { path: dir })}
+                    >
+                      <Icon name="close" size={11} />
+                    </button>
+                  </span>
+                ))}
+              </span>
+            ) : null}
           </span>
         </div>
       </AppChromeHeader>
@@ -3723,9 +3782,6 @@ export function ProjectView({
               byokImageModel={byokImageModelOverride}
               onChangeByokImageModel={setByokImageModelOverride}
               projectMetadata={project.metadata}
-              onProjectMetadataChange={(metadata) => {
-                onProjectChange({ ...project, metadata });
-              }}
               currentSkillId={project.skillId}
               onProjectSkillChange={(skillId) => {
                 onProjectChange({ ...project, skillId });

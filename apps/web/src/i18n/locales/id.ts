@@ -867,6 +867,8 @@ export const id: Dict = {
     '⌘/Ctrl + Enter untuk kirim · tempel gambar · @ untuk file atau skill · / untuk perintah',
   'chat.cliSettingsTitle': 'Pengaturan CLI',
   'chat.cliSettingsAria': 'Buka pengaturan CLI',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Lampirkan',
   'chat.attachAria': 'Lampirkan file atau konteks',
   'chat.importTitle': 'Impor',

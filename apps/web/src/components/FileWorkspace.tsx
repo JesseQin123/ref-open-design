@@ -791,6 +791,10 @@ export function FileWorkspace({
     }
     return [...persistedTabs, ...extras];
   }, [persistedTabs, sketches]);
+  const hideSingleFileTab =
+    tabNames.length === 1 &&
+    activeTab === tabNames[0] &&
+    !designSystemProject;
 
   const isActiveSketch = activeFile?.kind === 'sketch' && isSketchName(activeFile.name);
   const activeSketch = activeFile && isActiveSketch ? sketches[activeFile.name] : null;
@@ -864,6 +868,7 @@ export function FileWorkspace({
             <span className="ws-tab-label">{t('workspace.designFiles')}</span>
           </button>
           {tabNames.map((name) => {
+            if (hideSingleFileTab) return null;
             const sketchEntry = sketches[name];
             const dirtyMark =
               sketchEntry && (sketchEntry.dirty || !sketchEntry.persisted) ? ' •' : '';

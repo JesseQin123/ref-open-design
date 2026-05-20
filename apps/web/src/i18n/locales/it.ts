@@ -673,6 +673,8 @@ export const it: Dict = {
     '⌘/Ctrl + Invio per inviare · incolla immagini · @ per file o skill · / per i comandi',
   'chat.cliSettingsTitle': 'Impostazioni CLI e modello',
   'chat.cliSettingsAria': 'Apri impostazioni CLI e modello',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Allega file (o incolla / trascina)',
   'chat.attachAria': 'Allega file',
   'chat.importTitle': 'Importa fonti (presto disponibile)',

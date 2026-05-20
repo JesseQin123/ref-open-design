@@ -643,6 +643,8 @@ export const de: Dict = {
     '⌘/Ctrl + Enter zum Senden · Bilder einfügen · @ für Dateien oder Skills · / für Befehle',
   'chat.cliSettingsTitle': 'CLI- & Modelleinstellungen',
   'chat.cliSettingsAria': 'CLI- und Modelleinstellungen öffnen',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Dateien anhängen (oder einfügen / ablegen)',
   'chat.attachAria': 'Dateien anhängen',
   'chat.importTitle': 'Quellen importieren (demnächst)',

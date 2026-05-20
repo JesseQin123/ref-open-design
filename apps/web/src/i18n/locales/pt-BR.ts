@@ -776,6 +776,8 @@ export const ptBR: Dict = {
     '⌘/Ctrl + Enter para enviar · cole imagens · @ para arquivos ou skills · / para comandos',
   'chat.cliSettingsTitle': 'Configurações de CLI e modelo',
   'chat.cliSettingsAria': 'Abrir configurações de CLI e modelo',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Anexar arquivos (ou colar / arrastar)',
   'chat.attachAria': 'Anexar arquivos',
   'chat.importTitle': 'Importar fontes (em breve)',

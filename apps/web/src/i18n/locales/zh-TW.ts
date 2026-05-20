@@ -830,6 +830,8 @@ export const zhTW: Dict = {
   'chat.composerHint': '⌘/Ctrl + Enter 傳送 · 可貼上圖片 · @ 引用檔案或技能 · / 叫出指令',
   'chat.cliSettingsTitle': 'CLI 與模型設定',
   'chat.cliSettingsAria': '開啟 CLI 與模型設定',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': '附加檔案（也可以貼上/拖入）',
   'chat.attachAria': '附加檔案',
   'chat.importTitle': '匯入素材（即將上線）',

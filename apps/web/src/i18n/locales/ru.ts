@@ -776,6 +776,8 @@ export const ru: Dict = {
     '⌘/Ctrl + Enter для отправки · вставьте изображения · @ для файлов и навыков · / для команд',
   'chat.cliSettingsTitle': 'Настройки CLI и модели',
   'chat.cliSettingsAria': 'Открыть настройки CLI и модели',
+  'chat.addResourcesTitle': 'Add resources',
+  'chat.addResourcesAria': 'Add resources to the chat',
   'chat.attachTitle': 'Прикрепить файлы (или вставить / перетащить)',
   'chat.attachAria': 'Прикрепить файлы',
   'chat.importTitle': 'Импортировать источники (скоро)',

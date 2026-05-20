@@ -83,14 +83,19 @@ export function AvatarMenu({
     <div className="avatar-menu" ref={wrapRef}>
       <button
         type="button"
-        className="settings-icon-btn"
+        className="avatar-agent-trigger"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
         title={t('avatar.title')}
         aria-label={t('avatar.title')}
       >
-        <Icon name="settings" size={17} />
+        {currentAgent ? (
+          <AgentIcon id={currentAgent.id} size={18} />
+        ) : (
+          <Icon name="link" size={16} />
+        )}
+        <Icon name="chevron-down" size={10} />
       </button>
       {open ? (
         <div className="avatar-popover" role="menu">

@@ -1071,6 +1071,35 @@ code {
 }
 .zoom-menu-item:hover { background: var(--bg-subtle); }
 .zoom-menu-item.active { color: var(--accent-strong); font-weight: 600; }
+.viewer-floating-zoom {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 45;
+}
+.viewer-floating-zoom .zoom-trigger {
+  min-width: 66px;
+  justify-content: space-between;
+  padding: 5px 8px 5px 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(10px);
+}
+.viewer-floating-zoom .zoom-trigger:hover:not(:disabled),
+.viewer-floating-zoom .zoom-trigger[aria-expanded='true'] {
+  border-color: var(--border-strong);
+  background: var(--bg-panel);
+}
+.viewer-floating-zoom .zoom-menu-popover {
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: auto;
+  right: 0;
+  transform: none;
+  background: var(--bg-panel);
+}
 @media (max-width: 880px) {
   .chrome-action-secondary span { display: none; }
   .chrome-action-secondary { padding: 0 10px; }
@@ -1301,6 +1330,45 @@ code {
   color: var(--text);
   border-color: var(--accent, #646cff);
 }
+.project-link-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.project-link-folder-chip:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+.project-link-folder-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-linked-dirs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+.project-linked-dirs .linked-dir-chip {
+  padding: 2px 6px;
+  font-size: 11px;
+  max-width: 160px;
+  flex: 0 1 auto;
+}
 .project-instructions-bar-head {
   display: flex;
   align-items: center;
@@ -1401,6 +1469,28 @@ code {
 
 /* -------- Avatar menu (replaces in-topbar agent picker) ------------- */
 .avatar-menu { position: relative; }
+.avatar-agent-trigger {
+  min-width: 34px;
+  height: 32px;
+  padding: 0 7px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.avatar-agent-trigger:hover:not(:disabled),
+.avatar-agent-trigger[aria-expanded='true'] {
+  background: var(--bg-subtle);
+  border-color: var(--border);
+  color: var(--text);
+}
+.avatar-agent-trigger .agent-icon {
+  flex: 0 0 auto;
+}
 .avatar-btn {
   width: 32px;
   height: 32px;
@@ -1687,6 +1777,16 @@ a.avatar-item:visited {
   justify-content: center;
 }
 .chat-header-actions .icon-only:hover { background: var(--bg-subtle); color: var(--text); }
+.chat-collapse-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  line-height: 0;
+}
+.chat-collapse-glyph svg + svg {
+  margin-left: -8px;
+}
 
 .chat-log {
   flex: 1;
@@ -2285,11 +2385,6 @@ a.avatar-item:visited {
 }
 .staged-remove:hover { color: var(--red); background: var(--red-bg); }
 
-.linked-dirs-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
 .linked-dir-chip {
   display: inline-flex;
   align-items: center;
@@ -10917,6 +11012,36 @@ button.connector-action.is-loading {
 .viewer-toggle.on .switch::after,
 .viewer-toggle.active .switch::after { transform: translateX(12px); }
 .viewer-tabs { display: inline-flex; gap: 2px; }
+.viewer-mode-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 28px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+.viewer-mode-segment {
+  min-height: 22px;
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.viewer-mode-segment:hover:not(:disabled) {
+  color: var(--text);
+}
+.viewer-mode-segment.active {
+  background: var(--bg-panel);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
 .viewer-mode-menu {
   position: relative;
   display: inline-flex;
@@ -15939,50 +16064,6 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
   z-index: 30;
   animation: pop-in 180ms cubic-bezier(0.21, 1.02, 0.73, 1);
 }
-.composer-import-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: not-allowed;
-  font-size: 12.5px;
-  text-align: left;
-  width: 100%;
-}
-.composer-import-item:hover {
-  background: var(--bg-subtle);
-  color: var(--text);
-}
-.composer-import-item-enabled {
-  cursor: pointer;
-  color: var(--text);
-}
-.composer-import-item-enabled:hover {
-  background: var(--bg-subtle);
-  color: var(--text);
-}
-.composer-import-item-label { flex: 1; }
-.composer-import-item-soon {
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: 2px 6px;
-}
-.composer-import-item .ico {
-  display: inline-flex;
-  width: 16px;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-}
 
 /* ============================================================
    Chat header: conversation history dropdown
@@ -18296,8 +18377,8 @@ body.desktop-pet-shell .pet-task-item {
 /* ============================================================
    Composer — consolidated Tools popover
    ------------------------------------------------------------
-   The leading @ glyph now opens a single tabbed popover
-   containing MCP / Import / Pet quick actions plus a shortcut
+   The leading + button opens a single tabbed popover
+   containing project context tools plus a shortcut
    to the full Settings dialog. Replaces three standalone row
    buttons that were overflowing in narrow chats.
    ============================================================ */
@@ -18308,7 +18389,7 @@ body.desktop-pet-shell .pet-task-item {
 .composer-tools-trigger {
   position: relative;
 }
-.composer-tools-at {
+.composer-tools-add {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -18320,7 +18401,6 @@ body.desktop-pet-shell .pet-task-item {
   line-height: 1;
   letter-spacing: 0;
   color: currentColor;
-  transform: translateY(-0.5px);
 }
 .composer-tools-trigger.active {
   background: var(--bg-subtle);
@@ -18399,52 +18479,14 @@ body.desktop-pet-shell .pet-task-item {
 }
 .composer-tools-filter {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 6px;
   padding: 2px 2px 6px;
 }
-.composer-tools-segments {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
-}
-.composer-tools-segment {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 5px 8px;
-  border: 1px solid transparent;
-  border-radius: calc(var(--radius-sm) - 1px);
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 11.5px;
-  cursor: pointer;
-  min-width: 0;
-}
-.composer-tools-segment:hover {
-  color: var(--text);
-  border-color: var(--border);
-}
-.composer-tools-segment.active {
-  background: var(--bg-panel);
-  color: var(--text);
-  border-color: var(--border);
-  font-weight: 600;
-  box-shadow: var(--shadow-xs);
-}
-.composer-tools-segment {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .composer-tools-search {
-  width: 100%;
+  flex: 1 1 0;
+  min-width: 0;
   height: 30px;
   padding: 0 9px;
   border: 1px solid var(--border);
@@ -18456,6 +18498,48 @@ body.desktop-pet-shell .pet-task-item {
 .composer-tools-search:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.composer-tools-source-select {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+.composer-tools-source-select select {
+  height: 30px;
+  max-width: 104px;
+  padding: 0 24px 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-tools-source-select::after {
+  content: "";
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--text-muted);
+  pointer-events: none;
+  transform: translateY(-65%) rotate(45deg);
+}
+.composer-tools-source-select select:hover,
+.composer-tools-source-select select:focus {
+  color: var(--text);
+  border-color: var(--border-strong);
 }
 .composer-tools-empty {
   padding: 14px 10px;
@@ -18560,12 +18644,14 @@ body.desktop-pet-shell .pet-task-item {
   align-items: center;
   justify-content: center;
   width: 28px;
+  align-self: stretch;
   padding: 0;
   background: transparent;
   border: none;
+  border-left: 1px solid var(--border-subtle);
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 0 4px 4px 0;
 }
 .composer-tools-row-side:hover {
   color: var(--text);
@@ -18588,70 +18674,6 @@ body.desktop-pet-shell .pet-task-item {
   background: var(--bg-subtle);
   border-color: var(--border);
 }
-.composer-tools-pet {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.composer-tools-pet-head {
-  padding: 0 4px 4px;
-}
-.composer-tools-pet-head .hint {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.composer-tools-pet-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding: 0 2px;
-}
-.composer-tools-pet-item {
-  --pet-accent: var(--accent);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 2px;
-  background: transparent;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  font-size: 10.5px;
-  cursor: pointer;
-}
-.composer-tools-pet-item:hover {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-.composer-tools-pet-item.active {
-  border-color: var(--pet-accent);
-  background: color-mix(in srgb, var(--pet-accent) 12%, transparent);
-  color: var(--text);
-}
-.composer-tools-pet-item span:first-child {
-  font-size: 18px;
-  line-height: 1;
-}
-.composer-tools-settings {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--border-soft);
-  border-radius: 0;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 12px;
-  text-align: left;
-  width: 100%;
-}
-.composer-tools-settings:hover {
-  background: var(--bg-subtle);
-}
-
 /* ============================================================
    Pet — uploaded image / spritesheet rendering
    ------------------------------------------------------------
@@ -25886,7 +25908,52 @@ body.desktop-pet-shell .pet-task-item {
   border-bottom: 1px solid var(--border);
 }
 
-.palette-tweaks-anchor { position: relative; display: inline-flex; }
+.palette-tweaks-anchor,
+.artifact-tool-menu-anchor { position: relative; display: inline-flex; }
+.artifact-tool-menu-trigger[aria-expanded='true'] {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.artifact-tool-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 59;
+  min-width: 176px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+}
+.artifact-tool-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+.artifact-tool-menu-item:hover {
+  background: var(--bg-subtle);
+}
+.artifact-tool-menu-item.active {
+  background: var(--bg-muted);
+  color: var(--text);
+}
+.artifact-tool-menu-item .palette-tweaks-badge {
+  margin-left: auto;
+}
 .palette-tweaks-badge {
   width: 8px; height: 8px; border-radius: 999px; margin-left: 4px;
   box-shadow: 0 0 0 1px var(--bg-panel);
@@ -25956,6 +26023,8 @@ body.desktop-pet-shell .pet-task-item {
   box-shadow: none;
 }
 .workspace-shell .workspace-tab.is-active {
+  max-width: 240px;
+  flex-basis: 220px;
   background: var(--bg-subtle);
   border-color: var(--border);
 }
@@ -25992,11 +26061,18 @@ body.desktop-pet-shell .pet-task-item {
 }
 .app .app-chrome-back,
 .app .settings-icon-btn,
-.app .avatar-btn,
-.app .project-instructions-toggle {
-  width: 30px;
+.app .avatar-agent-trigger,
+.app .avatar-btn {
   height: 30px;
   border-radius: 8px;
+}
+.app .app-chrome-back,
+.app .settings-icon-btn,
+.app .avatar-btn {
+  width: 30px;
+}
+.app .avatar-agent-trigger {
+  min-width: 36px;
 }
 .app .app-chrome-content {
   gap: 8px;
