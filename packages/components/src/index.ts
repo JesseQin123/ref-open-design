@@ -1,4 +1,4 @@
-export { Button } from './primitives.js';
-export type { ButtonProps, ButtonSize, ButtonVariant } from './primitives.js';
-export { VisuallyHidden } from './primitives.js';
-export type { VisuallyHiddenProps } from './primitives.js';
+export { Button } from './button.js';
+export type { ButtonProps, ButtonSize, ButtonVariant } from './button.js';
+export { VisuallyHidden } from './visually-hidden.js';
+export type { VisuallyHiddenProps } from './visually-hidden.js';

@@ -1,4 +1,8 @@
+import { rmSync } from 'node:fs';
+
 import { build } from 'esbuild';
+
+rmSync('./dist', { force: true, recursive: true });
 
 await build({
   bundle: true,
