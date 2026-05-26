@@ -30,6 +30,8 @@ export type MacPaths = {
   packagedMainPrebundleMetaPath: string;
   packagedMainPrebundlePath: string;
   packagedConfigPath: string;
+  payloadPath: string;
+  payloadStagingRoot: string;
   resourceRoot: string;
   systemApplicationsAppPath: string;
   tarballsRoot: string;
@@ -52,6 +54,7 @@ export type MacPackResult = {
   dmgPath: string | null;
   latestMacYmlPath: string | null;
   outputRoot: string;
+  payloadPath: string | null;
   resourceRoot: string;
   runtimeNamespaceRoot: string;
   sizeReport: MacSizeReport;
@@ -65,7 +68,7 @@ export type MacPackTiming = {
   phase: string;
 };
 
-export type MacStartSource = "built" | "installed" | "system-applications" | "user-applications";
+export type MacStartSource = "built" | "installed" | "launcher-entry" | "launcher-payload" | "system-applications" | "user-applications";
 
 export type MacStartResult = {
   appPath: string;
@@ -159,6 +162,7 @@ export type MacSizeReport = {
   generatedAt: string;
   outputRootBytes: number;
   resourceRootBytes: number;
+  payloadBytes: number | null;
   runtimeNamespaceRoot: string;
   topLevel: {
     appResourcesBytes: number;

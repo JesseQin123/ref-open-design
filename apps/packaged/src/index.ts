@@ -20,6 +20,8 @@ import { app, dialog } from "electron";
 import { readPackagedConfig } from "./config.js";
 import { writePackagedDesktopIdentity } from "./identity.js";
 import { PackagedPathAccessError } from "./errors.js";
+import { ensurePackagedMacLauncherBootstrap } from "./launcher-bootstrap.js";
+import { resolvePackagedLauncherHandoff, spawnPackagedLauncherHandoff } from "./launcher-handoff.js";
 import { resolvePackagedLauncherInstallContext } from "./launcher-install.js";
 import {
   applyPackagedElectronPathOverrides,
@@ -81,6 +83,24 @@ async function main(): Promise<void> {
   const namespace = argvStamp?.namespace ?? config.namespace;
   const paths = resolvePackagedNamespacePaths(config, namespace, process.env);
   const stamp = argvStamp ?? await createPackagedDesktopStamp(namespace);
+  await ensurePackagedMacLauncherBootstrap({
+    appVersion: config.appVersion,
+    currentExecutablePath: process.execPath,
+    env: process.env,
+    namespace,
+    paths,
+  });
+  const launcherHandoff = resolvePackagedLauncherHandoff({
+    argv: process.argv,
+    currentExecutablePath: process.execPath,
+    env: process.env,
+    namespace,
+    paths,
+  });
+  if (launcherHandoff != null) {
+    spawnPackagedLauncherHandoff(launcherHandoff);
+    process.exit(0);
+  }
   const launcherInstall = resolvePackagedLauncherInstallContext(process.execPath, {
     namespace,
     requireInstallRootMarkers: true,

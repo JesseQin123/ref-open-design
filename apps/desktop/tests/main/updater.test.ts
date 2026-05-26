@@ -197,6 +197,69 @@ async function createLauncherPayloadArchive(version: string, body = `launcher pa
   return Buffer.from(`fake launcher payload 7z ${version}\n${body}`, "utf8");
 }
 
+function createMacDmgAndPayloadFetch(): {
+  fetchImpl: ReturnType<typeof vi.fn<typeof fetch>>;
+  requests: string[];
+} {
+  const dmgBody = Buffer.from("mac dmg artifact");
+  const payloadBody = Buffer.from("mac launcher payload artifact");
+  const digests = {
+    dmg: createHash("sha256").update(dmgBody).digest("hex"),
+    payload: createHash("sha256").update(payloadBody).digest("hex"),
+  };
+  const requests: string[] = [];
+  const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+    const url = String(input);
+    requests.push(url);
+    if (url === "https://updates.example.test/metadata.json") {
+      return Response.json({
+        channel: "stable",
+        platforms: {
+          mac: {
+            arch: "arm64",
+            enabled: true,
+            artifacts: {
+              dmg: {
+                name: "open-design-1.0.1-mac-arm64.dmg",
+                sha256Url: "https://updates.example.test/dmg.sha256",
+                size: dmgBody.byteLength,
+                url: "https://updates.example.test/app.dmg",
+              },
+              payload: {
+                name: "open-design-1.0.1-mac-arm64-payload.zip",
+                sha256Url: "https://updates.example.test/payload.sha256",
+                size: payloadBody.byteLength,
+                url: "https://updates.example.test/payload.zip",
+              },
+            },
+          },
+        },
+        releaseVersion: "1.0.1",
+        stableVersion: "1.0.1",
+        version: 1,
+      });
+    }
+    if (url === "https://updates.example.test/dmg.sha256") {
+      return new Response(`${digests.dmg}  open-design-1.0.1-mac-arm64.dmg\n`);
+    }
+    if (url === "https://updates.example.test/payload.sha256") {
+      return new Response(`${digests.payload}  open-design-1.0.1-mac-arm64-payload.zip\n`);
+    }
+    if (url === "https://updates.example.test/app.dmg") {
+      return new Response(dmgBody, {
+        headers: { "content-length": String(dmgBody.byteLength) },
+      });
+    }
+    if (url === "https://updates.example.test/payload.zip") {
+      return new Response(payloadBody, {
+        headers: { "content-length": String(payloadBody.byteLength) },
+      });
+    }
+    return new Response("not found", { status: 404 });
+  });
+  return { fetchImpl, requests };
+}
+
 async function writeLauncherConfigFile(installRoot: string): Promise<void> {
   await writeFile(join(installRoot, "launcher.json"), JSON.stringify({
     attemptPath: "state/attempt.json",
@@ -300,6 +363,67 @@ describe("desktop updater", () => {
       expect(installed.installResult?.path).toBe(checked.downloadPath);
     } finally {
       await fixture.close();
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps using the mac DMG when launcher context is not available", async () => {
+    const root = makeRoot();
+    const { fetchImpl, requests } = createMacDmgAndPayloadFetch();
+    try {
+      const updater = createDesktopUpdater({
+        arch: "arm64",
+        downloadRoot: root,
+        env: updaterEnv("https://updates.example.test/metadata.json"),
+        source: SIDECAR_SOURCES.TOOLS_PACK,
+      }, { fetch: fetchImpl });
+
+      const checked = await updater.checkForUpdates();
+
+      expect(checked.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
+      expect(checked.artifact?.platformKey).toBe("mac");
+      expect(checked.artifact?.type).toBe("dmg");
+      expect(checked.capabilities.canApplyInPlace).toBe(false);
+      expect(checked.capabilities.canOpenInstaller).toBe(true);
+      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("mac dmg artifact");
+      expect(requests).toContain("https://updates.example.test/app.dmg");
+      expect(requests).not.toContain("https://updates.example.test/payload.zip");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it("prefers a mac launcher payload when launcher context is available", async () => {
+    const root = makeRoot();
+    const installRoot = join(root, "launcher");
+    const { fetchImpl, requests } = createMacDmgAndPayloadFetch();
+    try {
+      const updater = createDesktopUpdater({
+        arch: "arm64",
+        downloadRoot: join(root, "updates"),
+        env: updaterEnv("https://updates.example.test/metadata.json"),
+        launcherCleanupMarkerPath: join(installRoot, "state", "cleanup.json"),
+        launcherConfigPath: join(installRoot, "launcher.json"),
+        launcherInstallMetadataPath: join(installRoot, "install.json"),
+        launcherInstallRoot: installRoot,
+        launcherLockPath: join(installRoot, "state", "lock"),
+        launcherRuntimeConfigPath: join(installRoot, "runtime.json"),
+        namespace: "release-beta",
+        source: SIDECAR_SOURCES.PACKAGED,
+      }, { fetch: fetchImpl });
+
+      const checked = await updater.checkForUpdates();
+
+      expect(checked.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
+      expect(checked.artifact?.platformKey).toBe("mac");
+      expect(checked.artifact?.type).toBe("payload");
+      expect(checked.capabilities.canApplyInPlace).toBe(true);
+      expect(checked.capabilities.canOpenInstaller).toBe(false);
+      expect(checked.capabilities.requiresManualInstall).toBe(false);
+      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("mac launcher payload artifact");
+      expect(requests).toContain("https://updates.example.test/payload.zip");
+      expect(requests).not.toContain("https://updates.example.test/app.dmg");
+    } finally {
       rmSync(root, { force: true, recursive: true });
     }
   });
@@ -466,9 +590,11 @@ describe("desktop updater", () => {
     const launcherPayloadExtractor = vi.fn(async (input: {
       archivePath: string;
       destinationRoot: string;
-      sevenZipPath: string;
+      platform: string;
+      sevenZipPath?: string;
     }) => {
       expect(input.archivePath).toEqual(expect.stringMatching(/payload\.7z$/));
+      expect(input.platform).toBe("win32");
       expect(input.sevenZipPath).toBe(sevenZipPath);
       expect((process as ProcessWithNoAsar).noAsar).toBe(true);
       await mkdir(join(input.destinationRoot, "payload"), { recursive: true });
@@ -645,8 +771,10 @@ describe("desktop updater", () => {
     const logger = { error: vi.fn(), warn: vi.fn() };
     const launcherPayloadExtractor = vi.fn(async (input: {
       destinationRoot: string;
-      sevenZipPath: string;
+      platform: string;
+      sevenZipPath?: string;
     }) => {
+      expect(input.platform).toBe("win32");
       expect(input.sevenZipPath).toBe(sevenZipPath);
       await mkdir(join(input.destinationRoot, "payload"), { recursive: true });
       await mkdir(join(input.destinationRoot, "launcher"), { recursive: true });
@@ -889,8 +1017,10 @@ describe("desktop updater", () => {
     });
     const launcherPayloadExtractor = vi.fn(async (input: {
       destinationRoot: string;
-      sevenZipPath: string;
+      platform: string;
+      sevenZipPath?: string;
     }) => {
+      expect(input.platform).toBe("win32");
       expect(input.sevenZipPath).toBe(sevenZipPath);
       await mkdir(join(input.destinationRoot, "payload"), { recursive: true });
       await writeFile(join(input.destinationRoot, "payload", "Open Design.exe"), "new launcher payload", "utf8");
@@ -1058,6 +1188,82 @@ describe("desktop updater", () => {
       });
       expect(existsSync(attemptMarkerPath)).toBe(false);
       expect(existsSync(join(installRoot, "state", "lock"))).toBe(false);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it("confirms a launched mac app payload ready before marking the old version for cleanup", async () => {
+    const root = makeRoot();
+    const installRoot = join(root, "launcher");
+    const runtimePath = join(installRoot, "runtime.json");
+    const cleanupMarkerPath = join(installRoot, "state", "cleanup.json");
+    const macEntry = {
+      args: [],
+      cwd: "payload/Open Design.app",
+      env: {},
+      executable: "payload/Open Design.app/Contents/MacOS/Open Design",
+    };
+    try {
+      await mkdir(join(installRoot, "versions", "1.0.0", "payload", "Open Design.app"), { recursive: true });
+      await mkdir(join(installRoot, "versions", "1.0.1", "payload", "Open Design.app"), { recursive: true });
+      await writeFile(runtimePath, JSON.stringify({
+        active: {
+          apps: {},
+          entry: macEntry,
+          root: "versions/1.0.1",
+          version: "1.0.1",
+        },
+        generation: 1,
+        lastSuccessful: {
+          apps: {},
+          entry: macEntry,
+          root: "versions/1.0.0",
+          version: "1.0.0",
+        },
+        namespace: "maclh",
+        namespaceRoot: ".",
+        schemaVersion: 1,
+      }), "utf8");
+
+      const updater = createDesktopUpdater({
+        appVersion: "1.0.1",
+        arch: "arm64",
+        currentVersion: "1.0.0",
+        downloadRoot: join(root, "updates"),
+        env: {
+          [DESKTOP_UPDATE_ENV.CURRENT_VERSION]: "1.0.0",
+          [DESKTOP_UPDATE_ENV.ENABLED]: "1",
+          [DESKTOP_UPDATE_ENV.PLATFORM]: "darwin",
+        },
+        launcherCleanupMarkerPath: cleanupMarkerPath,
+        launcherInstallRoot: installRoot,
+        launcherLockPath: join(installRoot, "state", "lock"),
+        launcherRuntimeConfigPath: runtimePath,
+        namespace: "maclh",
+        source: SIDECAR_SOURCES.PACKAGED,
+      });
+
+      const ready = await updater.confirmLauncherReady();
+
+      expect(ready).toMatchObject({
+        advancedLastSuccessful: true,
+        deleteVersions: ["1.0.0"],
+        ok: true,
+        readyVersion: "1.0.1",
+      });
+      expect(JSON.parse(await readFile(runtimePath, "utf8"))).toMatchObject({
+        active: { root: "versions/1.0.1", version: "1.0.1" },
+        generation: 1,
+        lastSuccessful: { root: "versions/1.0.1", version: "1.0.1" },
+      });
+      expect(JSON.parse(await readFile(cleanupMarkerPath, "utf8"))).toMatchObject({
+        namespace: "maclh",
+        readyVersion: "1.0.1",
+        schemaVersion: 1,
+        strategy: "lazyQuickDelete",
+        versions: [{ root: "versions/1.0.0", version: "1.0.0" }],
+      });
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

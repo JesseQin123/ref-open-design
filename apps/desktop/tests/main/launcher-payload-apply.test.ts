@@ -1,5 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readlink, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -18,6 +18,17 @@ function makeRoot(): string {
 async function writePayloadExecutable(versionRoot: string, content: string): Promise<void> {
   await mkdir(join(versionRoot, "payload"), { recursive: true });
   await writeFile(join(versionRoot, "payload", "Open Design.exe"), content, "utf8");
+}
+
+async function writeMacPayloadApp(versionRoot: string, content: string): Promise<void> {
+  const appRoot = join(versionRoot, "payload", "Open Design Beta.app");
+  const frameworkRoot = join(appRoot, "Contents", "Frameworks", "Test.framework");
+  await mkdir(join(appRoot, "Contents", "MacOS"), { recursive: true });
+  await writeFile(join(appRoot, "Contents", "MacOS", "Open Design Beta"), content, "utf8");
+  await mkdir(join(frameworkRoot, "Versions", "A", "Resources"), { recursive: true });
+  await writeFile(join(frameworkRoot, "Versions", "A", "Resources", "Info.plist"), "plist", "utf8");
+  await symlink("A", join(frameworkRoot, "Versions", "Current"));
+  await symlink("Versions/Current/Resources", join(frameworkRoot, "Resources"));
 }
 
 async function writeLauncherConfig(installRoot: string): Promise<void> {
@@ -67,6 +78,142 @@ async function writeApplyBaseline(input: {
 }
 
 describe("launcher payload apply", () => {
+  it("applies a mac launcher payload app without Windows 7z helpers", async () => {
+    const root = makeRoot();
+    const extractor = vi.fn(async (input: {
+      destinationRoot: string;
+      platform: string;
+      sevenZipPath?: string;
+    }) => {
+      expect(input.platform).toBe("darwin");
+      expect(input.sevenZipPath).toBeUndefined();
+      await writeMacPayloadApp(input.destinationRoot, "new mac payload");
+    });
+    try {
+      const installRoot = join(root, "launcher");
+      const updateRoot = join(root, "updates");
+      const runtimeConfigPath = join(installRoot, "runtime.json");
+      const installMetadataPath = join(installRoot, "install.json");
+      const archivePath = join(updateRoot, "downloads", "payload.zip");
+      await mkdir(join(updateRoot, "downloads"), { recursive: true });
+      await mkdir(join(installRoot, "state"), { recursive: true });
+      await writeLauncherConfig(installRoot);
+      await writeFile(archivePath, "archive", "utf8");
+      await writeMacPayloadApp(join(installRoot, "versions", "1.0.0"), "old mac payload");
+      await writeFile(runtimeConfigPath, JSON.stringify({
+        active: {
+          apps: {},
+          entry: {
+            args: [],
+            cwd: "payload/Open Design Beta.app",
+            env: {},
+            executable: "payload/Open Design Beta.app/Contents/MacOS/Open Design Beta",
+          },
+          root: "versions/1.0.0",
+          version: "1.0.0",
+        },
+        generation: 0,
+        lastSuccessful: {
+          apps: {},
+          entry: {
+            args: [],
+            cwd: "payload/Open Design Beta.app",
+            env: {},
+            executable: "payload/Open Design Beta.app/Contents/MacOS/Open Design Beta",
+          },
+          root: "versions/1.0.0",
+          version: "1.0.0",
+        },
+        namespace: "release-beta",
+        namespaceRoot: ".",
+        schemaVersion: 1,
+      }), "utf8");
+      await writeFile(installMetadataPath, JSON.stringify({
+        appBundleName: "Open Design Beta.app",
+        currentVersion: "1.0.0",
+        displayName: "Open Design Beta",
+        executableName: "Open Design Beta",
+        launcher: {
+          appBundleName: "Open Design Beta.app",
+          executableName: "Open Design Beta",
+          rootDiscovery: "external",
+        },
+        namespace: "release-beta",
+        payload: {
+          appBundleName: "Open Design Beta.app",
+          executable: "Contents/MacOS/Open Design Beta",
+        },
+        platform: "darwin",
+        runtimePath: "runtime.json",
+        schemaVersion: 1,
+        versionsRoot: "versions",
+      }), "utf8");
+
+      const result = await applyLauncherPayloadArchive({
+        archivePath,
+        extractor,
+        installMetadataPath,
+        installRoot,
+        launcherConfigPath: join(installRoot, "launcher.json"),
+        lockPath: join(installRoot, "state", "lock"),
+        namespace: "release-beta",
+        platform: "darwin",
+        runtimeConfigPath,
+        updateRoot,
+        version: "1.0.1",
+      });
+
+      const runtime = JSON.parse(await readFile(runtimeConfigPath, "utf8")) as Record<string, unknown>;
+      const metadata = JSON.parse(await readFile(installMetadataPath, "utf8")) as Record<string, unknown>;
+      const nextVersionRoot = join(installRoot, "versions", "1.0.1");
+      expect(result).toMatchObject({
+        payloadRoot: join(nextVersionRoot, "payload"),
+        promoted: true,
+        version: "1.0.1",
+        versionRoot: nextVersionRoot,
+      });
+      expect(await readFile(join(nextVersionRoot, "payload", "Open Design Beta.app", "Contents", "MacOS", "Open Design Beta"), "utf8")).toBe("new mac payload");
+      await expect(readlink(join(nextVersionRoot, "payload", "Open Design Beta.app", "Contents", "Frameworks", "Test.framework", "Resources"))).resolves.toBe(
+        "Versions/Current/Resources",
+      );
+      expect(JSON.parse(await readFile(join(nextVersionRoot, "manifest.json"), "utf8"))).toMatchObject({
+        appBundleName: "Open Design Beta.app",
+        entry: {
+          cwd: "payload/Open Design Beta.app",
+          executable: "payload/Open Design Beta.app/Contents/MacOS/Open Design Beta",
+        },
+        payloadRoot: "payload",
+        platform: "darwin",
+        schemaVersion: 1,
+        version: "1.0.1",
+      });
+      expect(runtime).toMatchObject({
+        active: {
+          entry: {
+            cwd: "payload/Open Design Beta.app",
+            executable: "payload/Open Design Beta.app/Contents/MacOS/Open Design Beta",
+          },
+          root: "versions/1.0.1",
+          version: "1.0.1",
+        },
+        generation: 1,
+        lastSuccessful: {
+          root: "versions/1.0.0",
+          version: "1.0.0",
+        },
+      });
+      expect(metadata).toMatchObject({
+        appBundleName: "Open Design Beta.app",
+        currentVersion: "1.0.1",
+        executableName: "Open Design Beta",
+        platform: "darwin",
+      });
+      expect(JSON.stringify(metadata)).not.toContain("7z");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   it("rejects Windows-unsafe version path segments before extracting a payload", async () => {
     const root = makeRoot();
     const extractor = vi.fn(async () => undefined);

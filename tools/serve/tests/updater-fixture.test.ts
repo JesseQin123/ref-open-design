@@ -102,6 +102,37 @@ describe("updater fixture server", () => {
     }
   });
 
+  it("serves mac launcher payload metadata for the updater flow", async () => {
+    const server = await startUpdaterFixtureServer({
+      artifactBody: "fixture mac payload",
+      artifactKind: "payload",
+      channel: "beta",
+      platform: "mac",
+      version: "2.0.0-beta-nightly.2",
+    });
+    try {
+      const metadataResponse = await fetch(server.info.metadataUrl);
+      expect(metadataResponse.ok).toBe(true);
+      const metadata = await metadataResponse.json() as {
+        platforms?: { mac?: { arch?: string; artifacts?: { payload?: { contentType?: string; name?: string; sha256Url?: string; url?: string } } } };
+      };
+      expect(server.info.artifactKind).toBe("payload");
+      expect(metadata.platforms?.mac?.arch).toBe("arm64");
+      expect(metadata.platforms?.mac?.artifacts?.payload?.contentType).toBe("application/zip");
+      expect(metadata.platforms?.mac?.artifacts?.payload?.name).toBe("open-design-2.0.0-beta-nightly.2-mac-arm64-payload.zip");
+      expect(metadata.platforms?.mac?.artifacts?.payload?.url).toBe(server.info.artifactUrl);
+      expect(metadata.platforms?.mac?.artifacts?.payload?.sha256Url).toBe(server.info.checksumUrl);
+
+      const artifact = await fetch(server.info.artifactUrl);
+      expect(await artifact.text()).toBe("fixture mac payload");
+
+      const checksum = await fetch(server.info.checksumUrl);
+      expect(await checksum.text()).toContain(server.info.sha256);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("serves artifact byte ranges for resumable download validation", async () => {
     const server = await startUpdaterFixtureServer({
       artifactBody: "fixture artifact",

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
-import { cp, lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, readdir, readFile, readlink, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -36,13 +36,26 @@ const execFileAsync = promisify(execFile);
 type LauncherOperation = "cleanup" | "launcher-self-update" | "payload-apply" | "ready" | "reconcile";
 type LauncherOperationStatus = "failed" | "ok" | "skipped";
 type ProcessWithNoAsar = NodeJS.Process & { noAsar?: boolean };
+type LauncherPayloadPlatform = "darwin" | "win32";
+
+type LauncherPayloadLayout = {
+  appBundleName?: string;
+  entryCwd: string;
+  entryExecutable: string;
+  executableName?: string;
+  payloadExecutableInApp?: string;
+  platform: LauncherPayloadPlatform;
+  selfUpdateExecutableName?: string;
+};
 
 type LauncherPayloadManifest = {
+  appBundleName?: string;
   entry: {
     cwd: string;
     executable: string;
   };
   payloadRoot: string;
+  platform?: LauncherPayloadPlatform;
   schemaVersion: 1;
   version: string;
 };
@@ -55,8 +68,11 @@ type LauncherInstallMetadata = Record<string, unknown> & {
     sevenZip?: string;
     sevenZipDll?: string;
   };
-  launcher?: {
+  launcher?: Record<string, unknown> & {
+    appBundleName?: string;
     executable?: string;
+    executableName?: string;
+    rootDiscovery?: string;
   };
   namespace?: string;
   runtimePath?: string;
@@ -91,8 +107,9 @@ export type LauncherPayloadApplyInput = {
   lockPath: string;
   namespace: string;
   now?: () => Date;
+  platform?: string;
   runtimeConfigPath: string;
-  sevenZipPath: string;
+  sevenZipPath?: string;
   updateRoot: string;
   version: string;
 };
@@ -100,7 +117,8 @@ export type LauncherPayloadApplyInput = {
 export type LauncherPayloadExtractor = (input: {
   archivePath: string;
   destinationRoot: string;
-  sevenZipPath: string;
+  platform: string;
+  sevenZipPath?: string;
 }) => Promise<void>;
 
 export type LauncherPayloadApplyResult = {
@@ -206,6 +224,11 @@ function pathExists(path: string): Promise<boolean> {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value != null && !Array.isArray(value);
+}
+
+function stringField(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 async function withAsarFileSystemDisabled<T>(callback: () => Promise<T>): Promise<T> {
@@ -333,6 +356,51 @@ async function extractWithSevenZip(input: {
   );
 }
 
+async function extractWithDitto(input: {
+  archivePath: string;
+  destinationRoot: string;
+}): Promise<void> {
+  await execFileAsync("ditto", ["-x", "-k", input.archivePath, input.destinationRoot], {
+    windowsHide: true,
+  });
+}
+
+async function copyLauncherVersionRoot(input: {
+  destinationRoot: string;
+  platform: string;
+  sourceRoot: string;
+}): Promise<void> {
+  if (input.platform === "darwin" && process.platform === "darwin") {
+    await execFileAsync("ditto", [input.sourceRoot, input.destinationRoot], {
+      windowsHide: true,
+    });
+    return;
+  }
+  await cp(input.sourceRoot, input.destinationRoot, { recursive: true, verbatimSymlinks: true });
+}
+
+async function extractLauncherPayload(input: {
+  archivePath: string;
+  destinationRoot: string;
+  platform: string;
+  sevenZipPath?: string;
+}): Promise<void> {
+  if (input.platform === "win32") {
+    if (input.sevenZipPath == null) throw new Error("launcher 7z path is required for Windows payload extraction");
+    await extractWithSevenZip({
+      archivePath: input.archivePath,
+      destinationRoot: input.destinationRoot,
+      sevenZipPath: input.sevenZipPath,
+    });
+    return;
+  }
+  if (input.platform === "darwin") {
+    await extractWithDitto(input);
+    return;
+  }
+  throw new Error(`launcher payload extraction is not supported on ${input.platform}`);
+}
+
 async function assertNormalFile(path: string, label: string): Promise<void> {
   const entry = await lstat(path).catch(() => null);
   if (entry == null || !entry.isFile() || entry.isSymbolicLink()) {
@@ -356,21 +424,73 @@ async function readJson<T>(filePath: string): Promise<T | null> {
   }
 }
 
-function launcherVersionDescriptor(version: string): RuntimeVersionDescriptor {
+function windowsPayloadLayout(metadata: LauncherInstallMetadata): LauncherPayloadLayout {
+  return {
+    entryCwd: PAYLOAD_DIR_NAME,
+    entryExecutable: `${PAYLOAD_DIR_NAME}/${PRODUCT_EXE_NAME}`,
+    platform: "win32",
+    selfUpdateExecutableName: launcherExecutableName(metadata),
+  };
+}
+
+function macPayloadLayout(metadata: LauncherInstallMetadata): LauncherPayloadLayout {
+  if (metadata.platform !== "darwin") throw new Error("mac launcher install metadata must declare platform darwin");
+  const appBundleName = safeMacAppBundleName(stringField(metadata, "appBundleName") ?? "", "mac payload appBundleName");
+  const executableName = safeMacPathSegment(stringField(metadata, "executableName") ?? "", "mac payload executableName");
+  if (!isRecord(metadata.payload)) throw new Error("mac launcher install metadata is missing payload descriptor");
+  if (metadata.payload.appBundleName !== appBundleName) {
+    throw new Error("mac launcher install metadata payload appBundleName mismatch");
+  }
+  const payloadExecutableInApp = `Contents/MacOS/${executableName}`;
+  if (metadata.payload.executable !== payloadExecutableInApp) {
+    throw new Error("mac launcher install metadata payload executable mismatch");
+  }
+  return {
+    appBundleName,
+    entryCwd: `${PAYLOAD_DIR_NAME}/${appBundleName}`,
+    entryExecutable: `${PAYLOAD_DIR_NAME}/${appBundleName}/${payloadExecutableInApp}`,
+    executableName,
+    payloadExecutableInApp,
+    platform: "darwin",
+  };
+}
+
+function payloadLayoutForApply(metadata: LauncherInstallMetadata, platform: string): LauncherPayloadLayout {
+  if (platform === "darwin") return macPayloadLayout(metadata);
+  return windowsPayloadLayout(metadata);
+}
+
+function launcherVersionDescriptor(version: string, layout: LauncherPayloadLayout): RuntimeVersionDescriptor {
   return {
     apps: {},
     entry: {
       args: [],
-      cwd: PAYLOAD_DIR_NAME,
+      cwd: layout.entryCwd,
       env: {},
-      executable: `${PAYLOAD_DIR_NAME}/${PRODUCT_EXE_NAME}`,
+      executable: layout.entryExecutable,
     },
     root: `${VERSIONS_DIR_NAME}/${version}`,
     version,
   };
 }
 
-function isRuntimeVersionDescriptor(value: unknown): value is RuntimeVersionDescriptor {
+function isMacRuntimeVersionDescriptorEntry(value: RuntimeVersionDescriptor): boolean {
+  if (typeof value.entry.cwd !== "string") return false;
+  const match = /^payload\/([^/]+\.app)\/Contents\/MacOS\/([^/]+)$/.exec(value.entry.executable);
+  if (match?.[1] == null || match[2] == null) return false;
+  try {
+    const appBundleName = safeMacAppBundleName(match[1], "mac runtime appBundleName");
+    safeMacPathSegment(match[2], "mac runtime executableName");
+    return value.entry.cwd === `${PAYLOAD_DIR_NAME}/${appBundleName}`;
+  } catch {
+    return false;
+  }
+}
+
+function isRuntimeVersionDescriptor(
+  value: unknown,
+  expectedLayout?: Pick<LauncherPayloadLayout, "entryCwd" | "entryExecutable">,
+): value is RuntimeVersionDescriptor {
   if (!isRecord(value)) return false;
   if (typeof value.version !== "string" || value.version.length === 0) return false;
   if (typeof value.root !== "string" || value.root.length === 0) return false;
@@ -382,20 +502,26 @@ function isRuntimeVersionDescriptor(value: unknown): value is RuntimeVersionDesc
   try {
     const version = normalizeVersionSegment(value.version);
     if (value.root !== `${VERSIONS_DIR_NAME}/${version}`) return false;
-    if (value.entry.executable !== `${PAYLOAD_DIR_NAME}/${PRODUCT_EXE_NAME}`) return false;
-    if (value.entry.cwd !== PAYLOAD_DIR_NAME) return false;
+    if (expectedLayout != null) {
+      if (value.entry.executable !== expectedLayout.entryExecutable) return false;
+      if (value.entry.cwd !== expectedLayout.entryCwd) return false;
+      return true;
+    }
+    if (value.entry.executable === `${PAYLOAD_DIR_NAME}/${PRODUCT_EXE_NAME}` && value.entry.cwd === PAYLOAD_DIR_NAME) {
+      return true;
+    }
+    return isMacRuntimeVersionDescriptorEntry(value as RuntimeVersionDescriptor);
   } catch {
     return false;
   }
-  return true;
 }
 
-function isRuntimeConfig(value: unknown): value is RuntimeConfig {
+function isRuntimeConfig(value: unknown, expectedLayout?: Pick<LauncherPayloadLayout, "entryCwd" | "entryExecutable">): value is RuntimeConfig {
   if (!isRecord(value) || value.schemaVersion !== 1) return false;
   if (typeof value.generation !== "number" || !Number.isSafeInteger(value.generation) || value.generation < 0) return false;
   if (typeof value.namespace !== "string" || value.namespace.length === 0) return false;
   if (value.namespaceRoot !== RUNTIME_NAMESPACE_ROOT) return false;
-  return isRuntimeVersionDescriptor(value.active) && isRuntimeVersionDescriptor(value.lastSuccessful);
+  return isRuntimeVersionDescriptor(value.active, expectedLayout) && isRuntimeVersionDescriptor(value.lastSuccessful, expectedLayout);
 }
 
 function isLauncherConfig(value: unknown): value is LauncherConfig {
@@ -420,28 +546,30 @@ function isCleanupMarker(value: unknown): value is LauncherCleanupMarker {
   ));
 }
 
-function payloadManifest(version: string): LauncherPayloadManifest {
+function payloadManifest(version: string, layout: LauncherPayloadLayout): LauncherPayloadManifest {
   return {
+    ...(layout.appBundleName == null ? {} : { appBundleName: layout.appBundleName }),
     entry: {
-      cwd: PAYLOAD_DIR_NAME,
-      executable: `${PAYLOAD_DIR_NAME}/${PRODUCT_EXE_NAME}`,
+      cwd: layout.entryCwd,
+      executable: layout.entryExecutable,
     },
     payloadRoot: PAYLOAD_DIR_NAME,
+    ...(layout.platform === "win32" ? {} : { platform: layout.platform }),
     schemaVersion: 1,
     version,
   };
 }
 
-async function assertVersionPayload(versionRoot: string): Promise<void> {
+async function assertVersionPayload(versionRoot: string, layout: LauncherPayloadLayout): Promise<void> {
   const payloadRoot = join(versionRoot, PAYLOAD_DIR_NAME);
-  const executablePath = join(payloadRoot, PRODUCT_EXE_NAME);
+  const executablePath = join(versionRoot, ...layout.entryExecutable.split("/"));
   const payload = await lstat(payloadRoot).catch(() => null);
   if (payload == null || !payload.isDirectory() || payload.isSymbolicLink()) {
     throw new Error(`launcher payload archive is missing ${PAYLOAD_DIR_NAME}/`);
   }
   const executable = await lstat(executablePath).catch(() => null);
   if (executable == null || !executable.isFile() || executable.isSymbolicLink()) {
-    throw new Error(`launcher payload archive is missing ${PAYLOAD_DIR_NAME}/${PRODUCT_EXE_NAME}`);
+    throw new Error(`launcher payload archive is missing ${layout.entryExecutable}`);
   }
 }
 
@@ -468,12 +596,25 @@ async function assertNoInstallRootLayerEntries(versionRoot: string): Promise<voi
   }
 }
 
-async function assertNoSymlinks(root: string): Promise<void> {
+async function assertSafePayloadSymlinks(root: string, platform: string, scanRoot = root): Promise<void> {
   const entries = await readdir(root, { withFileTypes: true });
   for (const entry of entries) {
     const entryPath = join(root, entry.name);
-    if (entry.isSymbolicLink()) throw new Error(`launcher payload archive must not contain symlinks: ${entryPath}`);
-    if (entry.isDirectory()) await assertNoSymlinks(entryPath);
+    if (entry.isSymbolicLink()) {
+      if (platform !== "darwin") throw new Error(`launcher payload archive must not contain symlinks: ${entryPath}`);
+      const target = await readlink(entryPath);
+      if (target.includes("\0") || isAbsolute(target)) {
+        throw new Error(`mac launcher payload symlink must be relative: ${entryPath}`);
+      }
+      const resolvedTarget = resolve(dirname(entryPath), target);
+      if (!containsPath(scanRoot, resolvedTarget)) {
+        throw new Error(`mac launcher payload symlink escaped version root: ${entryPath}`);
+      }
+      const targetEntry = await lstat(resolvedTarget).catch(() => null);
+      if (targetEntry == null) throw new Error(`mac launcher payload symlink target is missing: ${entryPath}`);
+      continue;
+    }
+    if (entry.isDirectory()) await assertSafePayloadSymlinks(entryPath, platform, scanRoot);
   }
 }
 
@@ -533,6 +674,7 @@ async function removeAttemptMarker(attemptMarkerPath: string): Promise<boolean> 
 async function promoteVersionRoot(input: {
   finalVersionRoot: string;
   installRoot: string;
+  layout: LauncherPayloadLayout;
   sourceVersionRoot: string;
   version: string;
   versionsRoot: string;
@@ -543,10 +685,10 @@ async function promoteVersionRoot(input: {
     if (!existingFinal.isDirectory() || existingFinal.isSymbolicLink()) {
       throw new Error(`launcher version target is not a directory: ${input.finalVersionRoot}`);
     }
-    await assertNoSymlinks(input.finalVersionRoot);
+    await assertSafePayloadSymlinks(input.finalVersionRoot, input.layout.platform);
     await assertNoInstallRootLayerEntries(input.finalVersionRoot);
-    await assertVersionPayload(input.finalVersionRoot);
-    await assertNoVersionScopedSevenZip(input.finalVersionRoot);
+    await assertVersionPayload(input.finalVersionRoot, input.layout);
+    if (input.layout.platform === "win32") await assertNoVersionScopedSevenZip(input.finalVersionRoot);
     return { promoted: false, versionRoot: input.finalVersionRoot };
   }
 
@@ -558,7 +700,11 @@ async function promoteVersionRoot(input: {
     throw new Error(`temporary launcher version path escaped install root: ${temporaryVersionRoot}`);
   }
   try {
-    await cp(input.sourceVersionRoot, temporaryVersionRoot, { recursive: true });
+    await copyLauncherVersionRoot({
+      destinationRoot: temporaryVersionRoot,
+      platform: input.layout.platform,
+      sourceRoot: input.sourceVersionRoot,
+    });
     await rename(temporaryVersionRoot, input.finalVersionRoot);
     return { promoted: true, versionRoot: input.finalVersionRoot };
   } finally {
@@ -568,11 +714,12 @@ async function promoteVersionRoot(input: {
 
 async function updateRuntimeConfig(input: {
   currentRuntime: RuntimeConfig;
+  layout: LauncherPayloadLayout;
   namespace: string;
   runtimeConfigPath: string;
   version: string;
 }): Promise<{ previousVersion?: string }> {
-  const active = launcherVersionDescriptor(input.version);
+  const active = launcherVersionDescriptor(input.version, input.layout);
   const nextRuntime = buildRuntimeConfig({
     active,
     generation: input.currentRuntime.generation + 1,
@@ -598,11 +745,12 @@ async function readInstallMetadata(installMetadataPath: string): Promise<Launche
 }
 
 async function readRuntimeConfigForApply(input: {
+  layout: LauncherPayloadLayout;
   namespace: string;
   runtimeConfigPath: string;
 }): Promise<RuntimeConfig> {
   const existingRuntime = await readJson<unknown>(input.runtimeConfigPath);
-  if (!isRuntimeConfig(existingRuntime)) {
+  if (!isRuntimeConfig(existingRuntime, input.layout)) {
     throw new Error(`launcher runtime config is missing or invalid: ${input.runtimeConfigPath}`);
   }
   if (existingRuntime.namespace !== input.namespace) {
@@ -632,27 +780,30 @@ async function readLauncherApplyState(input: {
   installMetadataPath: string;
   launcherConfigPath: string;
   namespace: string;
+  platform: string;
   runtimeConfigPath: string;
 }): Promise<{
   currentRuntime: RuntimeConfig;
   installMetadata: LauncherInstallMetadata;
   launcherConfig: LauncherConfig;
-  launcherName: string;
+  layout: LauncherPayloadLayout;
 }> {
   const installMetadata = await readInstallMetadata(input.installMetadataPath);
   assertInstallMetadataNamespace({
     installMetadata,
     namespace: input.namespace,
   });
+  const layout = payloadLayoutForApply(installMetadata, input.platform);
   const launcherConfig = await readLauncherConfigForApply(input.launcherConfigPath);
   return {
     currentRuntime: await readRuntimeConfigForApply({
+      layout,
       namespace: input.namespace,
       runtimeConfigPath: input.runtimeConfigPath,
     }),
     installMetadata,
     launcherConfig,
-    launcherName: launcherExecutableName(installMetadata),
+    layout,
   };
 }
 
@@ -672,6 +823,21 @@ function safeFileName(value: string, label: string): string {
   return trimmed;
 }
 
+function safeMacPathSegment(value: string, label: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) throw new Error(`${label} must not be empty`);
+  if (trimmed !== value || /[/\\\x00-\x1f]/.test(trimmed) || trimmed === "." || trimmed === "..") {
+    throw new Error(`${label} must be a safe mac path segment: ${value}`);
+  }
+  return trimmed;
+}
+
+function safeMacAppBundleName(value: string, label: string): string {
+  const safe = safeMacPathSegment(value, label);
+  if (!safe.endsWith(".app")) throw new Error(`${label} must be a mac .app bundle name: ${value}`);
+  return safe;
+}
+
 function launcherExecutableName(metadata: LauncherInstallMetadata): string {
   if (typeof metadata.displayName === "string") {
     return safeFileName(`${metadata.displayName.trim()}.exe`, "launcher displayName");
@@ -681,16 +847,43 @@ function launcherExecutableName(metadata: LauncherInstallMetadata): string {
 
 function normalizeInstallMetadataForApply(input: {
   existingMetadata: LauncherInstallMetadata;
-  launcherName: string;
+  layout: LauncherPayloadLayout;
   namespace: string;
   version: string;
 }): LauncherInstallMetadata {
+  if (input.layout.platform === "darwin") {
+    const launcher = isRecord(input.existingMetadata.launcher) ? { ...input.existingMetadata.launcher } : {};
+    const payload = isRecord(input.existingMetadata.payload) ? { ...input.existingMetadata.payload } : {};
+    return {
+      ...input.existingMetadata,
+      appBundleName: input.layout.appBundleName,
+      currentVersion: input.version,
+      executableName: input.layout.executableName,
+      launcher: {
+        ...launcher,
+        appBundleName: input.layout.appBundleName,
+        executableName: input.layout.executableName,
+        rootDiscovery: "external",
+      },
+      namespace: typeof input.existingMetadata.namespace === "string" ? input.existingMetadata.namespace : input.namespace,
+      payload: {
+        ...payload,
+        appBundleName: input.layout.appBundleName,
+        executable: input.layout.payloadExecutableInApp,
+      },
+      platform: "darwin",
+      runtimePath: RUNTIME_RELATIVE_PATH,
+      schemaVersion: INSTALL_METADATA_SCHEMA_VERSION,
+      versionsRoot: VERSIONS_DIR_NAME,
+    };
+  }
+  const launcherName = input.layout.selfUpdateExecutableName ?? launcherExecutableName(input.existingMetadata);
   const helpers = isRecord(input.existingMetadata.helpers) ? { ...input.existingMetadata.helpers } : {};
   const launcher = isRecord(input.existingMetadata.launcher) ? { ...input.existingMetadata.launcher } : {};
   return {
     ...input.existingMetadata,
     currentVersion: input.version,
-    exeName: input.launcherName,
+    exeName: launcherName,
     helpers: {
       ...helpers,
       sevenZip: SEVEN_ZIP_RELATIVE_PATH,
@@ -698,7 +891,7 @@ function normalizeInstallMetadataForApply(input: {
     },
     launcher: {
       ...launcher,
-      executable: input.launcherName,
+      executable: launcherName,
     },
     namespace: typeof input.existingMetadata.namespace === "string" ? input.existingMetadata.namespace : input.namespace,
     runtimePath: RUNTIME_RELATIVE_PATH,
@@ -710,7 +903,7 @@ function normalizeInstallMetadataForApply(input: {
 async function writeInstallMetadata(input: {
   existingMetadata: LauncherInstallMetadata;
   installMetadataPath: string;
-  launcherName: string;
+  layout: LauncherPayloadLayout;
   namespace: string;
   version: string;
 }): Promise<void> {
@@ -758,39 +951,44 @@ async function resolvePromotedLauncherSelfUpdate(input: {
 
 export async function applyLauncherPayloadArchive(input: LauncherPayloadApplyInput): Promise<LauncherPayloadApplyResult> {
   const now = input.now ?? (() => new Date());
+  const platform = input.platform ?? "win32";
   const version = normalizeVersionSegment(input.version);
   const installRoot = assertAbsolutePath(input.installRoot, "launcher install root");
   const updateRoot = assertAbsolutePath(input.updateRoot, "update root");
   const archivePath = assertAbsolutePath(input.archivePath, "launcher payload archive path");
   const lockPath = assertAbsolutePath(input.lockPath, "launcher install lock path");
   const runtimeConfigPath = assertAbsolutePath(input.runtimeConfigPath, "launcher runtime config path");
-  const sevenZipPath = assertAbsolutePath(input.sevenZipPath, "launcher 7z path");
+  const sevenZipPath = input.sevenZipPath == null ? null : assertAbsolutePath(input.sevenZipPath, "launcher 7z path");
   const installMetadataPath = assertAbsolutePath(input.installMetadataPath, "launcher install metadata path");
   const launcherConfigPath = assertAbsolutePath(input.launcherConfigPath, "launcher config path");
 
   if (!containsPath(updateRoot, archivePath)) throw new Error(`launcher payload archive escaped update root: ${archivePath}`);
   if (!containsPath(installRoot, lockPath)) throw new Error(`launcher lock path escaped install root: ${lockPath}`);
   if (!containsPath(installRoot, runtimeConfigPath)) throw new Error(`launcher runtime config path escaped install root: ${runtimeConfigPath}`);
-  if (!containsPath(installRoot, sevenZipPath)) throw new Error(`launcher 7z path escaped install root: ${sevenZipPath}`);
+  if (sevenZipPath != null && !containsPath(installRoot, sevenZipPath)) throw new Error(`launcher 7z path escaped install root: ${sevenZipPath}`);
   if (!containsPath(installRoot, installMetadataPath)) throw new Error(`launcher install metadata path escaped install root: ${installMetadataPath}`);
   if (!containsPath(installRoot, launcherConfigPath)) throw new Error(`launcher config path escaped install root: ${launcherConfigPath}`);
   assertExpectedInstallRootPath(lockPath, expectedInstallRootPath(installRoot, "state", "lock"), "launcher lock path");
   assertExpectedInstallRootPath(runtimeConfigPath, expectedInstallRootPath(installRoot, RUNTIME_RELATIVE_PATH), "launcher runtime config path");
   assertExpectedInstallRootPath(installMetadataPath, expectedInstallRootPath(installRoot, "install.json"), "launcher install metadata path");
   assertExpectedInstallRootPath(launcherConfigPath, expectedInstallRootPath(installRoot, "launcher.json"), "launcher config path");
-  const expectedSevenZipPath = expectedLauncherSevenZipPath(installRoot);
-  if (sevenZipPath !== expectedSevenZipPath) {
-    throw new Error(`launcher 7z path must be the stable launcher helper at ${expectedSevenZipPath}: ${sevenZipPath}`);
+  if (platform === "win32" && sevenZipPath == null) throw new Error("launcher 7z path is required for Windows payload apply");
+  if (platform === "win32" && sevenZipPath != null) {
+    const expectedSevenZipPath = expectedLauncherSevenZipPath(installRoot);
+    if (sevenZipPath !== expectedSevenZipPath) {
+      throw new Error(`launcher 7z path must be the stable launcher helper at ${expectedSevenZipPath}: ${sevenZipPath}`);
+    }
   }
-  if (input.extractor == null) {
+  if (platform === "win32" && input.extractor == null && sevenZipPath != null) {
     await assertStableSevenZipHelperClosure({ installRoot, sevenZipPath });
   }
 
   await assertInstallRootLockAvailable(lockPath);
-  await readLauncherApplyState({
+  const initialApplyState = await readLauncherApplyState({
     installMetadataPath,
     launcherConfigPath,
     namespace: input.namespace,
+    platform,
     runtimeConfigPath,
   });
 
@@ -800,17 +998,17 @@ export async function applyLauncherPayloadArchive(input: LauncherPayloadApplyInp
   return await withAsarFileSystemDisabled(async () => {
     try {
       await mkdir(stagingRoot, { recursive: true });
-      await (input.extractor ?? extractWithSevenZip)({
+      await (input.extractor ?? extractLauncherPayload)({
         archivePath,
         destinationRoot: stagingRoot,
-        sevenZipPath,
+        platform,
+        ...(sevenZipPath == null ? {} : { sevenZipPath }),
       });
       const extractedVersionRoot = await resolveExtractedVersionRoot(stagingRoot, version);
-      await assertNoSymlinks(extractedVersionRoot);
+      await assertSafePayloadSymlinks(extractedVersionRoot, initialApplyState.layout.platform);
       await assertNoInstallRootLayerEntries(extractedVersionRoot);
-      await assertVersionPayload(extractedVersionRoot);
-      await assertNoVersionScopedSevenZip(extractedVersionRoot);
-      await writeJsonAtomic(join(extractedVersionRoot, "manifest.json"), payloadManifest(version));
+      await assertVersionPayload(extractedVersionRoot, initialApplyState.layout);
+      if (initialApplyState.layout.platform === "win32") await assertNoVersionScopedSevenZip(extractedVersionRoot);
 
       const versionsRoot = join(installRoot, VERSIONS_DIR_NAME);
       const finalVersionRoot = join(versionsRoot, version);
@@ -828,31 +1026,42 @@ export async function applyLauncherPayloadArchive(input: LauncherPayloadApplyInp
         const {
           currentRuntime,
           installMetadata: existingInstallMetadata,
-          launcherName,
+          layout,
         } = await readLauncherApplyState({
           installMetadataPath,
           launcherConfigPath,
           namespace: input.namespace,
+          platform,
           runtimeConfigPath,
         });
-        await assertLauncherSelfUpdateCandidateShape({
-          executableName: launcherName,
-          versionRoot: extractedVersionRoot,
-        });
+        await assertVersionPayload(extractedVersionRoot, layout);
+        await assertSafePayloadSymlinks(extractedVersionRoot, layout.platform);
+        if (layout.platform === "win32") await assertNoVersionScopedSevenZip(extractedVersionRoot);
+        await writeJsonAtomic(join(extractedVersionRoot, "manifest.json"), payloadManifest(version, layout));
+        if (layout.selfUpdateExecutableName != null) {
+          await assertLauncherSelfUpdateCandidateShape({
+            executableName: layout.selfUpdateExecutableName,
+            versionRoot: extractedVersionRoot,
+          });
+        }
         const promoted = await promoteVersionRoot({
           finalVersionRoot,
           installRoot,
+          layout,
           sourceVersionRoot: extractedVersionRoot,
           version,
           versionsRoot,
         });
-        const launcherSelfUpdate = await resolvePromotedLauncherSelfUpdate({
-          executableName: launcherName,
-          installRoot,
-          versionRoot: promoted.versionRoot,
-        });
+        const launcherSelfUpdate = layout.selfUpdateExecutableName == null
+          ? {}
+          : await resolvePromotedLauncherSelfUpdate({
+            executableName: layout.selfUpdateExecutableName,
+            installRoot,
+            versionRoot: promoted.versionRoot,
+          });
         const runtime = await updateRuntimeConfig({
           currentRuntime,
+          layout,
           namespace: input.namespace,
           runtimeConfigPath,
           version,
@@ -860,7 +1069,7 @@ export async function applyLauncherPayloadArchive(input: LauncherPayloadApplyInp
         await writeInstallMetadata({
           existingMetadata: existingInstallMetadata,
           installMetadataPath,
-          launcherName,
+          layout,
           namespace: input.namespace,
           version,
         });

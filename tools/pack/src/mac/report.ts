@@ -28,7 +28,7 @@ function isBetterSqlite3SourceResidue(path: string): boolean {
 export async function collectMacSizeReport(
   config: ToolPackConfig,
   paths: MacPaths,
-  artifacts: Pick<MacPackResult, "dmgPath" | "zipPath">,
+  artifacts: Pick<MacPackResult, "dmgPath" | "payloadPath" | "zipPath">,
   targets: ElectronBuilderTarget[],
 ): Promise<MacSizeReport> {
   const appResourcesRoot = join(paths.appPath, "Contents", "Resources");
@@ -61,6 +61,7 @@ export async function collectMacSizeReport(
     dmgBytes: artifacts.dmgPath == null ? null : await sizeExistingFileBytes(artifacts.dmgPath),
     generatedAt: new Date().toISOString(),
     outputRootBytes: await sizePathBytes(config.roots.output.namespaceRoot),
+    payloadBytes: artifacts.payloadPath == null ? null : await sizeExistingFileBytes(artifacts.payloadPath),
     resourceRootBytes: await sizePathBytes(paths.resourceRoot),
     runtimeNamespaceRoot: config.roots.runtime.namespaceRoot,
     topLevel: {

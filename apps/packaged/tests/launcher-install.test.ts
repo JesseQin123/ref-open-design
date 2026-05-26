@@ -4,7 +4,11 @@ import { join, posix, win32 } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { resolvePackagedLauncherInstallContext } from "../src/launcher-install.js";
+import {
+  resolvePackagedLauncherInstallContext,
+  resolvePackagedLauncherRuntimeTarget,
+  shouldRedirectToPackagedLauncherTarget,
+} from "../src/launcher-install.js";
 
 function runtimeConfigJson(namespace: string, options: {
   activeCwd?: string;
@@ -33,6 +37,40 @@ function runtimeConfigJson(namespace: string, options: {
     lastSuccessful: {
       apps: {},
       entry: { args: [], cwd: lastSuccessfulCwd, env: {}, executable: lastSuccessfulExecutable },
+      root: `versions/${lastSuccessfulVersion}`,
+      version: lastSuccessfulVersion,
+    },
+    namespace,
+    namespaceRoot,
+    schemaVersion: 1,
+  });
+}
+
+function macRuntimeConfigJson(namespace: string, options: {
+  activeVersion?: string;
+  appBundleName?: string;
+  executableName?: string;
+  lastSuccessfulVersion?: string;
+  namespaceRoot?: string;
+} = {}): string {
+  const activeVersion = options.activeVersion ?? "0.8.0-beta.2";
+  const lastSuccessfulVersion = options.lastSuccessfulVersion ?? activeVersion;
+  const appBundleName = options.appBundleName ?? "Open Design Beta.app";
+  const executableName = options.executableName ?? "Open Design Beta";
+  const executable = `payload/${appBundleName}/Contents/MacOS/${executableName}`;
+  const cwd = `payload/${appBundleName}`;
+  const namespaceRoot = options.namespaceRoot ?? ".";
+  return JSON.stringify({
+    active: {
+      apps: {},
+      entry: { args: [], cwd, env: {}, executable },
+      root: `versions/${activeVersion}`,
+      version: activeVersion,
+    },
+    generation: 1,
+    lastSuccessful: {
+      apps: {},
+      entry: { args: [], cwd, env: {}, executable },
       root: `versions/${lastSuccessfulVersion}`,
       version: lastSuccessfulVersion,
     },
@@ -77,6 +115,294 @@ describe("packaged launcher install context", () => {
       sevenZipDllPath: posix.join(installRoot, "lib", "7z", "7z.dll"),
       sevenZipPath: posix.join(installRoot, "lib", "7z", "7z.exe"),
       version: "0.8.0-beta.2",
+    });
+  });
+
+  it("detects a mac launcher install root from a versioned payload app executable", () => {
+    const installRoot = "/Users/ada/Library/Application Support/Open Design Beta/namespaces/release-beta/launcher";
+    const executablePath = posix.join(
+      installRoot,
+      "versions",
+      "0.8.0-beta.2",
+      "payload",
+      "Open Design Beta.app",
+      "Contents",
+      "MacOS",
+      "Open Design Beta",
+    );
+
+    expect(resolvePackagedLauncherInstallContext(executablePath)).toMatchObject({
+      cleanupMarkerPath: posix.join(installRoot, "state", "cleanup.json"),
+      installMetadataPath: posix.join(installRoot, "install.json"),
+      launcherConfigPath: posix.join(installRoot, "launcher.json"),
+      installRoot,
+      lockPath: posix.join(installRoot, "state", "lock"),
+      payloadAppPath: posix.join(installRoot, "versions", "0.8.0-beta.2", "payload", "Open Design Beta.app"),
+      payloadRoot: posix.join(installRoot, "versions", "0.8.0-beta.2", "payload"),
+      platform: "darwin",
+      runtimeConfigPath: posix.join(installRoot, "runtime.json"),
+      version: "0.8.0-beta.2",
+      versionRoot: posix.join(installRoot, "versions", "0.8.0-beta.2"),
+    });
+  });
+
+  it("validates mac install-root markers without Windows 7z helpers", () => {
+    const installRoot = "/Users/ada/Library/Application Support/Open Design Beta/namespaces/release-beta/launcher";
+    const version = "0.8.0-beta.2";
+    const executablePath = posix.join(
+      installRoot,
+      "versions",
+      version,
+      "payload",
+      "Open Design Beta.app",
+      "Contents",
+      "MacOS",
+      "Open Design Beta",
+    );
+    const launcherConfigPath = posix.join(installRoot, "launcher.json");
+    const installMetadataPath = posix.join(installRoot, "install.json");
+    const runtimeConfigPath = posix.join(installRoot, "runtime.json");
+    const files = new Map([
+      [installMetadataPath, JSON.stringify({
+        appBundleName: "Open Design Beta.app",
+        currentVersion: version,
+        displayName: "Open Design Beta",
+        executableName: "Open Design Beta",
+        launcher: {
+          appBundleName: "Open Design Beta.app",
+          executableName: "Open Design Beta",
+          rootDiscovery: "external",
+        },
+        namespace: "release-beta",
+        payload: {
+          appBundleName: "Open Design Beta.app",
+          executable: "Contents/MacOS/Open Design Beta",
+        },
+        platform: "darwin",
+        runtimePath: "runtime.json",
+        schemaVersion: 1,
+        versionsRoot: "versions",
+      })],
+      [launcherConfigPath, JSON.stringify({
+        attemptPath: "state/attempt.json",
+        runtimePath: "runtime.json",
+        schemaVersion: 1,
+      })],
+      [runtimeConfigPath, macRuntimeConfigJson("release-beta")],
+      [executablePath, ""],
+    ]);
+
+    expect(resolvePackagedLauncherInstallContext(executablePath, {
+      namespace: "release-beta",
+      pathExists: (path) => files.has(path),
+      readTextFile: (path) => {
+        const content = files.get(path);
+        if (content == null) throw new Error(`missing ${path}`);
+        return content;
+      },
+      requireInstallRootMarkers: true,
+    })).toMatchObject({
+      installRoot,
+      payloadAppPath: posix.join(installRoot, "versions", version, "payload", "Open Design Beta.app"),
+      platform: "darwin",
+      version,
+    });
+
+    files.set(runtimeConfigPath, macRuntimeConfigJson("other-namespace"));
+    expect(resolvePackagedLauncherInstallContext(executablePath, {
+      namespace: "release-beta",
+      pathExists: (path) => files.has(path),
+      readTextFile: (path) => {
+        const content = files.get(path);
+        if (content == null) throw new Error(`missing ${path}`);
+        return content;
+      },
+      requireInstallRootMarkers: true,
+    })).toBeNull();
+  });
+
+  it("resolves a mac runtime target from an external launcher root for a public app cold start", () => {
+    const installRoot = "/Users/ada/Library/Application Support/Open Design Beta/namespaces/release-beta/launcher";
+    const version = "0.8.0-beta.2";
+    const payloadAppPath = posix.join(installRoot, "versions", version, "payload", "Open Design Beta.app");
+    const executablePath = posix.join(payloadAppPath, "Contents", "MacOS", "Open Design Beta");
+    const launcherConfigPath = posix.join(installRoot, "launcher.json");
+    const installMetadataPath = posix.join(installRoot, "install.json");
+    const runtimeConfigPath = posix.join(installRoot, "runtime.json");
+    const files = new Map([
+      [installMetadataPath, JSON.stringify({
+        appBundleName: "Open Design Beta.app",
+        currentVersion: version,
+        displayName: "Open Design Beta",
+        executableName: "Open Design Beta",
+        launcher: {
+          appBundleName: "Open Design Beta.app",
+          executableName: "Open Design Beta",
+          rootDiscovery: "external",
+        },
+        namespace: "release-beta",
+        payload: {
+          appBundleName: "Open Design Beta.app",
+          executable: "Contents/MacOS/Open Design Beta",
+        },
+        platform: "darwin",
+        runtimePath: "runtime.json",
+        schemaVersion: 1,
+        versionsRoot: "versions",
+      })],
+      [launcherConfigPath, JSON.stringify({
+        attemptPath: "state/attempt.json",
+        runtimePath: "runtime.json",
+        schemaVersion: 1,
+      })],
+      [runtimeConfigPath, macRuntimeConfigJson("release-beta")],
+      [executablePath, ""],
+    ]);
+
+    const target = resolvePackagedLauncherRuntimeTarget(installRoot, {
+      namespace: "release-beta",
+      pathExists: (path) => files.has(path),
+      readTextFile: (path) => {
+        const content = files.get(path);
+        if (content == null) throw new Error(`missing ${path}`);
+        return content;
+      },
+      requireInstallRootMarkers: true,
+    });
+
+    expect(target).toMatchObject({
+      cwd: payloadAppPath,
+      executablePath,
+      version,
+      context: {
+        installRoot,
+        payloadAppPath,
+        platform: "darwin",
+      },
+    });
+    expect(shouldRedirectToPackagedLauncherTarget(
+      "/Applications/Open Design Beta.app/Contents/MacOS/Open Design Beta",
+      target,
+    )).toBe(true);
+    expect(shouldRedirectToPackagedLauncherTarget(executablePath, target)).toBe(false);
+  });
+
+  it("falls back to lastSuccessful when the active mac launcher payload is not usable", () => {
+    const installRoot = "/Users/ada/Library/Application Support/Open Design Beta/namespaces/release-beta/launcher";
+    const activeVersion = "0.8.0-beta.3";
+    const readyVersion = "0.8.0-beta.2";
+    const appBundleName = "Open Design Beta.app";
+    const executableName = "Open Design Beta";
+    const activeExecutable = posix.join(installRoot, "versions", activeVersion, "payload", appBundleName, "Contents", "MacOS", executableName);
+    const readyPayloadAppPath = posix.join(installRoot, "versions", readyVersion, "payload", appBundleName);
+    const readyExecutable = posix.join(readyPayloadAppPath, "Contents", "MacOS", executableName);
+    const launcherConfigPath = posix.join(installRoot, "launcher.json");
+    const installMetadataPath = posix.join(installRoot, "install.json");
+    const runtimeConfigPath = posix.join(installRoot, "runtime.json");
+    const files = new Map([
+      [installMetadataPath, JSON.stringify({
+        appBundleName,
+        currentVersion: activeVersion,
+        displayName: executableName,
+        executableName,
+        launcher: { appBundleName, executableName, rootDiscovery: "external" },
+        namespace: "release-beta",
+        payload: { appBundleName, executable: `Contents/MacOS/${executableName}` },
+        platform: "darwin",
+        runtimePath: "runtime.json",
+        schemaVersion: 1,
+        versionsRoot: "versions",
+      })],
+      [launcherConfigPath, JSON.stringify({
+        attemptPath: "state/attempt.json",
+        runtimePath: "runtime.json",
+        schemaVersion: 1,
+      })],
+      [runtimeConfigPath, macRuntimeConfigJson("release-beta", {
+        activeVersion,
+        lastSuccessfulVersion: readyVersion,
+      })],
+      [readyExecutable, ""],
+    ]);
+
+    expect(files.has(activeExecutable)).toBe(false);
+    expect(resolvePackagedLauncherRuntimeTarget(installRoot, {
+      namespace: "release-beta",
+      pathExists: (path) => files.has(path),
+      readTextFile: (path) => {
+        const content = files.get(path);
+        if (content == null) throw new Error(`missing ${path}`);
+        return content;
+      },
+      requireInstallRootMarkers: true,
+    })).toMatchObject({
+      cwd: readyPayloadAppPath,
+      executablePath: readyExecutable,
+      selection: "lastSuccessful",
+      version: readyVersion,
+    });
+  });
+
+  it("falls back to lastSuccessful when the active mac launcher payload was already attempted", () => {
+    const installRoot = "/Users/ada/Library/Application Support/Open Design Beta/namespaces/release-beta/launcher";
+    const activeVersion = "0.8.0-beta.3";
+    const readyVersion = "0.8.0-beta.2";
+    const appBundleName = "Open Design Beta.app";
+    const executableName = "Open Design Beta";
+    const activePayloadAppPath = posix.join(installRoot, "versions", activeVersion, "payload", appBundleName);
+    const activeExecutable = posix.join(activePayloadAppPath, "Contents", "MacOS", executableName);
+    const readyPayloadAppPath = posix.join(installRoot, "versions", readyVersion, "payload", appBundleName);
+    const readyExecutable = posix.join(readyPayloadAppPath, "Contents", "MacOS", executableName);
+    const launcherConfigPath = posix.join(installRoot, "launcher.json");
+    const installMetadataPath = posix.join(installRoot, "install.json");
+    const runtimeConfigPath = posix.join(installRoot, "runtime.json");
+    const attemptPath = posix.join(installRoot, "state", "attempt.json");
+    const files = new Map([
+      [installMetadataPath, JSON.stringify({
+        appBundleName,
+        currentVersion: activeVersion,
+        displayName: executableName,
+        executableName,
+        launcher: { appBundleName, executableName, rootDiscovery: "external" },
+        namespace: "release-beta",
+        payload: { appBundleName, executable: `Contents/MacOS/${executableName}` },
+        platform: "darwin",
+        runtimePath: "runtime.json",
+        schemaVersion: 1,
+        versionsRoot: "versions",
+      })],
+      [launcherConfigPath, JSON.stringify({
+        attemptPath: "state/attempt.json",
+        runtimePath: "runtime.json",
+        schemaVersion: 1,
+      })],
+      [runtimeConfigPath, macRuntimeConfigJson("release-beta", {
+        activeVersion,
+        lastSuccessfulVersion: readyVersion,
+      })],
+      [attemptPath, JSON.stringify({
+        generation: 1,
+        schemaVersion: 1,
+        version: activeVersion,
+      })],
+      [activeExecutable, ""],
+      [readyExecutable, ""],
+    ]);
+
+    expect(resolvePackagedLauncherRuntimeTarget(installRoot, {
+      namespace: "release-beta",
+      pathExists: (path) => files.has(path),
+      readTextFile: (path) => {
+        const content = files.get(path);
+        if (content == null) throw new Error(`missing ${path}`);
+        return content;
+      },
+      requireInstallRootMarkers: true,
+    })).toMatchObject({
+      cwd: readyPayloadAppPath,
+      executablePath: readyExecutable,
+      selection: "lastSuccessful",
+      version: readyVersion,
     });
   });
 

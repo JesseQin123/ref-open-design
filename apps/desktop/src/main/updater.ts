@@ -108,8 +108,9 @@ const WINDOWS_DEFERRED_INSTALLER_TIMEOUT_MS = 10 * 60 * 1000;
 const ARTIFACT_DOWNLOAD_MAX_ATTEMPTS = 3;
 const DESKTOP_UPDATE_CHANNEL_VALUES = new Set<string>(Object.values(DESKTOP_UPDATE_CHANNELS));
 const LAUNCHER_SELF_UPDATE_LATEST_SUMMARY_RELATIVE_PATH = join("logs", "updater", "latest-launcher-self-update.json");
+const LAUNCHER_PAYLOAD_ARTIFACT_KEY = "payload";
+const LAUNCHER_PAYLOAD_ARTIFACT_TYPE = "payload";
 const WINDOWS_PAYLOAD_ARTIFACT_KEY = "payload";
-const WINDOWS_PAYLOAD_ARTIFACT_TYPE = "payload";
 
 export type DesktopUpdaterConfigInput = {
   appVersion?: string | null;
@@ -416,16 +417,19 @@ function isSupportedPackageLauncherPlatform(platform: string): boolean {
   return platform === "darwin" || platform === "win32";
 }
 
-type LauncherPayloadApplyConfig = DesktopUpdaterConfig & {
+type BaseLauncherPayloadApplyConfig = DesktopUpdaterConfig & {
   launcherConfigPath: string;
   launcherInstallMetadataPath: string;
   launcherInstallRoot: string;
   launcherLockPath: string;
   launcherRuntimeConfigPath: string;
-  launcherSevenZipDllPath: string;
-  launcherSevenZipPath: string;
   namespace: string;
 };
+
+type LauncherPayloadApplyConfig = (BaseLauncherPayloadApplyConfig & {
+  launcherSevenZipDllPath: string;
+  launcherSevenZipPath: string;
+}) | (BaseLauncherPayloadApplyConfig & { platform: "darwin" });
 
 type LauncherPayloadReadyConfig = DesktopUpdaterConfig & {
   launcherCleanupMarkerPath: string;
@@ -445,19 +449,21 @@ type LauncherReconcileConfig = DesktopUpdaterConfig & {
 };
 
 function hasLauncherPayloadApplyConfig(config: DesktopUpdaterConfig): config is LauncherPayloadApplyConfig {
-  return config.platform === "win32" &&
-    config.namespace != null &&
+  const hasBaseConfig = config.namespace != null &&
     config.launcherConfigPath != null &&
     config.launcherInstallRoot != null &&
     config.launcherInstallMetadataPath != null &&
     config.launcherLockPath != null &&
-    config.launcherRuntimeConfigPath != null &&
+    config.launcherRuntimeConfigPath != null;
+  if (!hasBaseConfig) return false;
+  if (config.platform === "darwin") return true;
+  return config.platform === "win32" &&
     config.launcherSevenZipDllPath != null &&
     config.launcherSevenZipPath != null;
 }
 
 function hasLauncherPayloadReadyConfig(config: DesktopUpdaterConfig): config is LauncherPayloadReadyConfig {
-  return config.platform === "win32" &&
+  return isSupportedPackageLauncherPlatform(config.platform) &&
     config.namespace != null &&
     config.launcherCleanupMarkerPath != null &&
     config.launcherInstallRoot != null &&
@@ -488,10 +494,10 @@ function capabilitiesFor(status: {
     status.supported;
   const canApplyInPlace = packageLauncher &&
     status.canApplyInPlace &&
-    status.artifactType === WINDOWS_PAYLOAD_ARTIFACT_TYPE;
+    status.artifactType === LAUNCHER_PAYLOAD_ARTIFACT_TYPE;
   const canOpenInstaller = packageLauncher &&
     status.artifactType != null &&
-    status.artifactType !== WINDOWS_PAYLOAD_ARTIFACT_TYPE;
+    status.artifactType !== LAUNCHER_PAYLOAD_ARTIFACT_TYPE;
   return {
     canApplyInPlace,
     canDownload: packageLauncher,
@@ -606,7 +612,7 @@ function extensionForArtifact(name: string | undefined, type: string): string {
   if (type === "dmg") return ".dmg";
   if (type === "zip") return ".zip";
   if (type === "installer") return ".exe";
-  if (type === WINDOWS_PAYLOAD_ARTIFACT_TYPE) return ".7z";
+  if (type === LAUNCHER_PAYLOAD_ARTIFACT_TYPE) return ".7z";
   return ".bin";
 }
 
@@ -966,12 +972,28 @@ function selectedPackageLauncherArtifacts(config: DesktopUpdaterConfig): Array<{
   platformKey: string;
 }> {
   if (config.platform === "darwin") {
-    return [{
+    const selections: Array<{
+      artifactKey: string;
+      artifactType: string;
+      description: string;
+      platformKey: string;
+    }> = [];
+    const platformKey = selectedMacPlatformKey(config.arch);
+    if (hasLauncherPayloadApplyConfig(config)) {
+      selections.push({
+        artifactKey: LAUNCHER_PAYLOAD_ARTIFACT_KEY,
+        artifactType: LAUNCHER_PAYLOAD_ARTIFACT_TYPE,
+        description: "mac launcher payload",
+        platformKey,
+      });
+    }
+    selections.push({
       artifactKey: "dmg",
       artifactType: "dmg",
       description: "mac DMG",
-      platformKey: selectedMacPlatformKey(config.arch),
-    }];
+      platformKey,
+    });
+    return selections;
   }
   if (config.platform === "win32") {
     const selections: Array<{
@@ -984,7 +1006,7 @@ function selectedPackageLauncherArtifacts(config: DesktopUpdaterConfig): Array<{
     if (hasLauncherPayloadApplyConfig(config)) {
       selections.push({
         artifactKey: WINDOWS_PAYLOAD_ARTIFACT_KEY,
-        artifactType: WINDOWS_PAYLOAD_ARTIFACT_TYPE,
+        artifactType: LAUNCHER_PAYLOAD_ARTIFACT_TYPE,
         description: "Windows launcher payload",
         platformKey,
       });
@@ -2084,7 +2106,7 @@ export function createDesktopUpdater(
   }
 
   function isLauncherPayloadRelease(release: LoadedRelease): boolean {
-    return release.ref.artifact.type === WINDOWS_PAYLOAD_ARTIFACT_TYPE;
+    return release.ref.artifact.type === LAUNCHER_PAYLOAD_ARTIFACT_TYPE;
   }
 
   async function recordInstallResult(
@@ -2131,8 +2153,9 @@ export function createDesktopUpdater(
         lockPath: applyConfig.launcherLockPath,
         namespace: applyConfig.namespace,
         now,
+        platform: applyConfig.platform,
         runtimeConfigPath: applyConfig.launcherRuntimeConfigPath,
-        sevenZipPath: applyConfig.launcherSevenZipPath,
+        ...(applyConfig.launcherSevenZipPath == null ? {} : { sevenZipPath: applyConfig.launcherSevenZipPath }),
         updateRoot: opened.root.realRoot,
         version: release.ref.version,
       });

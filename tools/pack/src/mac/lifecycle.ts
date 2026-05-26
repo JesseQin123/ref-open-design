@@ -1,6 +1,6 @@
 import { execFile, type ChildProcess } from "node:child_process";
-import { mkdir, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { cp, mkdir, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import {
@@ -34,15 +34,24 @@ import {
   stopProcesses,
 } from "@open-design/platform";
 import type { ToolPackConfig } from "../config.js";
+import { readRuntimeAppVersion } from "../versions.js";
 import { PACKAGED_CONFIG_PATH_ENV, writeLaunchPackagedConfig } from "./app-config.js";
 import { DESKTOP_LOG_ECHO_ENV } from "./constants.js";
 import { clearQuarantine, pathExists } from "./fs.js";
 import { resolveMacInstallIdentity } from "./identity.js";
+import {
+  buildMacInstallMetadata,
+  buildMacLauncherConfig,
+  buildMacPayloadManifest,
+  buildMacRuntimeConfig,
+  resolveMacLauncherInstallLayout,
+} from "./launcher-layout.js";
 import { desktopIdentityPath, desktopLogPath, macAppExecutablePath, resolveMacPaths } from "./paths.js";
 import type { DesktopRootIdentityFallback, DesktopRootIdentityMarker, MacCleanupResult, MacInspectResult, MacInstallResult, MacStartResult, MacStartSource, MacStopResult, MacUninstallResult } from "./types.js";
 
 const execFileAsync = promisify(execFile);
 const UPDATE_ACTION_TIMEOUT_MS = 10 * 60 * 1000;
+const PACKAGED_LAUNCHER_ROOT_ENV = "OD_PACKAGED_LAUNCHER_ROOT";
 
 async function desktopStamp(config: ToolPackConfig): Promise<SidecarStamp> {
   const endpoint = createControlEndpoint(
@@ -237,6 +246,35 @@ function isUnmanagedDesktopFallback(fallback: DesktopRootIdentityFallback | unde
   ].includes(fallback.reason);
 }
 
+function containsPath(root: string, path: string): boolean {
+  const rel = relative(root, path);
+  return rel === "" || (rel.length > 0 && !rel.startsWith("..") && !isAbsolute(rel));
+}
+
+function safeLauncherRelativePath(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0 || value.includes("\0")) return null;
+  if (isAbsolute(value)) return null;
+  const resolved = resolve("/", value);
+  if (resolved === "/" || !containsPath("/", resolved)) return null;
+  return value;
+}
+
+async function readJsonFile(path: string): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+async function copyMacAppBundle(sourceAppPath: string, destinationAppPath: string): Promise<void> {
+  if (process.platform === "darwin") {
+    await execFileAsync("/usr/bin/ditto", [sourceAppPath, destinationAppPath]);
+    return;
+  }
+  await cp(sourceAppPath, destinationAppPath, { recursive: true, verbatimSymlinks: true });
+}
+
 async function waitForDesktopStatus(config: ToolPackConfig, timeoutMs = 45_000): Promise<DesktopStatusSnapshot | null> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -290,6 +328,13 @@ function watchProcessExit(child: ChildProcess): {
 
 function formatExit(exit: ProcessExit): string {
   return `code=${exit.code ?? "null"} signal=${exit.signal ?? "null"}`;
+}
+
+function isExpectedLauncherHandoffExit(
+  target: { source: MacStartSource },
+  exit: ProcessExit,
+): boolean {
+  return target.source === "launcher-entry" && exit.code === 0 && exit.signal == null;
 }
 
 function nonEmptyLines(value: string): string[] {
@@ -434,9 +479,59 @@ async function collectSystemPolicyLog(target: { appPath: string; executablePath:
   }
 }
 
+export async function materializeMacLauncherInstall(
+  config: ToolPackConfig,
+  sourceAppPath: string,
+): Promise<ReturnType<typeof resolveMacLauncherInstallLayout>> {
+  const paths = resolveMacPaths(config);
+  const version = await readRuntimeAppVersion(config);
+  const layout = resolveMacLauncherInstallLayout(config, paths, version);
+
+  await rm(layout.versionRoot, { force: true, recursive: true });
+  await mkdir(layout.stateRoot, { recursive: true });
+  await mkdir(layout.payloadRoot, { recursive: true });
+  await copyMacAppBundle(sourceAppPath, layout.payloadAppPath);
+  await writeFile(layout.installMetadataPath, `${JSON.stringify(buildMacInstallMetadata(config, layout, version), null, 2)}\n`, "utf8");
+  await writeFile(layout.launcherConfigPath, `${JSON.stringify(buildMacLauncherConfig(layout), null, 2)}\n`, "utf8");
+  await writeFile(layout.runtimeConfigPath, `${JSON.stringify(buildMacRuntimeConfig(config, layout, version), null, 2)}\n`, "utf8");
+  await writeFile(layout.payloadManifestPath, `${JSON.stringify(buildMacPayloadManifest(layout, version), null, 2)}\n`, "utf8");
+  return layout;
+}
+
+async function resolveMacLauncherPayloadStartTarget(config: ToolPackConfig): Promise<{
+  appPath: string;
+  executablePath: string;
+  launcherRoot?: string;
+  source: MacStartSource;
+} | null> {
+  const paths = resolveMacPaths(config);
+  const version = await readRuntimeAppVersion(config);
+  const layout = resolveMacLauncherInstallLayout(config, paths, version);
+  const runtimeConfig = await readJsonFile(layout.runtimeConfigPath);
+  if (!isRecord(runtimeConfig) || !isRecord(runtimeConfig.active)) return null;
+  const rootRelativePath = safeLauncherRelativePath(runtimeConfig.active.root);
+  if (rootRelativePath == null || !isRecord(runtimeConfig.active.entry)) return null;
+  const cwdRelativePath = safeLauncherRelativePath(runtimeConfig.active.entry.cwd);
+  const executableRelativePath = safeLauncherRelativePath(runtimeConfig.active.entry.executable);
+  if (cwdRelativePath == null || executableRelativePath == null) return null;
+  const versionRoot = resolve(layout.root, rootRelativePath);
+  const appPath = resolve(versionRoot, cwdRelativePath);
+  const executablePath = resolve(versionRoot, executableRelativePath);
+  if (!containsPath(layout.root, versionRoot) || !containsPath(layout.root, appPath) || !containsPath(layout.root, executablePath)) {
+    return null;
+  }
+  if (!(await pathExists(executablePath))) return null;
+  return {
+    appPath,
+    executablePath,
+    launcherRoot: layout.root,
+    source: "launcher-payload",
+  };
+}
+
 async function createLaunchFailureMessage(
   config: ToolPackConfig,
-  target: { appPath: string; executablePath: string; source: MacStartSource },
+  target: { appPath: string; executablePath: string; launcherRoot?: string; source: MacStartSource },
   details: { pid: number; reason: string },
 ): Promise<string> {
   const logPath = desktopLogPath(config);
@@ -466,10 +561,25 @@ async function createLaunchFailureMessage(
 async function resolvePackedMacStartTarget(config: ToolPackConfig): Promise<{
   appPath: string;
   executablePath: string;
+  launcherRoot?: string;
   source: MacStartSource;
 }> {
+  const launcherTarget = await resolveMacLauncherPayloadStartTarget(config);
+
   const paths = resolveMacPaths(config);
   const identity = resolveMacInstallIdentity(config);
+  if (launcherTarget != null) {
+    const executablePath = macAppExecutablePath(paths.installedAppPath, identity.executableName);
+    if (await pathExists(executablePath)) {
+      return {
+        appPath: paths.installedAppPath,
+        executablePath,
+        launcherRoot: launcherTarget.launcherRoot,
+        source: "launcher-entry",
+      };
+    }
+  }
+
   const candidates: Array<{ appPath: string; source: MacStartSource }> = [
     { appPath: paths.installedAppPath, source: "installed" },
     { appPath: paths.userApplicationsAppPath, source: "user-applications" },
@@ -483,6 +593,8 @@ async function resolvePackedMacStartTarget(config: ToolPackConfig): Promise<{
       return { ...candidate, executablePath };
     }
   }
+
+  if (launcherTarget != null) return launcherTarget;
 
   throw new Error(
     `no mac .app executable found for namespace=${config.namespace}; run tools-pack mac build --to all and tools-pack mac install first`,
@@ -527,6 +639,7 @@ export async function installPackedMacDmg(config: ToolPackConfig): Promise<MacIn
     ]);
     await execFileAsync("ditto", [join(paths.mountPoint, identity.publicAppBundleName), paths.installedAppPath]);
     await clearQuarantine(paths.installedAppPath);
+    await materializeMacLauncherInstall(config, paths.installedAppPath);
   } finally {
     detached = await detachMount(paths.mountPoint);
   }
@@ -563,6 +676,7 @@ export async function startPackedMacApp(config: ToolPackConfig): Promise<MacStar
           ...process.env,
           [DESKTOP_LOG_ECHO_ENV]: "0",
           [PACKAGED_CONFIG_PATH_ENV]: launchConfigPath,
+          ...(target.launcherRoot == null ? {} : { [PACKAGED_LAUNCHER_ROOT_ENV]: target.launcherRoot }),
         },
         stamp,
       }),
@@ -575,7 +689,7 @@ export async function startPackedMacApp(config: ToolPackConfig): Promise<MacStar
   const exit = watchProcessExit(child);
   const earlyExit = await exit.wait(1500);
   child.unref();
-  if (earlyExit != null) {
+  if (earlyExit != null && !isExpectedLauncherHandoffExit(target, earlyExit)) {
     throw new Error(await createLaunchFailureMessage(config, target, {
       pid,
       reason: `process exited early ${formatExit(earlyExit)}`,
@@ -587,7 +701,9 @@ export async function startPackedMacApp(config: ToolPackConfig): Promise<MacStar
   if (status == null && delayedExit != null) {
     throw new Error(await createLaunchFailureMessage(config, target, {
       pid,
-      reason: `process exited before desktop control endpoint was available ${formatExit(delayedExit)}`,
+      reason: isExpectedLauncherHandoffExit(target, delayedExit)
+        ? `launcher entry exited after handoff but desktop control endpoint was not available ${formatExit(delayedExit)}`
+        : `process exited before desktop control endpoint was available ${formatExit(delayedExit)}`,
     }));
   }
   if (status == null && !isProcessAlive(pid)) {
@@ -601,7 +717,7 @@ export async function startPackedMacApp(config: ToolPackConfig): Promise<MacStar
     executablePath: target.executablePath,
     logPath,
     namespace: config.namespace,
-    pid,
+    pid: typeof status?.pid === "number" ? status.pid : pid,
     source: target.source,
     status,
   };

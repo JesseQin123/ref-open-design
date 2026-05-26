@@ -290,7 +290,7 @@ jobs:
         env:
           ASSET_VERSION_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
           CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
-          MAC_ARTIFACT_MODE: dmg-only
+          MAC_ARTIFACT_MODE: dmg-and-payload
           RELEASE_CHANNEL: beta
           RELEASE_NOTES: Open Design beta ${{ needs.metadata.outputs.beta_version }}${{ needs.metadata.outputs.asset_version_suffix }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
@@ -307,7 +307,7 @@ jobs:
           CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
           CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.CLOUDFLARE_R2_RELEASES_URL }}
           ASSET_VERSION_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
-          MAC_ARTIFACT_MODE: dmg-only
+          MAC_ARTIFACT_MODE: dmg-and-payload
           RELEASE_CHANNEL: beta
           RELEASE_PLATFORM: mac
           RELEASE_SIGNED: "true"

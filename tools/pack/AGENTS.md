@@ -50,7 +50,7 @@ Read this section before changing packaged auto-update behavior. The updater cro
 
 The runtime updater reads `https://releases.open-design.ai/<channel>/latest/metadata.json` unless `OD_UPDATE_METADATA_URL` overrides it. For package-launcher updates:
 
-- mac selects `platforms.mac.artifacts.dmg`.
+- mac launcher installs prefer `platforms.mac.artifacts.payload` when launcher install-root metadata is available, because the stable public `.app` applies version payloads in place. mac falls back to `platforms.mac.artifacts.dmg` for flat/legacy installs or metadata that does not publish a payload.
 - Windows launcher installs prefer `platforms.win.artifacts.payload` when launcher install-root metadata is available, because the stable launcher applies version payloads in place. Windows falls back to `platforms.win.artifacts.installer` for flat/legacy installs or metadata that does not publish a payload.
 - The artifact must have a checksum, preferably `sha256Url`; the updater verifies bytes before exposing an install action.
 - `OD_UPDATE_CURRENT_VERSION` may override the packaged version for tests, but user-flow package validation should prefer building the package with the intended `--app-version`.
@@ -74,7 +74,7 @@ Use `tools-serve start updater` for fast, deterministic tests and e2e automation
 pnpm tools-serve start updater --json --channel beta --version 99.0.0-beta.1 --platform win
 ```
 
-For launcher payload update validation, serve a real payload artifact:
+For launcher payload update validation, serve a real payload artifact (`--platform mac` uses a `.zip` app payload; `--platform win` uses a `.7z` payload):
 
 ```bash
 pnpm tools-serve start updater --json --channel beta --version 99.0.0-beta.1 --platform win --artifact-kind payload --artifact-path <Open Design-namespace-payload.7z>

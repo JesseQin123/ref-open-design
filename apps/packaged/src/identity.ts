@@ -38,6 +38,7 @@ function resolveCurrentMacAppPath(executablePath: string): string {
 
 export function resolvePackagedDesktopAppPath(executablePath: string): string {
   const launcherContext = resolvePackagedLauncherInstallContext(executablePath);
+  if (launcherContext?.platform === "darwin" && launcherContext.payloadAppPath != null) return launcherContext.payloadAppPath;
   return launcherContext?.installRoot ?? resolveCurrentMacAppPath(executablePath);
 }
 

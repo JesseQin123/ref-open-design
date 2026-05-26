@@ -160,7 +160,9 @@ function normalizeArtifactKind(
   value: UpdaterFixtureArtifactKind | undefined,
 ): UpdaterFixtureArtifactKind {
   const kind = value ?? (platform === "win" ? "installer" : "dmg");
-  if (platform === "mac" && kind !== "dmg") throw new Error("mac updater fixture only supports dmg artifacts");
+  if (platform === "mac" && kind !== "dmg" && kind !== "payload") {
+    throw new Error("mac updater fixture supports dmg or payload artifacts");
+  }
   if (platform === "win" && kind !== "installer" && kind !== "payload") {
     throw new Error("win updater fixture supports installer or payload artifacts");
   }
@@ -176,6 +178,13 @@ function artifactDefaults(input: {
 }): { artifactKey: string; artifactName: string; contentType: string } {
   const artifactName = input.artifactName ?? (input.artifactPath == null ? undefined : basename(input.artifactPath));
   if (input.kind === "payload") {
+    if (input.platform === "mac") {
+      return {
+        artifactKey: "payload",
+        artifactName: artifactName ?? `open-design-${input.version}-mac-arm64-payload.zip`,
+        contentType: "application/zip",
+      };
+    }
     return {
       artifactKey: "payload",
       artifactName: artifactName ?? `open-design-${input.version}-win-x64-payload.7z`,

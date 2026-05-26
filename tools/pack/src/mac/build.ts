@@ -69,6 +69,7 @@ export async function packMac(config: ToolPackConfig): Promise<MacPackResult> {
     dmgPath: artifacts.dmgPath,
     latestMacYmlPath: artifacts.latestMacYmlPath,
     outputRoot: config.roots.output.namespaceRoot,
+    payloadPath: artifacts.payloadPath,
     resourceRoot: paths.resourceRoot,
     runtimeNamespaceRoot: config.roots.runtime.namespaceRoot,
     sizeReport,

@@ -1,6 +1,6 @@
 import { readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, win32 } from "node:path";
+import { join, posix, win32 } from "node:path";
 
 import {
   APP_KEYS,
@@ -51,6 +51,14 @@ describe("packaged identity markers", () => {
     const executablePath = win32.join(installRoot, "versions", "0.8.0-beta.2", "payload", "Open Design.exe");
 
     expect(resolvePackagedDesktopAppPath(executablePath)).toBe(installRoot);
+  });
+
+  it("reports the selected payload app path for versioned mac launcher payloads", () => {
+    const installRoot = "/Users/Ada/Library/Application Support/Open Design Beta/namespaces/release-beta/launcher";
+    const appPath = posix.join(installRoot, "versions", "0.8.0-beta.2", "payload", "Open Design Beta.app");
+    const executablePath = posix.join(appPath, "Contents", "MacOS", "Open Design Beta");
+
+    expect(resolvePackagedDesktopAppPath(executablePath)).toBe(appPath);
   });
 
   it("keeps the existing .app bundle fallback outside launcher installs", () => {

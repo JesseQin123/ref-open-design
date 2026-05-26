@@ -147,12 +147,20 @@ let config;
 if (platform === "mac") {
   const suffix = assetVersionSuffix;
   const dmg = `open-design-${releaseVersion}${suffix}-mac-arm64.dmg`;
+  const payload = `open-design-${releaseVersion}${suffix}-mac-arm64-payload.zip`;
   const zip = `open-design-${releaseVersion}${suffix}-mac-arm64.zip`;
   const artifactMode = optional("MAC_ARTIFACT_MODE", "dmg-and-zip");
+  if (!["dmg-only", "dmg-and-payload", "dmg-and-zip", "dmg-zip-payload"].includes(artifactMode)) {
+    throw new Error(`unsupported MAC_ARTIFACT_MODE: ${artifactMode}`);
+  }
   const artifacts = { dmg: fileEntry(dmg, contentType(dmg)) };
   const assetNames = [dmg, `${dmg}.sha256`];
   let feed = null;
-  if (artifactMode !== "dmg-only") {
+  if (artifactMode.includes("payload")) {
+    artifacts.payload = fileEntry(payload, contentType(payload));
+    assetNames.push(payload, `${payload}.sha256`);
+  }
+  if (artifactMode !== "dmg-only" && artifactMode !== "dmg-and-payload") {
     artifacts.zip = fileEntry(zip, contentType(zip));
     assetNames.push(zip, `${zip}.sha256`, "latest-mac.yml");
     feed = {

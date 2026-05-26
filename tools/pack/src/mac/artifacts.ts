@@ -4,6 +4,7 @@ import { basename, dirname, join } from "node:path";
 
 import type { ToolPackConfig } from "../config.js";
 import { PRODUCT_NAME } from "./constants.js";
+import { execFileAsync } from "./commands.js";
 import { clearQuarantine, pathExists } from "./fs.js";
 import { readPackagedVersion } from "./manifest.js";
 import { sanitizeNamespace } from "./paths.js";
@@ -61,13 +62,38 @@ async function writeLocalLatestMacYml(config: ToolPackConfig, paths: MacPaths): 
   );
 }
 
+async function writeMacLauncherPayloadArtifact(paths: MacPaths): Promise<string> {
+  const payloadRoot = join(paths.payloadStagingRoot, "payload");
+  const payloadAppPath = join(payloadRoot, basename(paths.appPath));
+
+  await rm(paths.payloadStagingRoot, { force: true, recursive: true });
+  await mkdir(payloadRoot, { recursive: true });
+  await execFileAsync("/usr/bin/ditto", [paths.appPath, payloadAppPath]);
+  await mkdir(dirname(paths.payloadPath), { recursive: true });
+  await rm(paths.payloadPath, { force: true });
+  await execFileAsync("/usr/bin/ditto", [
+    "-c",
+    "-k",
+    "--sequesterRsrc",
+    "--keepParent",
+    "payload",
+    paths.payloadPath,
+  ], {
+    cwd: paths.payloadStagingRoot,
+  });
+  await clearQuarantine(paths.payloadPath);
+  await rm(paths.payloadStagingRoot, { force: true, recursive: true });
+  return paths.payloadPath;
+}
+
 export async function finalizeMacArtifacts(
   config: ToolPackConfig,
   paths: MacPaths,
-): Promise<Pick<MacPackResult, "dmgPath" | "latestMacYmlPath" | "zipPath">> {
+): Promise<Pick<MacPackResult, "dmgPath" | "latestMacYmlPath" | "payloadPath" | "zipPath">> {
   const namespaceToken = sanitizeNamespace(config.namespace);
   let dmgPath: string | null = null;
   let latestMacYmlPath: string | null = null;
+  let payloadPath: string | null = null;
   let zipPath: string | null = null;
 
   if (config.to === "dmg" || config.to === "all") {
@@ -88,7 +114,11 @@ export async function finalizeMacArtifacts(
     latestMacYmlPath = paths.latestMacYmlPath;
   }
 
+  if (config.to === "dmg" || config.to === "zip" || config.to === "all") {
+    payloadPath = await writeMacLauncherPayloadArtifact(paths);
+  }
+
   await cleanBuilderScratchMetadata(paths);
 
-  return { dmgPath, latestMacYmlPath, zipPath };
+  return { dmgPath, latestMacYmlPath, payloadPath, zipPath };
 }

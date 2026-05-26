@@ -14,7 +14,7 @@ release_dir="$RUNNER_TEMP/release-assets"
 mkdir -p "$release_dir"
 
 case "$mac_artifact_mode" in
-  dmg-only | dmg-and-zip) ;;
+  dmg-only | dmg-and-payload | dmg-and-zip | dmg-zip-payload) ;;
   *)
     echo "unsupported MAC_ARTIFACT_MODE: $mac_artifact_mode" >&2
     exit 1
@@ -22,19 +22,26 @@ case "$mac_artifact_mode" in
 esac
 
 source_dmg="$RUNNER_TEMP/tools-pack/out/mac/namespaces/$TOOLS_PACK_NAMESPACE/dmg/Open Design-$TOOLS_PACK_NAMESPACE.dmg"
+source_payload="$RUNNER_TEMP/tools-pack/out/mac/namespaces/$TOOLS_PACK_NAMESPACE/payload/Open Design-$TOOLS_PACK_NAMESPACE-payload.zip"
 source_zip="$RUNNER_TEMP/tools-pack/out/mac/namespaces/$TOOLS_PACK_NAMESPACE/zip/Open Design-$TOOLS_PACK_NAMESPACE.zip"
 if [ ! -f "$source_dmg" ]; then
   echo "expected dmg not found at $source_dmg" >&2
   exit 1
 fi
-if [ "$mac_artifact_mode" != "dmg-only" ] && [ ! -f "$source_zip" ]; then
+if [[ "$mac_artifact_mode" == *payload* ]] && [ ! -f "$source_payload" ]; then
+  echo "expected payload not found at $source_payload" >&2
+  exit 1
+fi
+if [ "$mac_artifact_mode" != "dmg-only" ] && [ "$mac_artifact_mode" != "dmg-and-payload" ] && [ ! -f "$source_zip" ]; then
   echo "expected zip not found at $source_zip" >&2
   exit 1
 fi
 
 versioned_dmg="open-design-${RELEASE_VERSION}${asset_suffix}-mac-arm64.dmg"
+versioned_payload="open-design-${RELEASE_VERSION}${asset_suffix}-mac-arm64-payload.zip"
 versioned_zip="open-design-${RELEASE_VERSION}${asset_suffix}-mac-arm64.zip"
 dmg_checksum_file="$versioned_dmg.sha256"
+payload_checksum_file="$versioned_payload.sha256"
 zip_checksum_file="$versioned_zip.sha256"
 
 cp "$source_dmg" "$release_dir/$versioned_dmg"
@@ -44,6 +51,18 @@ cp "$source_dmg" "$release_dir/$versioned_dmg"
 )
 
 if [ "$mac_artifact_mode" = "dmg-only" ]; then
+  exit 0
+fi
+
+if [[ "$mac_artifact_mode" == *payload* ]]; then
+  cp "$source_payload" "$release_dir/$versioned_payload"
+  (
+    cd "$release_dir"
+    shasum -a 256 "$versioned_payload" > "$payload_checksum_file"
+  )
+fi
+
+if [ "$mac_artifact_mode" = "dmg-and-payload" ]; then
   exit 0
 fi
 
