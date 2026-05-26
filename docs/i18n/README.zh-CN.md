@@ -284,21 +284,9 @@ pnpm tools-dev start
 
 我们用 Agent 驱动了整条贡献者管线——不是象征性的 bot 回复，而是真正的自动分类、自动实现、自动 Review、自动合入：
 
-```
-  Issue / PR 提交
-       │
-       ▼
-  ┌─────────────────────────────────┐
-  │  Agent 自动分类 · 分钟级响应      │
-  │  ─────────────────────────────  │
-  │  生成修复方案 / 代码实现          │
-  │  ─────────────────────────────  │
-  │  自动 Review · 合入 main         │
-  └─────────────────────────────────┘
-       │
-       ▼
-  你成为 50K+ star 项目的 Contributor
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nexu-io/open-design/chore/zh-cn-readme-trim-byok-fallback/docs/assets/ai-maintainer-architecture.png" alt="AI Maintainer Architecture — 从 GitHub 事件到智能合入的全链路自动化" width="100%" />
+</p>
 
 | 传统开源项目 | Open Design |
 |---|---|
