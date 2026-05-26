@@ -61,7 +61,11 @@ const props = Astro.props as SeoHeadProps;
 // `Disallow` so crawlers can still fetch the page and read both this tag and
 // the canonical (which points at the production origin). Production builds
 // leave the flag unset and stay fully indexable.
-const noindex = process.env.OD_LANDING_NOINDEX === '1';
+//
+// `__OD_LANDING_NOINDEX__` is a compile-time constant injected by
+// `vite.define` in astro.config.ts — `.astro` frontmatter is transformed by
+// Vite and cannot read process.env directly.
+const noindex = __OD_LANDING_NOINDEX__;
 
 const SITE_NAME = 'Open Design';
 const TAGLINE = 'Design with the agent already on your laptop.';
