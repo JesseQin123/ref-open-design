@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-27T13:40:51.158Z",
+  "generatedAt": "2026-05-27T14:05:42.809Z",
   "contributors": {
     "1115052994": {
       "lastAnnouncedTier": "spark",
@@ -1905,6 +1905,12 @@
       "lastAnnouncedTier": "spark",
       "lastKnownScore": 2,
       "lastCheckedAt": "2026-05-27T11:45:16.565Z",
+      "scoreVersion": "weighted-v1"
+    },
+    "niclydon": {
+      "lastAnnouncedTier": "spark",
+      "lastKnownScore": 2,
+      "lastCheckedAt": "2026-05-27T14:05:42.809Z",
       "scoreVersion": "weighted-v1"
     }
   }
