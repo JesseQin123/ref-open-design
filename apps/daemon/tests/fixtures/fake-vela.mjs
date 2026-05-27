@@ -16,6 +16,9 @@
  *                                         login route only care that the
  *                                         config file appears.
  *
+ *   `vela models`                       → prints production-shaped public
+ *                                         model ids from the Vela catalog.
+ *
  *   `vela agent run --runtime opencode` → ACP stdio runtime. Speaks just
  *                                         enough of the protocol to drive
  *                                         Open Design's `detectAcpModels`
@@ -66,10 +69,18 @@ const DEFAULT_MODELS_STDOUT = [
   'public_model_deepseek_v3_2    vela',
   'public_model_deepseek_v4_flash    vela',
   'public_model_deepseek_v4_pro  vela',
+  'public_model_gemini_2_5_flash    vela',
+  'public_model_gemini_3_1_flash_lite_preview    vela',
+  'public_model_gemini_3_1_pro_preview    vela',
+  'public_model_gpt_5_4    vela',
+  'public_model_gpt_5_4_mini    vela',
   'public_model_glm_5    vela',
   'public_model_glm_5_1  vela',
+  'public_model_gpt_image_2    vela',
   'public_model_kimi_k2_6    vela',
+  'public_model_minimax_m2_7    vela',
   'public_model_qwen3_235b_a22b  vela',
+  'public_model_seedance_2    vela',
 ].join('\n');
 
 // Real `vela agent run --runtime opencode` rejects session/prompt until

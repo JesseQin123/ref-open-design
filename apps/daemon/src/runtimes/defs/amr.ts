@@ -18,20 +18,65 @@ import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
 //
 //   2. Vela 0.0.1 exposes the current link-supported catalog through
 //      `vela models`, but that command prints public ids such as
-//      `public_model_glm_5`. The ACP `session/set_model` call accepts the
-//      link-facing slug (`glm-5` / `glm-5.1`), so Open Design normalizes
-//      those public ids at the daemon boundary until Vela exposes canonical
-//      ACP ids directly.
+//      `public_model_deepseek_v3_2`. The ACP `session/set_model` call accepts
+//      the link-facing slug (`deepseek-v3.2` / `glm-5.1`), so Open Design
+//      normalizes those public ids at the daemon boundary until Vela exposes
+//      canonical ACP ids directly.
 export function normalizeVelaModelId(rawId: string): string | null {
   const trimmed = rawId.trim();
   if (!trimmed) return null;
-  const withoutPrefix = trimmed.startsWith('public_model_')
-    ? trimmed.slice('public_model_'.length)
+  const withoutProvider = trimmed.startsWith('vela/')
+    ? trimmed.slice('vela/'.length)
     : trimmed;
+  const withoutPrefix = withoutProvider.startsWith('public_model_')
+    ? withoutProvider.slice('public_model_'.length)
+    : withoutProvider;
   if (!withoutPrefix) return null;
+  if (/^deepseek_v3_2$/i.test(withoutPrefix)) return 'deepseek-v3.2';
+  if (/^kimi_k2_6$/i.test(withoutPrefix)) return 'kimi-k2.6';
   if (/^glm_5_1$/i.test(withoutPrefix)) return 'glm-5.1';
   if (/^glm_5$/i.test(withoutPrefix)) return 'glm-5';
+  const versioned = normalizeKnownVelaVersionId(withoutPrefix);
+  if (versioned) return versioned;
   return withoutPrefix.replace(/_/g, '-');
+}
+
+function normalizeKnownVelaVersionId(rawId: string): string | null {
+  const gpt = /^gpt_(\d+)_(\d+)(.*)$/i.exec(rawId);
+  if (gpt) {
+    const [, major, minor, suffix = ''] = gpt;
+    if (!major || !minor) return null;
+    return `gpt-${major}.${minor}${suffix.replace(/_/g, '-')}`;
+  }
+
+  const gemini = /^gemini_(\d+)_(\d+)(.*)$/i.exec(rawId);
+  if (gemini) {
+    const [, major, minor, suffix = ''] = gemini;
+    if (!major || !minor) return null;
+    return `gemini-${major}.${minor}${suffix.replace(/_/g, '-')}`;
+  }
+
+  const minimax = /^minimax_m(\d+)_(\d+)(.*)$/i.exec(rawId);
+  if (minimax) {
+    const [, major, minor, suffix = ''] = minimax;
+    if (!major || !minor) return null;
+    return `minimax-m${major}.${minor}${suffix.replace(/_/g, '-')}`;
+  }
+
+  return null;
+}
+
+function isVelaChatModelId(modelId: string): boolean {
+  // Temporary chat-surface guard: Vela already lists media-generation models,
+  // but Open Design's AMR runtime currently drives only chat completions.
+  // Remove this filter when AMR grows first-class image/video execution.
+  const id = modelId.toLowerCase();
+  if (id.startsWith('gpt-image-')) return false;
+  if (id.startsWith('seedance-')) return false;
+  if (id.startsWith('doubao-seedance-')) return false;
+  if (id.startsWith('veo-')) return false;
+  if (id.startsWith('imagen-')) return false;
+  return true;
 }
 
 export function parseVelaModels(stdout: string): RuntimeModelOption[] {
@@ -40,13 +85,12 @@ export function parseVelaModels(stdout: string): RuntimeModelOption[] {
   for (const line of String(stdout || '').split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
-    const [rawId, provider] = trimmed.split(/\s+/);
+    const [rawId] = trimmed.split(/\s+/);
     if (!rawId) continue;
     const id = normalizeVelaModelId(rawId);
-    if (!id || seen.has(id)) continue;
+    if (!id || seen.has(id) || !isVelaChatModelId(id)) continue;
     seen.add(id);
-    const providerLabel = provider ? ` (${provider})` : '';
-    models.push({ id, label: `${id}${providerLabel}` });
+    models.push({ id, label: id });
   }
   return models;
 }
