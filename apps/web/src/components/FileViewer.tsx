@@ -597,7 +597,7 @@ function manualEditFloatingPanelStyle(
 ): CSSProperties {
   const scale = Number.isFinite(previewScale) && previewScale > 0 ? previewScale : 1;
   const panelWidth = 320;
-  const preferredPanelHeight = 560;
+  const preferredPanelHeight = 380;
   const pad = 12;
   const canvasWidth = canvasSize?.width ?? 1200;
   const canvasHeight = canvasSize?.height ?? 800;
