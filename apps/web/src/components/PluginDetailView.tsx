@@ -27,6 +27,11 @@ export function PluginDetailView(props: Props) {
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState<ApplyResult | null>(null);
 
+  const onBack = () => {
+    trackPluginDetailClick(analytics.track, { page_name: 'plugins', area: 'plugin_detail', element: 'back', plugin_id: props.pluginId });
+    navigate({ kind: 'marketplace' });
+  };
+
   useEffect(() => {
     let cancelled = false;
     void fetch(`/api/plugins/${encodeURIComponent(props.pluginId)}`)
@@ -50,7 +55,7 @@ export function PluginDetailView(props: Props) {
   if (error) {
     return (
       <div className="plugin-detail" data-testid="plugin-detail">
-        <button type="button" onClick={() => navigate({ kind: 'marketplace' })}>
+        <button type="button" onClick={onBack}>
           ← Marketplace
         </button>
         <div role="alert">Failed to load plugin: {error}</div>
@@ -104,10 +109,7 @@ export function PluginDetailView(props: Props) {
       <button
         type="button"
         className="plugin-detail__back"
-        onClick={() => {
-          trackPluginDetailClick(analytics.track, { page_name: 'plugins', area: 'plugin_detail', element: 'back', plugin_id: props.pluginId });
-          navigate({ kind: 'marketplace' });
-        }}
+        onClick={onBack}
       >
         ← Marketplace
       </button>

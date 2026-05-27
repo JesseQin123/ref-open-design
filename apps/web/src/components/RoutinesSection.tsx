@@ -521,6 +521,7 @@ export function RoutinesSection({ onClose }: RoutinesSectionProps) {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    fireAutomation(editingId ? 'save' : 'create');
     setSubmitting(true);
     setError(null);
     try {
@@ -730,7 +731,7 @@ export function RoutinesSection({ onClose }: RoutinesSectionProps) {
             >
               {t('routines.cancel')}
             </button>
-            <button type="submit" className="btn btn-primary" disabled={submitting} onClick={() => fireAutomation(editingId ? 'save' : 'create')}>
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
               {editingId
                 ? submitting
                   ? t('routines.saving')
