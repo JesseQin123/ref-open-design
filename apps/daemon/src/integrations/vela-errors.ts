@@ -13,7 +13,7 @@ const AMR_AUTH_REQUIRED_MESSAGE =
   'AMR sign-in is required. Sign in to AMR Cloud again, then retry this run.';
 
 const AMR_INSUFFICIENT_BALANCE_MESSAGE =
-  'AMR Cloud reported insufficient balance for this model. Recharge your AMR wallet, then retry this run.';
+  `AMR Cloud reported insufficient balance for this model. Recharge your AMR wallet at ${DEFAULT_AMR_RECHARGE_URL}, then retry this run.`;
 
 function normalizeFailureText(text: string): string {
   return String(text || '').toLowerCase();

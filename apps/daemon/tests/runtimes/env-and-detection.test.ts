@@ -83,6 +83,44 @@ test('spawnEnvForAgent injects the resolved AMR profile after configured env', (
   assert.equal(env.PATH, '/usr/bin');
 });
 
+test('spawnEnvForAgent gives AMR a stable OpenCode home under OD_DATA_DIR', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'od-amr-data-'));
+  try {
+    const env = spawnEnvForAgent('amr', {
+      OD_DATA_DIR: dataDir,
+      PATH: '/usr/bin',
+    });
+
+    assert.equal(
+      env.OPENCODE_TEST_HOME,
+      join(dataDir, 'amr', 'opencode-home'),
+    );
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('spawnEnvForAgent preserves a configured AMR OpenCode home override', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'od-amr-data-'));
+  try {
+    const configuredHome = join(dataDir, 'custom-opencode-home');
+    const env = spawnEnvForAgent(
+      'amr',
+      {
+        OD_DATA_DIR: dataDir,
+        PATH: '/usr/bin',
+      },
+      {
+        OPENCODE_TEST_HOME: configuredHome,
+      },
+    );
+
+    assert.equal(env.OPENCODE_TEST_HOME, configuredHome);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 fsTest('spawnEnvForAgent gives AMR a discovered OpenCode binary under a minimal child PATH', () => {
   const dir = mkdtempSync(join(tmpdir(), 'od-amr-opencode-home-'));
   try {
@@ -234,7 +272,7 @@ test('detectAgents includes sanitized install and docs metadata from split runti
       assert.ok(deepseek);
       assert.equal(
         deepseek.docsUrl,
-        'https://github.com/deepseek-ai/DeepSeek-TUI/blob/main/README.md',
+        'https://github.com/Hmbown/CodeWhale/blob/main/README.md',
       );
     });
   } finally {

@@ -4,7 +4,7 @@
  * End-to-end coverage for an AMR (vela) chat run driven through the real
  * tools-dev orchestrated daemon. Boots a namespaced daemon + web pair,
  * configures it to spawn a self-contained fake `vela` binary, pre-seeds
- * `~/.vela/config.json` as if the user had already approved CLI login,
+ * `~/.amr/config.json` as if the user had already approved CLI login,
  * then drives a complete /api/runs lifecycle for `agentId: 'amr'` and
  * asserts the assistant message picks up the fake's canned text.
  *
@@ -14,8 +14,8 @@
  *      `agentId: 'amr'` through `attachAcpSession` (not the legacy
  *      json-event-stream parser the old `incongruous-megaraptor` branch
  *      used).
- *   2. `resolveModelForAgent` substitutes the synthetic `'default'` model
- *      id with AMR's first concrete fallback id (`gpt-5.4-mini`), so vela
+ *   2. AMR preflight refreshes `vela models` and substitutes the synthetic
+ *      `'default'` model id with the first live model (`glm-5`), so vela
  *      receives a real `session/set_model` before `session/prompt` — a
  *      regression here would manifest as
  *      `session/set_model must be called before session/prompt` on the
@@ -24,7 +24,7 @@
  *   3. The full ACP transport (`initialize` → `session/new` →
  *      `session/set_model` → `session/prompt` → `session/update*`) flows
  *      between the daemon and a spawned subprocess that respects vela's
- *      `~/.vela/config.json` resolution path.
+ *      `~/.amr/config.json` resolution path.
  */
 
 import { mkdir, writeFile, chmod } from 'node:fs/promises';
@@ -46,7 +46,8 @@ type ProjectResponse = {
 // Inline fake `vela` binary. Handles the two argv shapes Open Design's
 // daemon ever spawns:
 //
-//   `vela login`                        — write ~/.vela/config.json and exit 0.
+//   `vela models`                       — print the live link model catalog.
+//   `vela login`                        — write ~/.amr/config.json and exit 0.
 //   `vela agent run --runtime opencode` — ACP stdio runtime (initialize →
 //                                          session/new → session/set_model →
 //                                          session/prompt → session/update*).
@@ -62,6 +63,7 @@ import { argv, stdin, stdout, env, exit } from 'node:process';
 
 const ASSISTANT_TEXT = env.FAKE_VELA_TEXT || 'Hello from the e2e fake vela.';
 const SESSION_ID = 'fake-amr-session-1';
+const LIVE_MODEL_ID = 'glm-5';
 
 function writeMessage(obj) {
   stdout.write(JSON.stringify(obj) + '\\n');
@@ -74,7 +76,7 @@ function writeNotification(method, params) {
 }
 
 if (argv[2] === 'login') {
-  const file = join(homedir(), '.vela', 'config.json');
+  const file = join(homedir(), '.amr', 'config.json');
   mkdirSync(dirname(file), { recursive: true });
   const profile = (env.VELA_PROFILE || 'local').trim() || 'local';
   writeFileSync(file, JSON.stringify({
@@ -88,6 +90,11 @@ if (argv[2] === 'login') {
       },
     },
   }, null, 2), 'utf8');
+  exit(0);
+}
+
+if (argv[2] === 'models') {
+  stdout.write('public_model_glm_5    vela\\n');
   exit(0);
 }
 
@@ -115,8 +122,8 @@ function handle(msg) {
       protocolVersion: 1,
       agentCapabilities: { promptCapabilities: { text: true } },
       models: {
-        currentModelId: 'gpt-5.4-mini',
-        availableModels: [{ modelId: 'gpt-5.4-mini', name: 'gpt-5.4-mini' }],
+        currentModelId: LIVE_MODEL_ID,
+        availableModels: [{ modelId: LIVE_MODEL_ID, name: LIVE_MODEL_ID }],
       },
     });
     return;
@@ -125,8 +132,8 @@ function handle(msg) {
     writeResult(id, {
       sessionId: SESSION_ID,
       models: {
-        currentModelId: 'gpt-5.4-mini',
-        availableModels: [{ modelId: 'gpt-5.4-mini', name: 'gpt-5.4-mini' }],
+        currentModelId: LIVE_MODEL_ID,
+        availableModels: [{ modelId: LIVE_MODEL_ID, name: LIVE_MODEL_ID }],
       },
     });
     return;
@@ -183,10 +190,10 @@ describe('AMR chat-run end-to-end', () => {
     await suite.with.toolsDev(async ({ webUrl }) => {
       const velaBin = await writeFakeVelaBin(join(suite.scratchDir, 'fake-vela'));
 
-      // Pre-seed `~/.vela/config.json` so `vela agent run` (the fake) does
+      // Pre-seed `~/.amr/config.json` so `vela agent run` (the fake) does
       // not need to negotiate device-auth. Production AMR works the same
       // way: once login has happened once, the runtime reads the file.
-      const velaConfigDir = join(suite.scratchDir, 'home', '.vela');
+      const velaConfigDir = join(suite.scratchDir, 'home', '.amr');
       await mkdir(velaConfigDir, { recursive: true });
       await writeFile(
         join(velaConfigDir, 'config.json'),
@@ -209,7 +216,7 @@ describe('AMR chat-run end-to-end', () => {
 
       // Persist agentCliEnv so the daemon's runtime resolver picks up the
       // fake binary and the pre-run AMR status guard sees configured runtime
-      // credentials without touching the developer's real ~/.vela config.
+      // credentials without touching the developer's real ~/.amr config.
       await requestJson<{ config: Record<string, unknown> }>(webUrl, '/api/app-config', {
         body: {
           agentCliEnv: {
@@ -253,10 +260,10 @@ describe('AMR chat-run end-to-end', () => {
         conversationId,
         designSystemId: null,
         message: PROMPT,
-        // 'default' must be resolved to AMR's first concrete fallback by
-        // `resolveModelForAgent`; if that helper regressed, the fake vela
-        // would reject session/prompt with the `set_model must be called
-        // before session/prompt` error encoded above.
+        // 'default' must be resolved through AMR's live `vela models`
+        // preflight; if that helper regressed, the fake vela would reject
+        // session/prompt with the `set_model must be called before
+        // session/prompt` error encoded above.
         model: 'default',
         projectId,
         reasoning: 'default',

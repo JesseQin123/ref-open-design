@@ -28,7 +28,7 @@ export async function seedVelaLoginConfig(
   } = {},
 ): Promise<string> {
   const profile = options.profile ?? 'local';
-  const configDir = join(homeDir, '.vela');
+  const configDir = join(homeDir, '.amr');
   const file = join(configDir, 'config.json');
   await mkdir(configDir, { recursive: true });
   await writeFile(
@@ -58,7 +58,7 @@ export async function seedVelaLoginConfig(
 }
 
 export async function clearVelaLoginConfig(homeDir: string): Promise<void> {
-  await rm(join(homeDir, '.vela', 'config.json'), { force: true });
+  await rm(join(homeDir, '.amr', 'config.json'), { force: true });
 }
 
 function renderFakeVelaScript(options: FakeVelaOptions): string {
@@ -90,7 +90,7 @@ function currentProfile() {
   return (env.OPEN_DESIGN_AMR_PROFILE || env.VELA_PROFILE || 'local').trim() || 'local';
 }
 function readLoginConfig() {
-  const file = join(homedir(), '.vela', 'config.json');
+  const file = join(homedir(), '.amr', 'config.json');
   if (!existsSync(file)) return null;
   try {
     return JSON.parse(readFileSync(file, 'utf8'));
@@ -105,7 +105,7 @@ function hasRuntimeKey() {
 }
 
 if (argv[2] === 'login') {
-  const file = join(homedir(), '.vela', 'config.json');
+  const file = join(homedir(), '.amr', 'config.json');
   mkdirSync(dirname(file), { recursive: true });
   const profile = currentProfile();
   writeFileSync(file, JSON.stringify({
@@ -119,6 +119,11 @@ if (argv[2] === 'login') {
       },
     },
   }, null, 2), 'utf8');
+  exit(0);
+}
+
+if (argv[2] === 'models') {
+  stdout.write('public_model_glm_5    vela\\n');
   exit(0);
 }
 
@@ -151,8 +156,8 @@ function handle(msg) {
       protocolVersion: 1,
       agentCapabilities: { promptCapabilities: { text: true } },
       models: {
-        currentModelId: 'gpt-5.4-mini',
-        availableModels: [{ modelId: 'gpt-5.4-mini', name: 'gpt-5.4-mini' }],
+        currentModelId: 'glm-5',
+        availableModels: [{ modelId: 'glm-5', name: 'glm-5' }],
       },
     });
     return;
@@ -161,8 +166,8 @@ function handle(msg) {
     writeResult(id, {
       sessionId: SESSION_ID,
       models: {
-        currentModelId: 'gpt-5.4-mini',
-        availableModels: [{ modelId: 'gpt-5.4-mini', name: 'gpt-5.4-mini' }],
+        currentModelId: 'glm-5',
+        availableModels: [{ modelId: 'glm-5', name: 'glm-5' }],
       },
     });
     return;

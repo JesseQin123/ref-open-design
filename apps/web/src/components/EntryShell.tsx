@@ -115,8 +115,6 @@ import {
   amrLoginPollOutcome,
 } from './amrLoginPolling';
 
-const AMR_AUTH_URL = 'https://vela.powerformer.net/login?redirect=/wallet';
-
 // The topbar chips (GitHub star, model switcher, Use everywhere)
 // collapse into the settings dropdown when the viewport gets
 // narrow. The transition is driven entirely by CSS @media queries

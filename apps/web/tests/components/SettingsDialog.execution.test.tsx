@@ -1148,6 +1148,41 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     ).toBeTruthy();
   });
 
+  it('uses the existing Settings card picker for AMR without exposing custom stale models', () => {
+    renderSettingsDialog(
+      {
+        mode: 'daemon',
+        agentId: 'amr',
+        agentModels: { amr: { model: 'gpt-5.4-mini', reasoning: 'default' } },
+      },
+      {
+        agents: [
+          {
+            ...amrAgent,
+            modelsSource: 'live',
+            models: [
+              { id: 'glm-5', label: 'GLM 5' },
+              { id: 'glm-5.1', label: 'GLM 5.1' },
+            ],
+          },
+        ],
+      },
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: /Local CLI/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Open Design AMR\b/ }));
+
+    const modelPickers = screen.getAllByRole('combobox', {
+      name: en['settings.modelPicker'],
+    }) as HTMLSelectElement[];
+    expect(modelPickers).toHaveLength(1);
+    expect(modelPickers[0]?.value).toBe('glm-5');
+    expect(
+      Array.from(modelPickers[0]?.options ?? []).map((option) => option.value),
+    ).toEqual(['glm-5', 'glm-5.1']);
+    expect(screen.queryByLabelText(en['settings.modelCustomLabel'])).toBeNull();
+  });
+
   it('shows an empty state when no local CLI agents are detected', () => {
     renderSettingsDialog(
       { mode: 'daemon', agentId: null },
@@ -1367,7 +1402,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
             loggedIn: false,
             profile: 'default',
             user: null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -1388,10 +1423,10 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(screen.queryByText(/AMR \(vela\)/i)).toBeNull();
     expect(screen.queryByText(/vela/i)).toBeNull();
     expect(screen.queryByText(/Not signed in/i)).toBeNull();
-    expect(screen.getByText('Officially maintained')).toBeTruthy();
-    expect(screen.getByText('Lower price')).toBeTruthy();
+    expect(screen.getByText('Official')).toBeTruthy();
+    expect(screen.getByText('Lower cost')).toBeTruthy();
     expect(screen.getByText('Many models')).toBeTruthy();
-    expect(screen.getByText('Limited bonus: +100%')).toBeTruthy();
+    expect(screen.queryByText('Limited bonus: +100%')).toBeNull();
     expect(await screen.findByRole('button', { name: 'Authorize' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Test' })).toBeNull();
   });
@@ -1450,7 +1485,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
               email: 'signed-in@example.com',
               name: 'Signed In User',
             },
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -1473,6 +1508,43 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(screen.queryByText(/^vela$/i)).toBeNull();
   });
 
+  it('renders env-backed AMR login inside Settings without fabricating account details', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url === '/api/memory') {
+        return new Response(
+          JSON.stringify({ enabled: true, memories: [], extraction: null }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url === '/api/integrations/vela/status') {
+        return new Response(
+          JSON.stringify({
+            loggedIn: true,
+            profile: 'local',
+            user: null,
+            configPath: '/Users/test/.amr/config.json',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderSettingsDialog(
+      { mode: 'daemon', agentId: 'amr' },
+      { agents: [amrAgent] },
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: /Local CLI.*1 installed/i }));
+
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Open Design AMR\b/ })).toBeTruthy();
+    expect(screen.queryByText(/@/i)).toBeNull();
+    expect(screen.queryByText(/AMR \(vela\)/i)).toBeNull();
+  });
+
   it('does not keep a stale signed-in AMR state after a later Settings reopen reads loggedOut', async () => {
     let statusCalls = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -1492,13 +1564,13 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
                   loggedIn: true,
                   profile: 'local',
                   user: { id: 'user-1', email: 'signed-in@example.com' },
-                  configPath: '/Users/test/.vela/config.json',
+                  configPath: '/Users/test/.amr/config.json',
                 }
               : {
                   loggedIn: false,
                   profile: 'local',
                   user: null,
-                  configPath: '/Users/test/.vela/config.json',
+                  configPath: '/Users/test/.amr/config.json',
                 },
           ),
           { status: 200, headers: { 'content-type': 'application/json' } },
@@ -1543,7 +1615,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
             loggedIn: statusCalls === 1,
             profile: 'local',
             user: statusCalls === 1 ? { id: 'user-1', email: 'signed-in@example.com' } : null,
-            configPath: '/Users/test/.vela/config.json',
+            configPath: '/Users/test/.amr/config.json',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );

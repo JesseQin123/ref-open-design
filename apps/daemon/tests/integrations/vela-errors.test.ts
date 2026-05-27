@@ -17,6 +17,7 @@ describe('AMR account failure classification', () => {
       action: 'recharge',
       actionUrl: DEFAULT_AMR_RECHARGE_URL,
     });
+    expect(failure?.message).toContain(DEFAULT_AMR_RECHARGE_URL);
     expect(amrAccountFailureDetails(failure!)).toEqual({
       kind: 'amr_account',
       action: 'recharge',

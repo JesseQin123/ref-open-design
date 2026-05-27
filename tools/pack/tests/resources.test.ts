@@ -196,6 +196,32 @@ describe("copyOptionalVelaCliBinary", () => {
     }
   });
 
+  it("copies the Vela CLI binary without a companion tree in non-strict mode", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-nonstrict-"));
+    const source = join(root, "source", "vela");
+    const resourceRoot = join(root, "resources", "open-design");
+
+    try {
+      await mkdir(join(root, "source"), { recursive: true });
+      await writeFile(source, "#!/bin/sh\nexit 0\n", "utf8");
+
+      const copied = await copyOptionalVelaCliBinary({
+        env: { OPEN_DESIGN_VELA_CLI_BIN: source },
+        platform: "mac",
+        requireBundled: false,
+        resourceRoot,
+      });
+
+      const target = join(resourceRoot, "bin", "vela");
+      const companionTarget = join(resourceRoot, "bin", "libexec", "opencode", "opencode");
+      await expect(readFile(target, "utf8")).resolves.toBe("#!/bin/sh\nexit 0\n");
+      await expect(access(companionTarget)).rejects.toThrow();
+      expect(copied).toEqual({ source, target });
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
   it("copies a configured Vela CLI binary into the Windows resource bin", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-win-"));
     const source = join(root, "source", "vela.exe");

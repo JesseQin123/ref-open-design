@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectView } from '../../src/components/ProjectView';
 import type {
+  AgentInfo,
   AppConfig,
   ChatMessage,
   Conversation,
@@ -460,6 +461,43 @@ describe('ProjectView conversation run isolation', () => {
     );
   });
 
+  it('submits the live AMR fallback model when the saved AMR model is stale', async () => {
+    conversationAMessages = [];
+    renderProjectView(
+      {
+        ...config,
+        agentId: 'amr',
+        agentModels: {
+          amr: { model: 'gpt-5.4-mini', reasoning: 'medium' },
+        },
+      },
+      project,
+      [
+        {
+          id: 'amr',
+          name: 'AMR',
+          bin: 'amr',
+          available: true,
+          models: [{ id: 'glm-5', label: 'GLM 5' }],
+        },
+      ],
+    );
+
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-a'));
+    await waitFor(() => expect(screen.getByTestId('send-message')).toHaveProperty('disabled', false));
+
+    fireEvent.click(screen.getByTestId('send-message'));
+
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+    expect(streamViaDaemon).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 'amr',
+        model: 'glm-5',
+        reasoning: 'medium',
+      }),
+    );
+  });
+
   it('does not create duplicate empty conversations while a fresh conversation is loading', async () => {
     renderProjectView();
 
@@ -878,13 +916,19 @@ describe('ProjectView conversation run isolation', () => {
   });
 });
 
-function renderProjectView(renderConfig = config, renderProject: Project = project) {
+function renderProjectView(
+  renderConfig = config,
+  renderProject: Project = project,
+  renderAgents: AgentInfo[] = [
+    { id: 'agent-1', name: 'OpenCode', bin: 'opencode', available: true, models: [] },
+  ],
+) {
   return render(
     <ProjectView
       project={renderProject}
       routeFileName={null}
       config={renderConfig}
-      agents={[{ id: 'agent-1', name: 'OpenCode', bin: 'opencode', available: true, models: [] }]}
+      agents={renderAgents}
       skills={[]}
       designTemplates={[]}
       designSystems={[]}

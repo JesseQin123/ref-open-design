@@ -2,7 +2,11 @@
 /**
  * Fake vela CLI used by AMR integration tests. Routes by the first argv:
  *
- *   `vela login`                        → writes ~/.vela/config.json (the
+ *   `vela models`                       → prints the live link model catalog
+ *                                         in the same tabular shape as Vela
+ *                                         0.0.1.
+ *
+ *   `vela login`                        → writes ~/.amr/config.json (the
  *                                         active VELA_PROFILE only) and
  *                                         exits 0. Mirrors the real
  *                                         device-authorization flow's
@@ -11,6 +15,9 @@
  *                                         tests for Open Design's daemon
  *                                         login route only care that the
  *                                         config file appears.
+ *
+ *   `vela models`                       → prints production-shaped public
+ *                                         model ids from the Vela catalog.
  *
  *   `vela agent run --runtime opencode` → ACP stdio runtime. Speaks just
  *                                         enough of the protocol to drive
@@ -35,6 +42,7 @@
  *   FAKE_VELA_SESSION_NEW_ERROR  – when set, session/new returns a JSON-RPC error
  *   FAKE_VELA_SET_MODEL_ERROR    – when set, session/set_model returns a JSON-RPC error
  *   FAKE_VELA_PROMPT_ERROR       – when set, session/prompt returns a JSON-RPC error
+ *   FAKE_VELA_MODELS             – newline-separated `vela models` stdout
  *   FAKE_VELA_REQUIRE_SET_MODEL  – strict gate (default on); set to '0' to
  *                                   accept session/prompt without prior
  *                                   session/set_model (legacy behaviour)
@@ -46,7 +54,9 @@ import { dirname, join } from 'node:path';
 import { argv, stdin, stdout, stderr, env, exit } from 'node:process';
 
 const SESSION_ID = env.FAKE_VELA_SESSION_ID || 'fake-vela-session-1';
-const ASSISTANT_TEXT = env.FAKE_VELA_TEXT || 'Hello from fake vela.';
+const ASSISTANT_TEXT = Object.prototype.hasOwnProperty.call(env, 'FAKE_VELA_TEXT')
+  ? env.FAKE_VELA_TEXT
+  : 'Hello from fake vela.';
 const THOUGHT_TEXT = env.FAKE_VELA_THOUGHT || '';
 const SESSION_NEW_ERROR = env.FAKE_VELA_SESSION_NEW_ERROR || '';
 const SET_MODEL_ERROR = env.FAKE_VELA_SET_MODEL_ERROR || '';
@@ -55,6 +65,23 @@ const AVAILABLE_MODELS = [
   { modelId: 'openai/gpt-5.4-mini', name: 'gpt-5.4-mini' },
   { modelId: 'anthropic/claude-3.7-sonnet', name: 'claude-3.7-sonnet' },
 ];
+const DEFAULT_MODELS_STDOUT = [
+  'public_model_deepseek_v3_2    vela',
+  'public_model_deepseek_v4_flash    vela',
+  'public_model_deepseek_v4_pro  vela',
+  'public_model_gemini_2_5_flash    vela',
+  'public_model_gemini_3_1_flash_lite_preview    vela',
+  'public_model_gemini_3_1_pro_preview    vela',
+  'public_model_gpt_5_4    vela',
+  'public_model_gpt_5_4_mini    vela',
+  'public_model_glm_5    vela',
+  'public_model_glm_5_1  vela',
+  'public_model_gpt_image_2    vela',
+  'public_model_kimi_k2_6    vela',
+  'public_model_minimax_m2_7    vela',
+  'public_model_qwen3_235b_a22b  vela',
+  'public_model_seedance_2    vela',
+].join('\n');
 
 // Real `vela agent run --runtime opencode` rejects session/prompt until
 // session/set_model has been called for the current session — see the
@@ -221,7 +248,7 @@ stdin.on('end', () => {
 
 // `vela login`: the daemon's /api/integrations/vela/login route spawns this
 // without expecting any ACP traffic. Real vela goes through a device-auth
-// loop and writes ~/.vela/config.json on success; the stub skips the loop
+// loop and writes ~/.amr/config.json on success; the stub skips the loop
 // and just writes the file so Open Design's status reader and AmrLoginPill
 // poller see the same on-disk projection production produces. The stdin EOF
 // handler above ignores login mode so delayed login tests can keep this
@@ -241,7 +268,7 @@ function loginAndExit() {
   const userEmail = env.FAKE_VELA_LOGIN_USER_EMAIL || 'fake-user@example.com';
   const userPlan = env.FAKE_VELA_LOGIN_USER_PLAN || 'free';
   const finish = () => {
-    const file = join(homedir(), '.vela', 'config.json');
+    const file = join(homedir(), '.amr', 'config.json');
     mkdirSync(dirname(file), { recursive: true });
     const payload = {
       profiles: {
@@ -271,4 +298,9 @@ function loginAndExit() {
 
 if (argv[2] === 'login') {
   loginAndExit();
+}
+
+if (argv[2] === 'models') {
+  stdout.write(`${env.FAKE_VELA_MODELS || DEFAULT_MODELS_STDOUT}\n`);
+  exit(0);
 }
