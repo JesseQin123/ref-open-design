@@ -1276,9 +1276,10 @@
   overflow-wrap: anywhere;
 }
 .comment-popover textarea {
-  min-height: 78px;
-  max-height: 120px;
-  resize: vertical;
+  height: 112px;
+  max-height: 112px;
+  overflow-y: auto;
+  resize: none;
 }
 .comment-popover-actions {
   display: flex;

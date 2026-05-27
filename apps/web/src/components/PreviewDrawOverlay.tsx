@@ -568,6 +568,16 @@ export function PreviewDrawOverlay({
               fontSize: 13,
             }}
           >
+          <button
+            type="button"
+            onClick={closeOverlay}
+            disabled={sending}
+            aria-label={t('common.close')}
+            title={t('common.close')}
+            style={closeButtonStyle}
+          >
+            <Icon name="close" size={13} />
+          </button>
           <div style={subToolGroupStyle} aria-label="Mark tool">
             <button
               type="button"
@@ -575,10 +585,11 @@ export function PreviewDrawOverlay({
               disabled={sending}
               aria-label="Box select"
               title="Box select"
+              data-tooltip="Box select"
+              className="preview-draw-subtool-action"
               style={subToolButtonStyle(markTool === 'box')}
             >
               <RemixIcon name="checkbox-blank-line" size={14} />
-              <span>框选</span>
             </button>
             <button
               type="button"
@@ -586,10 +597,11 @@ export function PreviewDrawOverlay({
               disabled={sending}
               aria-label="Pen"
               title="Pen"
+              data-tooltip="Pen"
+              className="preview-draw-subtool-action"
               style={subToolButtonStyle(markTool === 'pen')}
             >
               <RemixIcon name="pencil-line" size={14} />
-              <span>画笔</span>
             </button>
           </div>
           <button
@@ -663,16 +675,6 @@ export function PreviewDrawOverlay({
           </button>
           <button
             type="button"
-            onClick={closeOverlay}
-            disabled={sending}
-            aria-label={t('common.close')}
-            title={t('common.close')}
-            style={closeButtonStyle}
-          >
-            <Icon name="close" size={13} />
-          </button>
-          <button
-            type="button"
             onClick={() => void send('send')}
             disabled={sending || !canSend}
             aria-label={pendingAction === 'send' ? t('chat.annotationSending') : t('chat.send')}
@@ -699,10 +701,12 @@ export function PreviewDrawOverlay({
 }
 
 const tooltipStyle = `
-  .preview-draw-icon-action {
+  .preview-draw-icon-action,
+  .preview-draw-subtool-action {
     position: relative;
   }
-  .preview-draw-icon-action::after {
+  .preview-draw-icon-action::after,
+  .preview-draw-subtool-action::after {
     content: attr(data-tooltip);
     position: absolute;
     z-index: 12;
@@ -721,7 +725,9 @@ const tooltipStyle = `
     transition: opacity 140ms cubic-bezier(0.23, 1, 0.32, 1), transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
   }
   .preview-draw-icon-action:hover::after,
-  .preview-draw-icon-action:focus-visible::after {
+  .preview-draw-icon-action:focus-visible::after,
+  .preview-draw-subtool-action:hover::after,
+  .preview-draw-subtool-action:focus-visible::after {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
@@ -768,11 +774,12 @@ function subToolButtonStyle(active: boolean): CSSProperties {
   return {
     border: 'none',
     borderRadius: 999,
+    width: 34,
     height: 30,
-    padding: '0 10px',
+    padding: 0,
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'center',
     background: active ? 'rgba(255,255,255,0.18)' : 'transparent',
     color: '#fff',
     fontSize: 12,
