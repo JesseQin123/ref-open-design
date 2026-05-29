@@ -7,13 +7,13 @@
 </p>
 
 <p align="center">
-  <a href="https://open-design.ai/"><img alt="website" src="https://img.shields.io/badge/website-open--design.ai-blue?style=flat-square" /></a>
-  <a href="https://open-design.ai/"><img alt="download" src="https://img.shields.io/badge/download-open--design.ai-ff6b35?style=flat-square" /></a>
-  <a href="https://github.com/nexu-io/open-design/releases"><img alt="release" src="https://img.shields.io/github/v/release/nexu-io/open-design?style=flat-square&color=blueviolet&label=release&include_prereleases&display_name=tag" /></a>
-  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square" /></a>
-  <a href="https://discord.gg/qhbcCH8Am4"><img alt="discord" src="https://img.shields.io/badge/discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" /></a>
-  <a href="https://x.com/nexudotio"><img alt="follow" src="https://img.shields.io/badge/follow-%40nexudotio-1DA1F2?style=flat-square&logo=x&logoColor=white" /></a>
-  <a href="QUICKSTART.md"><img alt="quickstart" src="https://img.shields.io/badge/quickstart-3%20commands-green?style=flat-square" /></a>
+  <a href="https://open-design.ai/"><img alt="website" src="https://img.shields.io/badge/website-open--design.ai-blue?style=flat" /></a>
+  <a href="https://open-design.ai/"><img alt="download" src="https://img.shields.io/badge/download-open--design.ai-ff6b35?style=flat" /></a>
+  <a href="https://github.com/nexu-io/open-design/releases"><img alt="release" src="https://img.shields.io/github/v/release/nexu-io/open-design?style=flat&color=blueviolet&label=release&include_prereleases&display_name=tag" /></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat" /></a>
+  <a href="https://discord.gg/qhbcCH8Am4"><img alt="discord" src="https://img.shields.io/badge/discord-join-5865F2?style=flat&logo=discord&logoColor=white" /></a>
+  <a href="https://x.com/nexudotio"><img alt="follow" src="https://img.shields.io/badge/follow-%40nexudotio-1DA1F2?style=flat&logo=x&logoColor=white" /></a>
+  <a href="QUICKSTART.md"><img alt="quickstart" src="https://img.shields.io/badge/quickstart-3%20commands-green?style=flat" /></a>
 </p>
 
 <p align="center"><a href="README.md"><b>English</b></a> · <a href="README.es.md">Español</a> · <a href="README.pt-BR.md">Português</a> · <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <b>简体中文</b> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ko.md">한국어</a> · <a href="README.ja-JP.md">日本語</a> · <a href="README.ar.md">العربية</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.tr.md">Türkçe</a></p>
