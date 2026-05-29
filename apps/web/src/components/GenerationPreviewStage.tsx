@@ -79,7 +79,9 @@ export function GenerationPreviewStage({ model, onRetry }: Props) {
         <span style={{ width: `${model.progressPercent}%` }} />
       </div>
       <ol className={styles.steps}>
-        {model.steps.map((step) => (
+        {model.steps
+          .filter((step) => step.status !== 'pending')
+          .map((step) => (
           <li key={step.id} className={styles.step} data-status={step.status}>
             <span className={styles.stepIcon} aria-hidden>
               {step.status === 'succeeded' ? (

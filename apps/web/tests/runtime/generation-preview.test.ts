@@ -46,6 +46,24 @@ describe('generation preview helpers', () => {
     ]);
   });
 
+  it('keeps the understand step in progress while the request is still pending', () => {
+    // `requesting` only means the request left the client; nothing should
+    // advance past the first step until real model activity arrives, so the
+    // UI can reveal steps one at a time.
+    expect(
+      derivePrototypeGenerationSteps({
+        events: [{ kind: 'status', label: 'requesting', detail: 'claude-opus-4-7' }],
+        hasArtifactHtml: false,
+        hasPreviewSurface: false,
+        failed: false,
+      }),
+    ).toEqual([
+      { id: 'understand', status: 'running' },
+      { id: 'generate', status: 'pending' },
+      { id: 'prepare', status: 'pending' },
+    ]);
+  });
+
   it('builds preview state for an active assistant run without an open preview tab', () => {
     const assistant: ChatMessage = {
       id: 'a1',

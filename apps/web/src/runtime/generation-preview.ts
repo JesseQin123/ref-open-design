@@ -172,7 +172,12 @@ export function derivePrototypeGenerationSteps(input: {
   let understand: GenerationStepStatus = 'running';
   if (input.failed && !hasText && !hasToolUse) {
     understand = 'failed';
-  } else if (hasText || hasStatus(['thinking', 'streaming', 'requesting', 'starting']) || hasToolUse) {
+  } else if (hasText || hasStatus(['thinking', 'streaming']) || hasToolUse) {
+    // `requesting`/`starting` only mean the request left the client — the
+    // model hasn't produced anything yet, so we keep "understand" in
+    // progress until real thinking/output/tool activity arrives. This lets
+    // the UI reveal the steps one at a time instead of jumping straight to
+    // a fully populated row.
     understand = 'succeeded';
   }
 
@@ -241,9 +246,9 @@ function latestActivityLabel(events: AgentEvent[]): string | null {
     if (event.kind === 'text' && event.text.trim() && !QUESTION_FORM_RE.test(event.text)) {
       return truncateActivity(event.text);
     }
-    if (event.kind === 'status' && event.detail?.trim()) {
-      return truncateActivity(event.detail);
-    }
+    // Intentionally skip `status` details: their payload is often an
+    // internal identifier (e.g. the model slug from a `requesting` event)
+    // rather than human-readable progress, so surfacing it reads as noise.
   }
   return null;
 }
