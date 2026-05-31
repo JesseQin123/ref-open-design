@@ -45,6 +45,16 @@ export const API_ERROR_CODES = [
   // surface the def-correctness error so it shows up in dev rather
   // than silently disabling the agent-specific watchdog.
   'AGENT_RUNTIME_DEF_INVALID',
+  // The agent got stuck repeating failing tool calls (e.g. re-running the same
+  // Edit that errors "string not found", or the same shell command that keeps
+  // exiting non-zero) without making progress. The daemon's tool-loop guard
+  // (`tool-loop-guard.ts`) counts consecutive failures and repeats of the same
+  // failing action; at the hard ceiling it terminates the run so the agent
+  // cannot grind through dozens more identical attempts. The caller should
+  // re-check the actual target (the file, the element, the command) before
+  // retrying rather than resubmitting the same turn. Configurable via
+  // OD_TOOL_LOOP_GUARD (halt|warn|off). Retryable.
+  'TOOL_LOOP_DETECTED',
   'PROJECT_NOT_FOUND',
   // Handoff (`POST /api/projects/:id/handoff`): the requested conversation
   // is not in the project, or has no messages to synthesize a handoff from.
