@@ -203,6 +203,7 @@ export interface ProjectTabsState {
   active: string | null;
   browserTabs?: ProjectBrowserWorkspaceTab[];
   hasSavedState?: boolean;
+  updatedAt?: number;
 }
 
 export interface Conversation {

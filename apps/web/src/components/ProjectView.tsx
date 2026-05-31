@@ -178,6 +178,7 @@ import {
 
 
 type ProjectChatSendMeta = ChatSendMeta & {
+  queueOnly?: boolean;
   retryOfAssistantId?: string;
 };
 
@@ -244,6 +245,13 @@ interface QueuedChatSend {
   commentAttachments: ChatCommentAttachment[];
   meta?: ProjectChatSendMeta;
   createdAt: number;
+}
+
+interface QueuedChatSendUpdate {
+  prompt: string;
+  attachments: ChatAttachment[];
+  commentAttachments: ChatCommentAttachment[];
+  meta?: ProjectChatSendMeta;
 }
 
 let liveArtifactEventSequence = 0;
@@ -725,8 +733,9 @@ export function ProjectView({
   useEffect(() => {
     setChatSeed(null);
     setAutoAuditRepairSeed(null);
-    queuedChatSendsRef.current = [];
-    setQueuedChatSends([]);
+    const restored = loadQueuedChatSends(project.id);
+    queuedChatSendsRef.current = restored;
+    setQueuedChatSends(restored);
   }, [project.id]);
   // Monotonic token bumped on every `conversation-created` refresh dispatch.
   // Two rapid events (e.g. concurrent routine runs against the same reused
@@ -2238,33 +2247,68 @@ export function ProjectView({
     onProjectsRefresh,
   ]);
 
-  const enqueueChatSend = useCallback((item: QueuedChatSend) => {
-    const next = [...queuedChatSendsRef.current, item];
+  const commitQueuedChatSends = useCallback((next: QueuedChatSend[]) => {
     queuedChatSendsRef.current = next;
     setQueuedChatSends(next);
-  }, []);
+    saveQueuedChatSends(project.id, next);
+  }, [project.id]);
+
+  const enqueueChatSend = useCallback((item: QueuedChatSend) => {
+    const next = [...queuedChatSendsRef.current, item];
+    commitQueuedChatSends(next);
+  }, [commitQueuedChatSends]);
 
   const removeQueuedChatSend = useCallback((id: string) => {
     const next = queuedChatSendsRef.current.filter((item) => item.id !== id);
-    queuedChatSendsRef.current = next;
-    setQueuedChatSends(next);
-  }, []);
+    commitQueuedChatSends(next);
+  }, [commitQueuedChatSends]);
 
-  const updateQueuedChatSend = useCallback((id: string, prompt: string) => {
-    const next = queuedChatSendsRef.current.map((item) =>
-      item.id === id ? { ...item, prompt } : item,
-    );
-    queuedChatSendsRef.current = next;
-    setQueuedChatSends(next);
-  }, []);
+  const updateQueuedChatSend = useCallback((id: string, update: QueuedChatSendUpdate) => {
+    const next = queuedChatSendsRef.current.map((item) => {
+      if (item.id !== id) return item;
+      const meta = stripQueueOnlyFromMeta(update.meta);
+      return {
+        ...item,
+        prompt: update.prompt,
+        attachments: update.attachments,
+        commentAttachments: update.commentAttachments,
+        ...(meta === undefined ? { meta: undefined } : { meta }),
+      };
+    });
+    commitQueuedChatSends(next);
+  }, [commitQueuedChatSends]);
 
   const prioritizeQueuedChatSend = useCallback((id: string) => {
     const item = queuedChatSendsRef.current.find((candidate) => candidate.id === id);
     if (!item) return;
     const next = [item, ...queuedChatSendsRef.current.filter((candidate) => candidate.id !== id)];
-    queuedChatSendsRef.current = next;
-    setQueuedChatSends(next);
-  }, []);
+    commitQueuedChatSends(next);
+  }, [commitQueuedChatSends]);
+
+  const queueChatSendForCurrentConversation = useCallback((input: {
+    attachments: ChatAttachment[];
+    commentAttachments: ChatCommentAttachment[];
+    conversationId: string;
+    meta?: ProjectChatSendMeta;
+    prompt: string;
+  }) => {
+    const queuedMeta = stripQueueOnlyFromMeta(input.meta);
+    enqueueChatSend({
+      id: randomUUID(),
+      conversationId: input.conversationId,
+      prompt: input.prompt,
+      attachments: input.attachments,
+      commentAttachments: input.commentAttachments,
+      ...(queuedMeta === undefined ? {} : { meta: queuedMeta }),
+      createdAt: Date.now(),
+    });
+    if (input.commentAttachments.length > 0) {
+      const reservedCommentIds = new Set(input.commentAttachments.map((attachment) => attachment.id));
+      setAttachedComments((current) =>
+        current.filter((comment) => !reservedCommentIds.has(comment.id)),
+      );
+    }
+  }, [enqueueChatSend]);
 
   const handleSend = useCallback(
     async (
@@ -2287,22 +2331,24 @@ export function ProjectView({
         attachments.length === 0 &&
         commentAttachments.length === 0
       ) return;
-      if (currentConversationBusy) {
-        enqueueChatSend({
-          id: randomUUID(),
+      if (!retryTarget && meta?.queueOnly) {
+        queueChatSendForCurrentConversation({
           conversationId: activeConversationId,
           prompt,
           attachments,
           commentAttachments,
-          ...(meta === undefined ? {} : { meta }),
-          createdAt: Date.now(),
+          meta,
         });
-        if (commentAttachments.length > 0) {
-          const reservedCommentIds = new Set(commentAttachments.map((attachment) => attachment.id));
-          setAttachedComments((current) =>
-            current.filter((comment) => !reservedCommentIds.has(comment.id)),
-          );
-        }
+        return;
+      }
+      if (currentConversationBusy) {
+        queueChatSendForCurrentConversation({
+          conversationId: activeConversationId,
+          prompt,
+          attachments,
+          commentAttachments,
+          meta,
+        });
         return;
       }
       setChatSeed(null);
@@ -2921,7 +2967,7 @@ export function ProjectView({
       attachedComments,
       activeConversationId,
       currentConversationBusy,
-      enqueueChatSend,
+      queueChatSendForCurrentConversation,
       messages,
       config,
       locale,
@@ -3080,12 +3126,14 @@ export function ProjectView({
 
   const handleSendBoardCommentAttachments = useCallback(
     async (commentAttachments: ChatCommentAttachment[]) => {
-      if (currentConversationActionDisabled || commentAttachments.length === 0) return;
+      if (commentAttachments.length === 0) return;
       setWorkspaceFocused(false);
       setCommentInspectorActive(false);
-      await handleSend('', [], commentAttachments);
+      for (const attachment of commentAttachments) {
+        await handleSend('', [], [attachment], { queueOnly: true });
+      }
     },
-    [handleSend, currentConversationActionDisabled],
+    [handleSend],
   );
 
   const handleContinueRemainingTasks = useCallback(

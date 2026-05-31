@@ -680,11 +680,32 @@ describe('DesignFilesPanel directory navigation', () => {
       file({ name: 'top.html', kind: 'html' }),
     ]);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Search files…' }));
     fireEvent.change(screen.getByLabelText('Search files…'), { target: { value: 'logo' } });
 
     expect(screen.getByTestId('design-file-row-assets/logo.png')).toBeTruthy();
     expect(screen.queryByTestId('design-file-row-top.html')).toBeNull();
     expect(screen.getByText('assets/logo.png')).toBeTruthy();
+  });
+
+  it('keeps Design Files search compact until focused and clearable', () => {
+    renderPanel([
+      file({ name: 'assets/logo.png', kind: 'image' }),
+      file({ name: 'top.html', kind: 'html' }),
+    ]);
+
+    expect(document.querySelector('.df-search-control')?.className).not.toContain('is-expanded');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search files…' }));
+    const input = screen.getByLabelText('Search files…');
+    fireEvent.change(input, { target: { value: 'logo' } });
+
+    expect(document.querySelector('.df-search-control')?.className).toContain('is-expanded');
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByTestId('design-file-row-top.html')).toBeTruthy();
+
+    fireEvent.blur(input, { relatedTarget: document.body });
+    expect(document.querySelector('.df-search-control')?.className).not.toContain('is-expanded');
   });
 
   it('accepts dropped files anywhere on the design files panel', async () => {
