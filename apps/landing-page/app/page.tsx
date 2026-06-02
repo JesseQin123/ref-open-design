@@ -326,6 +326,7 @@ export default function Page({
               width={694}
               height={1097}
               aria-hidden='true'
+              loading='lazy'
             />
             <img
               className='hero-angel'
@@ -334,6 +335,7 @@ export default function Page({
               width={1002}
               height={1239}
               aria-hidden='true'
+              loading='lazy'
             />
           </div>
         </section>
