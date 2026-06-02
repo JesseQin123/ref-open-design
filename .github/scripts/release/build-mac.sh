@@ -96,6 +96,10 @@ install_mac_signing_keychain() {
   rm -f "$password_path"
 
   export CSC_KEYCHAIN="${OPEN_DESIGN_MAC_SIGNING_KEYCHAIN:-/Library/Keychains/open-design-release-signing.keychain}"
+  local wrapper_dir="${OPEN_DESIGN_MAC_SIGNING_WRAPPER_DIR:-/usr/local/libexec/open-design/wrappers}"
+  if [ -x "$wrapper_dir/codesign" ]; then
+    export PATH="$wrapper_dir:$PATH"
+  fi
   security list-keychains -d user -s "$CSC_KEYCHAIN" /Library/Keychains/System.keychain
   unset CSC_LINK
   unset CSC_KEY_PASSWORD
