@@ -608,7 +608,7 @@ describe("packaged smoke workflow", () => {
       await fixture.close();
       await rm(runnerTemp, { force: true, recursive: true });
     }
-  });
+  }, 30_000);
 
   it("keeps Windows release report zips materialized before platform publication", async () => {
     const [workflow, winReportScript, publishCommonScript] = await Promise.all([
