@@ -281,7 +281,7 @@ interface Props {
   // Live-only streaming tool-input partials keyed by tool-use id. Threaded to
   // AssistantMessage so an in-flight Write/Edit can render its code in real
   // time before the full `tool_use` arrives. Never persisted.
-  liveToolInput?: Record<string, { name: string; text: string }>;
+  liveToolInput?: Record<string, { name: string; text: string; seq?: number }>;
   initialDraft?: string;
   // Question-form submissions become a normal user message; the parent
   // routes that text through onSend (no attachments).
@@ -1770,7 +1770,7 @@ function ChatRows({
 }: {
   messages: ChatMessage[];
   streaming: boolean;
-  liveToolInput?: Record<string, { name: string; text: string }>;
+  liveToolInput?: Record<string, { name: string; text: string; seq?: number }>;
   projectId: string | null;
   projectKindForTracking: TrackingProjectKind | null;
   activeConversationId: string | null;
@@ -1850,7 +1850,10 @@ function ChatRows({
       <AssistantMessage
         message={m}
         streaming={messageStreaming}
-        liveToolInput={liveToolInput}
+        // Only the streaming row consumes live tool input. Non-streaming rows
+        // get a stable `undefined`, so adding `liveToolInput` to the memo
+        // comparator re-renders just this row per `tool_input_delta`, not all N.
+        liveToolInput={messageStreaming ? liveToolInput : undefined}
         projectId={projectId}
         projectKind={projectKindForTracking}
         conversationId={activeConversationId}
