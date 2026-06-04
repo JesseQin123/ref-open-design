@@ -160,17 +160,17 @@ describe('visual validation atom runner', () => {
     }
   });
 
-  it('fails closed when reference auto-discovery cannot read the project tree', async () => {
-    const cwd = await mkdtemp(path.join(os.tmpdir(), 'od-visual-discovery-fail-'));
+  it('fails closed when reference auto-discovery hits an unreadable non-ignored directory', async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'od-visual-discovery-unreadable-'));
     try {
       await writeFile(path.join(cwd, 'index.html'), '<!doctype html><html><body>ok</body></html>', 'utf8');
-      await mkdir(path.join(cwd, 'references'), { recursive: true });
       await writeFile(
-        path.join(cwd, 'references', 'reference-home.png'),
+        path.join(cwd, 'reference-home.png'),
         PNG.sync.write(createFilledPng(200, 120, [255, 255, 255, 255])),
       );
-      await mkdir(path.join(cwd, 'spec'), { recursive: true });
-      await chmod(path.join(cwd, 'spec'), 0o000);
+      await mkdir(path.join(cwd, 'private-assets'), { recursive: true });
+      await writeFile(path.join(cwd, 'private-assets', 'notes.txt'), 'keep out', 'utf8');
+      await chmod(path.join(cwd, 'private-assets'), 0o000);
 
       const result = await runVisualValidation({
         cwd,
@@ -184,7 +184,7 @@ describe('visual validation atom runner', () => {
       expect(result.signals['preview.ok']).toBe(false);
       expect(result.signals['critique.score']).toBe(1);
     } finally {
-      await chmod(path.join(cwd, 'spec'), 0o755).catch(() => {});
+      await chmod(path.join(cwd, 'private-assets'), 0o755).catch(() => {});
       await rm(cwd, { recursive: true, force: true });
     }
   });
