@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -367,7 +367,7 @@ describe("packaged launcher payload update loop", () => {
         {
           appPid: process.pid,
           installerPath: initialRuntime.installedLaunchPath,
-          root: paths.updateRoot,
+          root: await realpath(paths.updateRoot),
         },
       ]);
 
