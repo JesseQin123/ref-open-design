@@ -963,7 +963,9 @@ async function fetchJson(fetchImpl: typeof globalThis.fetch, url: string): Promi
 }
 
 async function hasValidLauncherPayloadContext(config: DesktopUpdaterConfig): Promise<boolean> {
-  if (config.launcherRoot == null || config.launcherRuntimePath == null || config.namespace == null) return false;
+  if (config.launcherRoot == null || config.launcherLaunchPath == null || config.launcherRuntimePath == null || config.namespace == null) {
+    return false;
+  }
   try {
     const runtime = await readJsonStrict<LauncherRuntimeDescriptor>(config.launcherRuntimePath);
     validateLauncherRuntimeDescriptor(runtime, { channel: config.channel, namespace: config.namespace });

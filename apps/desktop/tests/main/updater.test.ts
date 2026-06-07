@@ -408,6 +408,7 @@ describe("desktop updater", () => {
           [DESKTOP_UPDATE_ENV.OPEN_DRY_RUN]: "0",
         },
         launcherRoot: root,
+        launcherLaunchPath: "C:\\Program Files\\Open Design Beta\\Open Design Beta.exe",
         launcherRuntimePath,
         namespace: "release-beta-win",
         source: SIDECAR_SOURCES.PACKAGED,
@@ -462,6 +463,7 @@ describe("desktop updater", () => {
           [DESKTOP_UPDATE_ENV.OPEN_DRY_RUN]: "0",
         },
         launcherRoot,
+        launcherLaunchPath: "C:\\Program Files\\Open Design Beta\\Open Design Beta.exe",
         launcherRuntimePath,
         namespace: "release-beta-win",
         source: SIDECAR_SOURCES.PACKAGED,
@@ -526,6 +528,57 @@ describe("desktop updater", () => {
       expect(existsSync(join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win", "versions", "1.0.0-beta.1"))).toBe(true);
       expect(existsSync(join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win", "versions", "0.9.0-beta.1"))).toBe(false);
       expect(existsSync(join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win", "updates", "staging"))).toBe(false);
+    } finally {
+      await fixture.close();
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps using the installer when launcher context has no installed launch path", async () => {
+    const root = makeRoot();
+    const fixture = await createUpdaterFixture({
+      artifactBody: "open design windows installer fixture",
+      channel: "beta",
+      includePayload: true,
+      payloadBody: "open design windows payload fixture",
+      platform: "win",
+      version: "1.0.0-beta.2",
+    });
+    const launcherRuntimePath = join(root, "launcher", "runtime.json");
+    try {
+      await mkdir(join(root, "launcher"), { recursive: true });
+      await mkdir(join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win", "versions", "1.0.0-beta.1"), { recursive: true });
+      await writeFile(
+        launcherRuntimePath,
+        `${JSON.stringify({
+          active: { generation: 0, version: "1.0.0-beta.1" },
+          channel: "beta",
+          lastSuccessful: { generation: 0, version: "1.0.0-beta.1" },
+          namespace: "release-beta-win",
+          schemaVersion: LAUNCHER_SCHEMA_VERSION,
+        })}\n`,
+      );
+      const updater = createDesktopUpdater({
+        arch: "x64",
+        currentVersion: "1.0.0-beta.1",
+        downloadRoot: join(root, "updates"),
+        env: {
+          ...updaterEnv(fixture.metadataUrl, "win32"),
+          [DESKTOP_UPDATE_ENV.CURRENT_VERSION]: "1.0.0-beta.1",
+        },
+        launcherRoot: root,
+        launcherRuntimePath,
+        namespace: "release-beta-win",
+        source: SIDECAR_SOURCES.PACKAGED,
+      }, {
+        processExecPath: "C:\\Users\\runneradmin\\AppData\\Roaming\\Open Design Beta\\launcher\\channels\\beta\\namespaces\\release-beta-win\\versions\\1.0.0-beta.1\\payload\\Open Design.exe",
+      });
+
+      const checked = await updater.checkForUpdates();
+
+      expect(checked.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
+      expect(checked.artifact?.type).toBe("installer");
+      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("open design windows installer fixture");
     } finally {
       await fixture.close();
       rmSync(root, { force: true, recursive: true });
@@ -753,6 +806,7 @@ describe("desktop updater", () => {
           [DESKTOP_UPDATE_ENV.CURRENT_VERSION]: "1.0.0-beta.1",
         },
         launcherRoot: root,
+        launcherLaunchPath: "C:\\Program Files\\Open Design Beta\\Open Design Beta.exe",
         launcherRuntimePath,
         namespace: "release-beta-win",
         source: SIDECAR_SOURCES.PACKAGED,
