@@ -554,6 +554,39 @@ describe('ChatComposer context pickers', () => {
     expect(onSend.mock.calls[0]?.[3]?.appliedPluginSnapshot).toBeUndefined();
   });
 
+  it('keeps restored non-inline plugin context when matching prompt text is removed', async () => {
+    const onSend = vi.fn();
+    const composerRef = createRef<ChatComposerHandle>();
+    const restoredAppliedPlugin = APPLY_RESULT.appliedPlugin as AppliedPluginSnapshot;
+    render(<ChatComposer ref={composerRef} {...composerElement({ onSend }).props} />);
+    await flushMounts();
+
+    act(() => {
+      composerRef.current?.restoreDraft({
+        text: '@My Export queued work',
+        meta: {
+          appliedPluginSnapshot: restoredAppliedPlugin,
+          appliedPluginSnapshotId: restoredAppliedPlugin.snapshotId,
+          context: { pluginIds: [USER_PLUGIN.id] },
+        },
+      });
+    });
+
+    await waitFor(() => expect(composerText()).toBe('@My Export queued work'));
+
+    await typeAndSettle('queued work');
+    fireEvent.click(screen.getByTestId('chat-send'));
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(onSend.mock.calls[0]?.[3]).toMatchObject({
+      appliedPluginSnapshotId: restoredAppliedPlugin.snapshotId,
+      appliedPluginSnapshot: expect.objectContaining({
+        pluginId: USER_PLUGIN.id,
+      }),
+      context: { pluginIds: [USER_PLUGIN.id] },
+    });
+  });
+
   it('keeps the plugin context form when the inline plugin token has trailing punctuation', async () => {
     renderComposer();
     await flushMounts();

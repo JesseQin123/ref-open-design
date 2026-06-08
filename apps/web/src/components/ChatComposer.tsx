@@ -646,14 +646,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     ): { id: string; label: string } | null {
       if (!appliedPlugin) return null;
       const restoredInline = meta?.inlineAppliedPlugin;
-      const restoredRecord = pluginsForComposer.find((plugin) => plugin.id === appliedPlugin.pluginId);
-      const labels = [
-        restoredInline?.pluginId === appliedPlugin.pluginId ? restoredInline.label : null,
-        restoredRecord?.title,
-        appliedPlugin.pluginId,
-      ].filter((label): label is string => Boolean(label));
-      const label = labels.find((candidate) => mentionTokenPresent(text, candidate));
-      return label ? { id: appliedPlugin.pluginId, label } : null;
+      if (restoredInline?.pluginId !== appliedPlugin.pluginId) return null;
+      return mentionTokenPresent(text, restoredInline.label)
+        ? { id: appliedPlugin.pluginId, label: restoredInline.label }
+        : null;
     }
 
     const designToolboxResourceIndex = useMemo<DesignToolboxResourceIndex>(
