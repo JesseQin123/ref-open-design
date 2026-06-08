@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -438,6 +438,128 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
       status: 'partial',
       reason: 'size_unavailable',
     });
+  });
+
+  it('uploads trace objects before reporting Langfuse manifests', async () => {
+    await writeAppCfg({
+      installationId: 'install-uuid-1',
+      telemetry: { metrics: true, content: true, artifactManifest: true },
+    });
+    const projectDir = path.join(dataDir, 'projects', 'proj-1');
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(
+      path.join(projectDir, 'brief.txt'),
+      'attachment body should stay out of langfuse',
+    );
+    await writeFile(
+      path.join(projectDir, 'index.html'),
+      '<!doctype html><h1>artifact body</h1>',
+    );
+    const tailMarker = 'TAIL_MARKER_SHOULD_NOT_REACH_LANGFUSE';
+    const prompt = `${'长'.repeat(70 * 1024)}${tailMarker}`;
+    const fetchSpy = vi
+      .fn()
+      .mockImplementationOnce(async (_url: string, init: RequestInit) => {
+        const requestBody = JSON.parse(init.body as string) as {
+          objects: Array<{ storage_ref: string; content_base64: string }>;
+        };
+        return new Response(
+          JSON.stringify({
+            objects: requestBody.objects.map((object) => ({
+              storage_ref: object.storage_ref,
+              status: 'available',
+              size_bytes: Buffer.from(object.content_base64, 'base64').byteLength,
+              sha256: `sha256:${object.storage_ref.split('/').at(-1)}`,
+            })),
+          }),
+          { status: 200 },
+        );
+      })
+      .mockResolvedValueOnce(new Response('{}', { status: 207 }));
+
+    process.env.OPEN_DESIGN_OBJECT_RELAY_URL = 'https://telemetry.open-design.ai/api/objects/batch';
+    process.env.LANGFUSE_PUBLIC_KEY = 'pk';
+    process.env.LANGFUSE_SECRET_KEY = 'sk';
+    try {
+      await reportRunCompletedFromDaemon({
+        db: makeDbWithListMessages({
+          'conv-1': [
+            {
+              id: 'msg-1',
+              role: 'assistant',
+              content: 'done',
+              producedFiles: [{ name: 'index.html', kind: 'html', size: 35 }],
+            },
+          ],
+        }),
+        dataDir,
+        run: makeRun({
+          userPrompt: prompt,
+          projectAttachmentPaths: ['brief.txt'],
+        }) as any,
+        fetchImpl: fetchSpy as any,
+      });
+    } finally {
+      delete process.env.OPEN_DESIGN_OBJECT_RELAY_URL;
+      delete process.env.LANGFUSE_PUBLIC_KEY;
+      delete process.env.LANGFUSE_SECRET_KEY;
+    }
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls[0]![0]).toBe('https://telemetry.open-design.ai/api/objects/batch');
+    const objectInit = fetchSpy.mock.calls[0]![1] as RequestInit;
+    expect((objectInit.headers as Record<string, string>)['X-Open-Design-Telemetry']).toBe(
+      'object-ingestion-v1',
+    );
+    const objectBody = JSON.parse(objectInit.body as string);
+    expect(objectBody.objects).toHaveLength(3);
+    expect(objectBody.objects.map((object: { object_class: string }) => object.object_class))
+      .toEqual(['attachment', 'artifact', 'input_text_snapshot']);
+
+    const langfuseInit = fetchSpy.mock.calls[1]![1] as RequestInit;
+    const langfuseBody = langfuseInit.body as string;
+    expect(langfuseBody).not.toContain('attachment body should stay out of langfuse');
+    expect(langfuseBody).not.toContain('<!doctype html><h1>artifact body</h1>');
+    expect(langfuseBody).not.toContain(tailMarker);
+    const batch = JSON.parse(langfuseBody).batch as any[];
+    const trace = batch[0].body;
+    expect(trace.metadata.manifest_completeness).toBe('complete');
+    expect(trace.metadata.attachment_manifest).toHaveLength(1);
+    expect(trace.metadata.artifact_manifest).toHaveLength(1);
+    expect(trace.metadata.input_text_snapshot_manifest).toHaveLength(1);
+    expect(trace.metadata.attachment_manifest[0]).toMatchObject({
+      object_class: 'attachment',
+      status: 'ok',
+      stored_in_open_design: true,
+      access_policy: 'open_design_auth_required',
+      open_in_open_design_url: null,
+      preview_status: 'not_available',
+      source: 'user_upload',
+      retention_policy: 'observability_90d',
+      access_scope: 'project',
+      sensitivity: 'private',
+    });
+    expect(trace.metadata.artifact_manifest[0]).toMatchObject({
+      object_class: 'artifact',
+      status: 'ok',
+      stored_in_open_design: true,
+      source: 'agent_generated',
+      retention_policy: 'observability_90d',
+      access_policy: 'open_design_auth_required',
+    });
+    expect(trace.metadata.input_text_snapshot_manifest[0]).toMatchObject({
+      object_class: 'input_text_snapshot',
+      status: 'ok',
+      stored_in_open_design: true,
+      access_policy: 'open_design_auth_required',
+      open_in_open_design_url: null,
+      preview_status: 'not_available',
+      source: 'user_prompt',
+      type: 'text',
+    });
+    expect(JSON.stringify(trace.metadata)).toContain(
+      'od://objects/workspaces/unknown/projects/proj-1/runs/run-id-1',
+    );
   });
 
   it('carries prior user attachments into follow-up generation traces', async () => {

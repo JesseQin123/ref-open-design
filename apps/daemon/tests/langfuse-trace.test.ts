@@ -395,9 +395,9 @@ describe('buildTracePayload', () => {
     }
   });
 
-  it('truncates ASCII prompt at 8 KB and output at 16 KB (bytes == chars)', () => {
-    const longPrompt = 'a'.repeat(20_000);
-    const longOutput = 'b'.repeat(40_000);
+  it('truncates ASCII prompt and output at 64 KB (bytes == chars)', () => {
+    const longPrompt = 'a'.repeat(80_000);
+    const longOutput = 'b'.repeat(80_000);
     const batch = buildTracePayload(
       makeCtx({
         message: {
@@ -409,16 +409,16 @@ describe('buildTracePayload', () => {
       }),
     );
     const trace = (batch[0] as any).body;
-    expect(Buffer.byteLength(trace.input, 'utf8')).toBe(8 * 1024);
-    expect(Buffer.byteLength(trace.output, 'utf8')).toBe(16 * 1024);
+    expect(Buffer.byteLength(trace.input, 'utf8')).toBe(64 * 1024);
+    expect(Buffer.byteLength(trace.output, 'utf8')).toBe(64 * 1024);
   });
 
   it('truncates by UTF-8 bytes, not by JS string length, for multi-byte text', () => {
     // Each CJK character is 3 bytes in UTF-8 but 1 unit in String.length.
-    // 4096 chars × 3 bytes = 12_288 bytes, well over the 8 KB input cap.
-    const longCJK = '设'.repeat(4096);
-    expect(longCJK.length).toBe(4096);
-    expect(Buffer.byteLength(longCJK, 'utf8')).toBe(12_288);
+    // 30_000 chars × 3 bytes = 90_000 bytes, well over the 64 KB input cap.
+    const longCJK = '设'.repeat(30_000);
+    expect(longCJK.length).toBe(30_000);
+    expect(Buffer.byteLength(longCJK, 'utf8')).toBe(90_000);
     const batch = buildTracePayload(
       makeCtx({
         message: { messageId: 'msg-1', prompt: longCJK, output: '' },
@@ -426,7 +426,7 @@ describe('buildTracePayload', () => {
       }),
     );
     const trace = (batch[0] as any).body;
-    expect(Buffer.byteLength(trace.input, 'utf8')).toBeLessThanOrEqual(8 * 1024);
+    expect(Buffer.byteLength(trace.input, 'utf8')).toBeLessThanOrEqual(64 * 1024);
     // Boundary safety: the trimmed result must still be valid UTF-8 (no
     // half-encoded characters). Round-tripping through Buffer should be
     // lossless if the cut landed correctly.

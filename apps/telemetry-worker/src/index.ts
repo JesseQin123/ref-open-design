@@ -1,8 +1,11 @@
 const DEFAULT_LANGFUSE_BASE_URL = 'https://us.cloud.langfuse.com';
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_BATCH_EVENTS = 100;
+const DEFAULT_OBJECT_MAX_BYTES = 50 * 1024 * 1024;
+const DEFAULT_OBJECT_BATCH_MAX_BYTES = 100 * 1024 * 1024;
 const RELAY_MARKER_HEADER = 'X-Open-Design-Telemetry';
 const RELAY_MARKER_VALUE = 'langfuse-ingestion-v1';
+const OBJECT_RELAY_MARKER_VALUE = 'object-ingestion-v1';
 const ALLOWED_EVENT_TYPES = new Set([
   'trace-create',
   'span-create',
@@ -15,10 +18,27 @@ interface RateLimitBinding {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
+interface R2BucketBinding {
+  put(
+    key: string,
+    value: ArrayBuffer | ArrayBufferView | string | ReadableStream,
+    options?: {
+      httpMetadata?: {
+        contentType?: string;
+      };
+      customMetadata?: Record<string, string>;
+    },
+  ): Promise<unknown>;
+}
+
 export interface Env {
   LANGFUSE_PUBLIC_KEY?: string;
   LANGFUSE_SECRET_KEY?: string;
   LANGFUSE_BASE_URL?: string;
+  TRACE_OBJECT_BUCKET?: R2BucketBinding;
+  TRACE_OBJECT_PREFIX?: string;
+  TRACE_OBJECT_MAX_BYTES?: string;
+  TRACE_OBJECT_BATCH_MAX_BYTES?: string;
   TELEMETRY_CLIENT_RATE_LIMITER?: RateLimitBinding;
   TELEMETRY_IP_RATE_LIMITER?: RateLimitBinding;
 }
@@ -39,6 +59,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function bodySizeBytes(value: string): number {
   return new TextEncoder().encode(value).byteLength;
+}
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', copy.buffer);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function basicAuthHeader(publicKey: string, secretKey: string): string {
@@ -81,12 +110,21 @@ function findTraceUserId(value: unknown): string | null {
   return null;
 }
 
+function findObjectClientId(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  const clientId = value.client_id ?? value.installation_id;
+  return typeof clientId === 'string' && clientId.length > 0
+    ? clientId.slice(0, 200)
+    : null;
+}
+
 async function enforceRateLimits(
   request: Request,
   env: Env,
   parsedBody: unknown,
+  findClientId: (value: unknown) => string | null = findTraceUserId,
 ): Promise<Response | null> {
-  const clientKey = findTraceUserId(parsedBody);
+  const clientKey = findClientId(parsedBody);
   if (clientKey && env.TELEMETRY_CLIENT_RATE_LIMITER) {
     const { success } = await env.TELEMETRY_CLIENT_RATE_LIMITER.limit({
       key: `client:${clientKey}`,
@@ -118,6 +156,22 @@ async function readBoundedBody(request: Request): Promise<string | Response> {
   return text;
 }
 
+async function readBoundedBodyWithLimit(
+  request: Request,
+  maxBytes: number,
+): Promise<string | Response> {
+  const contentLength = request.headers.get('content-length');
+  if (contentLength != null && Number(contentLength) > maxBytes) {
+    return jsonResponse(413, { error: 'payload too large' });
+  }
+
+  const text = await request.text();
+  if (bodySizeBytes(text) > maxBytes) {
+    return jsonResponse(413, { error: 'payload too large' });
+  }
+  return text;
+}
+
 function resolveLangfuseUrl(env: Env): string {
   return `${(env.LANGFUSE_BASE_URL?.trim() || DEFAULT_LANGFUSE_BASE_URL).replace(/\/+$/, '')}/api/public/ingestion`;
 }
@@ -131,18 +185,174 @@ function isHealthPath(request: Request): boolean {
   return pathname === '/api/langfuse' || pathname === '/health';
 }
 
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+function normalizeObjectPrefix(raw: string | undefined): string {
+  return (raw ?? 'observability').trim().replace(/^\/+|\/+$/g, '') || 'observability';
+}
+
+function safeObjectSegment(value: string): string {
+  return value
+    .trim()
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => segment.replace(/[^A-Za-z0-9._=-]/g, '_'))
+    .filter((segment) => segment !== '.' && segment !== '..')
+    .join('/');
+}
+
+function keyFromStorageRef(storageRef: string, prefix: string): string | null {
+  const marker = 'od://objects/';
+  if (!storageRef.startsWith(marker)) return null;
+  const suffix = safeObjectSegment(storageRef.slice(marker.length));
+  if (!suffix) return null;
+  return `${prefix}/${suffix}`;
+}
+
+function decodeBase64(input: string): Uint8Array | null {
+  try {
+    const binary = atob(input);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+function validateObjectBody(value: unknown): string | null {
+  if (!isRecord(value)) return 'body must be a JSON object';
+  if (!Array.isArray(value.objects)) return 'body.objects must be an array';
+  if (value.objects.length === 0) return 'body.objects must not be empty';
+  if (value.objects.length > 100) return 'body.objects has too many objects';
+
+  for (const [index, object] of value.objects.entries()) {
+    if (!isRecord(object)) return `body.objects[${index}] must be an object`;
+    if (typeof object.storage_ref !== 'string' || !object.storage_ref.startsWith('od://objects/')) {
+      return `body.objects[${index}].storage_ref must be an od://objects reference`;
+    }
+    if (typeof object.content_base64 !== 'string' || object.content_base64.length === 0) {
+      return `body.objects[${index}].content_base64 must be a string`;
+    }
+    if (object.mime !== undefined && typeof object.mime !== 'string') {
+      return `body.objects[${index}].mime must be a string`;
+    }
+  }
+  return null;
+}
+
+async function handleObjectBatchRequest(request: Request, env: Env): Promise<Response> {
+  if (request.headers.get(RELAY_MARKER_HEADER) !== OBJECT_RELAY_MARKER_VALUE) {
+    return jsonResponse(403, { error: 'missing object client marker' });
+  }
+  if (!env.TRACE_OBJECT_BUCKET) {
+    return jsonResponse(503, { error: 'object relay is not configured' });
+  }
+
+  const contentType = request.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    return jsonResponse(415, { error: 'content-type must be application/json' });
+  }
+
+  const batchMaxBytes = parsePositiveInt(
+    env.TRACE_OBJECT_BATCH_MAX_BYTES,
+    DEFAULT_OBJECT_BATCH_MAX_BYTES,
+  );
+  const rawBody = await readBoundedBodyWithLimit(request, batchMaxBytes);
+  if (rawBody instanceof Response) return rawBody;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    return jsonResponse(400, { error: 'invalid JSON' });
+  }
+
+  const validationError = validateObjectBody(parsed);
+  if (validationError != null) {
+    return jsonResponse(400, { error: validationError });
+  }
+
+  const rateLimitResponse = await enforceRateLimits(
+    request,
+    env,
+    parsed,
+    findObjectClientId,
+  );
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const objectMaxBytes = parsePositiveInt(env.TRACE_OBJECT_MAX_BYTES, DEFAULT_OBJECT_MAX_BYTES);
+  const prefix = normalizeObjectPrefix(env.TRACE_OBJECT_PREFIX);
+  const results: Array<Record<string, unknown>> = [];
+
+  for (const object of (parsed as { objects: Array<Record<string, unknown>> }).objects) {
+    const storageRef = object.storage_ref as string;
+    const key = keyFromStorageRef(storageRef, prefix);
+    if (!key) {
+      results.push({ storage_ref: storageRef, status: 'unavailable', reason: 'invalid_storage_ref' });
+      continue;
+    }
+
+    const bytes = decodeBase64(object.content_base64 as string);
+    if (!bytes) {
+      results.push({ storage_ref: storageRef, status: 'unavailable', reason: 'invalid_base64' });
+      continue;
+    }
+    if (bytes.byteLength > objectMaxBytes) {
+      results.push({
+        storage_ref: storageRef,
+        status: 'unavailable',
+        reason: 'object_too_large',
+        size_bytes: bytes.byteLength,
+      });
+      continue;
+    }
+
+    const sha256 = `sha256:${await sha256Hex(bytes)}`;
+    await env.TRACE_OBJECT_BUCKET.put(key, bytes, {
+      httpMetadata: {
+        contentType: typeof object.mime === 'string' ? object.mime : 'application/octet-stream',
+      },
+      customMetadata: {
+        storage_ref: storageRef,
+        sha256,
+      },
+    });
+    results.push({
+      storage_ref: storageRef,
+      status: 'available',
+      size_bytes: bytes.byteLength,
+      sha256,
+    });
+  }
+
+  return jsonResponse(200, { objects: results });
+}
+
 async function handleRequest(request: Request, env: Env): Promise<Response> {
   if (request.method === 'GET' && isHealthPath(request)) {
     return jsonResponse(200, {
       ok: true,
       service: 'open-design-telemetry-relay',
       configured: hasLangfuseCredentials(env),
+      objectRelayConfigured: Boolean(env.TRACE_OBJECT_BUCKET),
       upstream: resolveLangfuseUrl(env),
     });
   }
 
   if (request.method !== 'POST') {
     return jsonResponse(405, { error: 'method not allowed' });
+  }
+
+  const { pathname } = new URL(request.url);
+  if (pathname === '/api/objects/batch') {
+    return handleObjectBatchRequest(request, env);
   }
 
   if (request.headers.get(RELAY_MARKER_HEADER) !== RELAY_MARKER_VALUE) {

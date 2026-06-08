@@ -25,6 +25,21 @@ function makeRateLimiter(success: boolean) {
   };
 }
 
+function makeObjectRequest(body: unknown): Request {
+  return new Request('https://telemetry.open-design.ai/api/objects/batch', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Open-Design-Telemetry': 'object-ingestion-v1',
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function base64(value: string): string {
+  return btoa(value);
+}
+
 describe('telemetry worker', () => {
   it('returns a health response for browser checks', async () => {
     const response = await worker.fetch(
@@ -37,6 +52,7 @@ describe('telemetry worker', () => {
       ok: true,
       service: 'open-design-telemetry-relay',
       configured: true,
+      objectRelayConfigured: false,
       upstream: 'https://us.cloud.langfuse.com/api/public/ingestion',
     });
   });
@@ -49,6 +65,7 @@ describe('telemetry worker', () => {
       ok: true,
       service: 'open-design-telemetry-relay',
       configured: false,
+      objectRelayConfigured: false,
       upstream: 'https://us.cloud.langfuse.com/api/public/ingestion',
     });
   });
@@ -144,5 +161,90 @@ describe('telemetry worker', () => {
   it('fails closed when Langfuse credentials are absent', async () => {
     const response = await worker.fetch(makeRequest({ batch: [] }), {});
     expect(response.status).toBe(503);
+  });
+
+  it('stores object batches through the R2 binding without calling Langfuse', async () => {
+    const put = vi.fn(async () => ({}));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const response = await worker.fetch(
+      makeObjectRequest({
+        client_id: 'installation-1',
+        objects: [
+          {
+            storage_ref: 'od://objects/projects/proj-1/runs/run-1/attachment/att-1/brief.txt',
+            mime: 'text/plain',
+            content_base64: base64('hello object'),
+          },
+        ],
+      }),
+      {
+        ...env,
+        TRACE_OBJECT_BUCKET: { put },
+        TRACE_OBJECT_PREFIX: 'observability',
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(put).toHaveBeenCalledTimes(1);
+    const putCalls = (put as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(putCalls[0]![0]).toBe(
+      'observability/projects/proj-1/runs/run-1/attachment/att-1/brief.txt',
+    );
+    const body = await response.json() as { objects: Array<Record<string, unknown>> };
+    expect(body.objects[0]).toMatchObject({
+      storage_ref: 'od://objects/projects/proj-1/runs/run-1/attachment/att-1/brief.txt',
+      status: 'available',
+      size_bytes: 12,
+    });
+    expect(body.objects[0]?.sha256).toEqual(expect.stringMatching(/^sha256:/));
+
+    fetchSpy.mockRestore();
+  });
+
+  it('rejects object batches without the object marker', async () => {
+    const response = await worker.fetch(
+      new Request('https://telemetry.open-design.ai/api/objects/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objects: [] }),
+      }),
+      { ...env, TRACE_OBJECT_BUCKET: { put: vi.fn() } },
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it('reports oversized objects without writing them', async () => {
+    const put = vi.fn(async () => ({}));
+    const response = await worker.fetch(
+      makeObjectRequest({
+        objects: [
+          {
+            storage_ref: 'od://objects/projects/proj-1/runs/run-1/artifact/art-1/index.html',
+            mime: 'text/html',
+            content_base64: base64('too large'),
+          },
+        ],
+      }),
+      {
+        ...env,
+        TRACE_OBJECT_BUCKET: { put },
+        TRACE_OBJECT_MAX_BYTES: '4',
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(put).not.toHaveBeenCalled();
+    expect(await response.json()).toEqual({
+      objects: [
+        {
+          storage_ref: 'od://objects/projects/proj-1/runs/run-1/artifact/art-1/index.html',
+          status: 'unavailable',
+          reason: 'object_too_large',
+          size_bytes: 9,
+        },
+      ],
+    });
   });
 });

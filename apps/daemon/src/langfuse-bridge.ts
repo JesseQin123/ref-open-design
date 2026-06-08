@@ -10,6 +10,7 @@
 
 import { createHash } from 'node:crypto';
 import os from 'node:os';
+import path from 'node:path';
 
 import { modelIdForTracking } from '@open-design/contracts/analytics';
 
@@ -45,6 +46,7 @@ import {
 import { collectStderrTailSummary } from './run-diagnostics.js';
 import { classifyRunFailure } from './run-failure-classification.js';
 import { deriveRunErrorCode, runResultFromStatus } from './run-result.js';
+import { buildTraceObjectManifests } from './trace-object-manifest.js';
 
 interface DaemonRunRecord {
   id: string;
@@ -76,6 +78,7 @@ interface DaemonRunRecord {
   designSystemId?: string;
   clientType?: 'desktop' | 'web' | 'unknown';
   promptTelemetry?: PromptStackTelemetry;
+  projectAttachmentPaths?: string[];
 }
 
 interface TraceSafeManifestResult {
@@ -791,11 +794,23 @@ export async function reportRunCompletedFromDaemon(
       ...getRuntimeInfo(opts.appVersion ?? null),
       ...(run.clientType ? { clientType: run.clientType } : {}),
     };
+    const artifacts = summarizeProducedFiles(producedFilesRaw);
     const manifests = buildTraceSafeManifests({
       projectId: run.projectId,
       runId: run.id,
       attachmentsRaw,
       producedFilesRaw,
+    });
+    const uploadedManifests = await buildTraceObjectManifests({
+      installationId,
+      projectId: run.projectId ?? '',
+      runId: run.id,
+      projectsRoot: path.join(dataDir, 'projects'),
+      ...(run.projectAttachmentPaths ? { attachmentPaths: run.projectAttachmentPaths } : {}),
+      artifacts,
+      prompt: telemetryPrompt,
+      prefs,
+      ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
     });
     const ctx: ReportContext = {
       installationId,
@@ -824,10 +839,13 @@ export async function reportRunCompletedFromDaemon(
         output: redactSecrets(messageContent),
         ...(usage ? { usage } : {}),
       },
-      artifacts: summarizeProducedFiles(producedFilesRaw),
-      attachmentManifest: manifests.attachmentManifest,
-      artifactManifest: manifests.artifactManifest,
-      manifestCompleteness: manifests.completeness,
+      artifacts,
+      attachmentManifest: uploadedManifests?.attachmentManifest ?? manifests.attachmentManifest,
+      artifactManifest: uploadedManifests?.artifactManifest ?? manifests.artifactManifest,
+      ...(uploadedManifests?.inputTextSnapshotManifest
+        ? { inputTextSnapshotManifest: uploadedManifests.inputTextSnapshotManifest }
+        : {}),
+      manifestCompleteness: uploadedManifests?.completeness ?? manifests.completeness,
       tools: collectToolCalls(run.events, startedAt, endedAt),
       agentEvents: collectAgentEvents(run.events, startedAt, endedAt, run.agentId),
       eventsSummary: summarizeEvents(run.events, durationMs),
