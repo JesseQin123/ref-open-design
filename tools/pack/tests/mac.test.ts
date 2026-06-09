@@ -12,6 +12,7 @@ import {
   renderMacPackagedConfig,
   validateMacNativeRebuildOutput,
 } from "../src/mac/app.js";
+import { runElectronBuilder } from "../src/mac/builder.js";
 import { resolveSeededAppConfigPaths, seedPackagedAppConfig, writeLaunchPackagedConfig } from "../src/mac/index.js";
 import { resolveMacPaths } from "../src/mac/paths.js";
 
@@ -217,6 +218,55 @@ describe("renderMacPackagedConfig", () => {
       ) as Record<string, unknown>;
 
       expect(packagedConfig.updateMetadataUrl).toBe("http://127.0.0.1:4567/beta/latest/metadata.json");
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("runElectronBuilder", () => {
+  async function prepareElectronBuilderConfig(root: string, overrides: Partial<ToolPackConfig>) {
+    const cliPath = join(root, "fake-electron-builder.mjs");
+    await writeFile(cliPath, "process.exit(0);\n", "utf8");
+
+    const config = makeConfig(root, {
+      appVersion: "1.2.3.nightly.4",
+      electronBuilderCliPath: cliPath,
+      signed: true,
+      webOutputMode: "server",
+      ...overrides,
+    });
+    const paths = resolveMacPaths(config);
+
+    await runElectronBuilder(config, paths, ["dir"]);
+
+    return JSON.parse(await readFile(paths.appBuilderConfigPath, "utf8")) as {
+      afterSign?: string;
+      mac?: {
+        notarize?: boolean;
+      };
+    };
+  }
+
+  it("does not explicitly disable electron-builder notarization for notarized mac builds", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-mac-"));
+    try {
+      const builderConfig = await prepareElectronBuilderConfig(root, { macNotarize: true });
+
+      expect(builderConfig.afterSign).toContain("notarize.cjs");
+      expect(builderConfig.mac).not.toHaveProperty("notarize");
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps signed-only mac builds from invoking electron-builder notarization", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-mac-"));
+    try {
+      const builderConfig = await prepareElectronBuilderConfig(root, { macNotarize: false });
+
+      expect(builderConfig.afterSign).toBeUndefined();
+      expect(builderConfig.mac?.notarize).toBe(false);
     } finally {
       await rm(root, { force: true, recursive: true });
     }
