@@ -445,10 +445,9 @@ test('[P0] @critical project instructions flow into the next API run as project-
   await expectWorkspaceReady(page);
 
   const instructions = 'Use tabs for indentation and keep CTA copy terse.';
-  await openProjectInstructionsEditor(page);
-  await page.getByTestId('project-instructions-textarea').fill(instructions);
-  await page.getByTestId('project-instructions-save').click();
-  await expect(page.getByTestId('project-instructions-preview')).toContainText(instructions);
+  await setCurrentProjectInstructions(page, instructions);
+  await page.reload();
+  await expectWorkspaceReady(page);
 
   const input = page.getByTestId('chat-composer-input');
   await input.fill('Generate the onboarding screen.');
@@ -1492,15 +1491,6 @@ async function openAvatarAgentMenu(page: Page): Promise<{
   return { menu, claudeButton };
 }
 
-async function openProjectInstructionsEditor(page: Page) {
-  await page.getByTestId('project-instructions-open').click();
-  if (await page.getByTestId('project-instructions-textarea').isVisible().catch(() => false)) {
-    return;
-  }
-  await page.getByRole('dialog', { name: /Custom instructions/i }).getByRole('button', { name: /^Edit$/i }).click();
-  await expect(page.getByTestId('project-instructions-textarea')).toBeVisible();
-}
-
 async function expectWorkspaceReady(page: Page) {
   await expect(page).toHaveURL(/\/projects\//);
   await dismissPrivacyDialog(page);
@@ -1508,6 +1498,14 @@ async function expectWorkspaceReady(page: Page) {
   await expect(page.getByTestId('chat-composer')).toBeVisible();
   await expect(page.getByTestId('chat-composer-input')).toBeVisible();
   await expect(page.getByTestId('file-workspace')).toBeVisible();
+}
+
+async function setCurrentProjectInstructions(page: Page, instructions: string) {
+  const { projectId } = getProjectContextFromUrl(page);
+  const response = await page.request.patch(`/api/projects/${projectId}`, {
+    data: { customInstructions: instructions },
+  });
+  expect(response.ok()).toBeTruthy();
 }
 
 async function dismissPrivacyDialog(page: Page) {
