@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
-import type { Page, Route } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { openSettingsDialog } from '../lib/playwright/amr.js';
+import { routeAgents } from '../lib/playwright/mock-factory.js';
 
 const STORAGE_KEY = 'open-design:config';
 const LOCALE_KEY = 'open-design:locale';
@@ -141,9 +142,7 @@ async function openLocalCliSettings(
     });
   });
 
-  await page.route('**/api/agents**', async (route) => {
-    await fulfillAgentsRoute(route, agents);
-  });
+  await routeAgents(page, agents);
 
   await page.route('**/api/test/connection', async (route) => {
     const payload = route.request().postDataJSON() as Record<string, unknown>;
@@ -171,33 +170,6 @@ async function openLocalCliSettings(
     dialog.getByLabel(/Codex executable path|Codex 可执行文件路径/i),
   ).toBeVisible();
   return dialog;
-}
-
-async function fulfillAgentsRoute(route: Route, agents: AgentFixture[]) {
-  const url = new URL(route.request().url());
-  if (url.searchParams.get('stream') === '1') {
-    const body = [
-      ...agents.flatMap((agent) => [
-        'event: agent',
-        `data: ${JSON.stringify(agent)}`,
-        '',
-      ]),
-      'event: done',
-      'data: {}',
-      '',
-      '',
-    ].join('\n');
-    await route.fulfill({
-      status: 200,
-      headers: {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-      },
-      body,
-    });
-    return;
-  }
-  await route.fulfill({ json: { agents } });
 }
 
 test.describe('Settings Local CLI Codex fallback UX', () => {

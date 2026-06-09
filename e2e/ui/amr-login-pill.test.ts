@@ -14,6 +14,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { openSettingsDialog as openEntrySettingsDialog } from '../lib/playwright/amr.js';
+import { routeAgents } from '../lib/playwright/mock-factory.js';
 
 const STORAGE_KEY = 'open-design:config';
 const OPEN_SETTINGS_LABEL = /Open settings|打开设置|開啟設定/i;
@@ -50,10 +51,10 @@ async function wireDaemonMocks(page: Page, state: VelaMockState) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
   });
 
-  await page.route('**/api/agents**', async (route) => {
-    // Only AMR present — keeps the card layout deterministic regardless
-    // of whatever else `runtimes/registry.ts` later adds.
-    const agent = {
+  // Only AMR present — keeps the card layout deterministic regardless
+  // of whatever else `runtimes/registry.ts` later adds.
+  await routeAgents(page, [
+    {
       id: 'amr',
       name: 'AMR (vela)',
       bin: 'vela',
@@ -66,29 +67,8 @@ async function wireDaemonMocks(page: Page, state: VelaMockState) {
       ],
       path: '/usr/local/bin/vela',
       version: null,
-    };
-    const url = new URL(route.request().url());
-    if (url.searchParams.get('stream') === '1') {
-      await route.fulfill({
-        status: 200,
-        headers: {
-          'content-type': 'text/event-stream',
-          'cache-control': 'no-cache',
-        },
-        body: [
-          'event: agent',
-          `data: ${JSON.stringify(agent)}`,
-          '',
-          'event: done',
-          'data: {}',
-          '',
-          '',
-        ].join('\n'),
-      });
-      return;
-    }
-    await route.fulfill({ json: { agents: [agent] } });
-  });
+    },
+  ]);
 
   await page.route('**/api/integrations/vela/status', async (route) => {
     state.statusRequests += 1;

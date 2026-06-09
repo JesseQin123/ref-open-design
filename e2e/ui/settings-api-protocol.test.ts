@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
-import type { Locator, Page, Route } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { openSettingsDialog } from '../lib/playwright/amr.js';
+import { routeAgents } from '../lib/playwright/mock-factory.js';
 
 const STORAGE_KEY = 'open-design:config';
 const OPEN_SETTINGS_LABEL = /Open settings|打开设置|開啟設定|Account & settings/i;
@@ -102,49 +103,10 @@ async function openExecutionSettingsWithAgents(
   await page.route('**/api/health', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
   });
-  await page.route('**/api/agents**', async (route) => {
-    await fulfillAgentsRoute(route, agents);
-  });
+  await routeAgents(page, agents);
 
   await gotoEntryHome(page);
   await openSettingsDialogFromEntry(page);
-}
-
-async function fulfillAgentsRoute(
-  route: Route,
-  agents: Array<{
-    id: string;
-    name: string;
-    bin: string;
-    available: boolean;
-    version?: string | null;
-    models?: Array<{ id: string; label: string }>;
-  }>,
-) {
-  const url = new URL(route.request().url());
-  if (url.searchParams.get('stream') === '1') {
-    const body = [
-      ...agents.flatMap((agent) => [
-        'event: agent',
-        `data: ${JSON.stringify(agent)}`,
-        '',
-      ]),
-      'event: done',
-      'data: {}',
-      '',
-      '',
-    ].join('\n');
-    await route.fulfill({
-      status: 200,
-      headers: {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-      },
-      body,
-    });
-    return;
-  }
-  await route.fulfill({ json: { agents } });
 }
 
 test('[P1] legacy known OpenAI provider switches to the matching Anthropic preset', async ({ page }) => {

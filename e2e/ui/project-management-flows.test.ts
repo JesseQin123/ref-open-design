@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { ensureRailOpen } from '@/playwright/rail';
 import type { Locator, Page, Request, Route } from '@playwright/test';
+import { routeAgents } from '../lib/playwright/mock-factory.js';
 
 const STORAGE_KEY = 'open-design:config';
 const ACTIVE_ARTIFACT_PREVIEW_SELECTOR = '[data-testid="artifact-preview-frame"]:visible, [data-testid="artifact-preview-frame-url-load"]:visible, [data-testid="artifact-preview-frame-srcdoc"]:visible, [data-testid="live-artifact-preview-frame"]:visible';
@@ -111,37 +112,8 @@ test.beforeEach(async ({ page }) => {
     });
   });
 
-  await page.route('**/api/agents**', async (route) => {
-    await fulfillAgentsRoute(route, AGENTS);
-  });
+  await routeAgents(page, AGENTS);
 });
-
-async function fulfillAgentsRoute(route: Route, agents: typeof AGENTS) {
-  const url = new URL(route.request().url());
-  if (url.searchParams.get('stream') === '1') {
-    const body = [
-      ...agents.flatMap((agent) => [
-        'event: agent',
-        `data: ${JSON.stringify(agent)}`,
-        '',
-      ]),
-      'event: done',
-      'data: {}',
-      '',
-      '',
-    ].join('\n');
-    await route.fulfill({
-      status: 200,
-      headers: {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-      },
-      body,
-    });
-    return;
-  }
-  await route.fulfill({ json: { agents } });
-}
 
 function artifactPreview(page: Page) {
   return page.locator(ACTIVE_ARTIFACT_PREVIEW_SELECTOR).first();
