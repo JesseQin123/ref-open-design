@@ -126,6 +126,37 @@ describe('ToolCard dispatch', () => {
     expect(markup).toContain('Q3 revenue');
   });
 
+  it('renders a persisted AskUserQuestion turn as a read-only summary, not the raw JSON payload', () => {
+    // Legacy AUQ tool_use events survive in upgraded chat history. They must
+    // render the model-authored question text, not the `{"questions":[...]}`
+    // protocol blob that GenericCard would otherwise surface.
+    const input = {
+      questions: [
+        {
+          question: 'Which framework should we target?',
+          header: 'Framework',
+          options: [{ label: 'React Native' }, { label: 'Flutter' }],
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      <ToolCard use={use(input, 'AskUserQuestion')} result={ok('React Native')} runStreaming={false} runSucceeded={true} />,
+    );
+    expect(markup).toContain('Framework');
+    expect(markup).toContain('Which framework should we target?');
+    // The raw JSON payload must not leak into the card.
+    expect(markup).not.toContain('&quot;questions&quot;');
+    expect(markup).not.toContain('"questions"');
+  });
+
+  it('falls back to the generic card for an unparseable AskUserQuestion payload', () => {
+    const markup = renderToStaticMarkup(
+      <ToolCard use={use({ junk: true }, 'ask_user_question')} runStreaming={false} runSucceeded={true} />,
+    );
+    expect(markup).toContain('op-generic');
+    expect(markup).toContain('AskUserQuestion');
+  });
+
   it('passes the result content through as the `result` prop on completion', () => {
     registerToolRenderer('render_chart', ({ status, result }) => (
       <span data-testid="custom-chart" data-status={status}>

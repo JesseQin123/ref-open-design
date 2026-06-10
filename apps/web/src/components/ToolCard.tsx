@@ -71,7 +71,86 @@ export function ToolCard({
   if (name === 'Grep') return <GrepCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'WebFetch' || name === 'web_fetch') return <WebFetchCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'WebSearch' || name === 'web_search') return <WebSearchCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
+  if (isAskUserQuestionName(name))
+    return <LegacyAskUserQuestionCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   return <GenericCard name={name} input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
+}
+
+// The interactive `AskUserQuestion` mechanism was retired in favor of the
+// unified `<question-form>` flow, but chat history survives app upgrades, so
+// existing projects still carry persisted `AskUserQuestion` tool_use events.
+// Without a dedicated renderer they fall through to GenericCard and surface
+// the raw `{"questions":[...]}` JSON payload under an "AskUserQuestion" title.
+// This read-only card renders those historical turns as an inert question
+// summary — no submit path, no interactive answer route — so old history stays
+// legible after the cleanup.
+export function isAskUserQuestionName(name: string): boolean {
+  return name === 'AskUserQuestion' || name === 'ask_user_question';
+}
+
+type LegacyAuqQuestion = { question: string; header?: string; options: string[] };
+
+// Minimal, defensive parse of the legacy AUQ input shape
+// `{ questions: [{ question, header, options: [{ label }] | [string] }] }`.
+// Kept inline (the dedicated parser module was deleted with the mechanism);
+// this only needs enough to render a read-only summary.
+function parseLegacyAskUserQuestion(input: unknown): LegacyAuqQuestion[] {
+  const obj = (input ?? {}) as { questions?: unknown };
+  if (!Array.isArray(obj.questions)) return [];
+  const out: LegacyAuqQuestion[] = [];
+  for (const raw of obj.questions) {
+    if (!raw || typeof raw !== 'object') continue;
+    const q = raw as Record<string, unknown>;
+    const question = typeof q.question === 'string' ? q.question : '';
+    if (!question) continue;
+    const header = typeof q.header === 'string' && q.header.trim() ? q.header.trim() : undefined;
+    const options: string[] = [];
+    if (Array.isArray(q.options)) {
+      for (const opt of q.options) {
+        if (typeof opt === 'string') {
+          if (opt) options.push(opt);
+          continue;
+        }
+        if (opt && typeof opt === 'object' && typeof (opt as { label?: unknown }).label === 'string') {
+          const label = (opt as { label: string }).label;
+          if (label) options.push(label);
+        }
+      }
+    }
+    out.push(header ? { question, header, options } : { question, options });
+  }
+  return out;
+}
+
+function LegacyAskUserQuestionCard({
+  input,
+  result,
+  runStreaming,
+  runSucceeded,
+}: {
+  input: unknown;
+  result?: Props['result'];
+  runStreaming: boolean;
+  runSucceeded: boolean;
+}) {
+  const questions = parseLegacyAskUserQuestion(input);
+  const first = questions[0];
+  // Unparseable payload → defer to the generic card rather than inventing UI.
+  if (!first)
+    return <GenericCard name="AskUserQuestion" input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />;
+  // Title + summary are model-authored text (already in the user's locale), so
+  // no new i18n keys are needed for this historical-only surface.
+  const title = first.header ?? truncate(first.question, 60);
+  const prompts = questions.map((q) => q.question).filter(Boolean).join(' · ');
+  return (
+    <div className="op-card op-generic">
+      <div className="op-card-head">
+        <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
+        <span className="op-title">{title}</span>
+        {prompts ? <span className="op-meta">{truncate(prompts, 200)}</span> : null}
+      </div>
+    </div>
+  );
 }
 
 interface FileToolCtx {
