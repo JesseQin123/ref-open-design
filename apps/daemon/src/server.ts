@@ -5880,7 +5880,6 @@ export async function startServer({
       if (run.assistantMessageId) {
         const messageTelemetry = getMessageTelemetryFinalizationState(db, run.assistantMessageId);
         if (messageTelemetry.finalizedAt !== null) return;
-        if (messageTelemetry.exists && messageTelemetry.hasBufferedPayload) return;
       }
       reportFinalizedMessage(
         {

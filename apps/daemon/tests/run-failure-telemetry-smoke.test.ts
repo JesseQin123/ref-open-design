@@ -220,9 +220,9 @@ describe('run failure telemetry smoke', () => {
     expect(trace.body.metadata.error_code).toBe(deriveRunErrorCode(run));
   });
 
-  it('lets a delayed failed-run final message report win over terminal fallback', async () => {
-    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-run-failure-late-final-bin-'));
-    await writeFakeClaude(binDir, 'claude-late-final', 'late finalization smoke failure');
+  it('reports terminal fallback with buffered content when final telemetry never arrives', async () => {
+    binDir = await mkdtemp(path.join(os.tmpdir(), 'od-run-failure-buffered-fallback-bin-'));
+    await writeFakeClaude(binDir, 'claude-buffered-fallback', 'buffered fallback smoke failure');
 
     ingestion = await startLangfuseIngestion();
     process.env.LANGFUSE_PUBLIC_KEY = 'pk-test';
@@ -235,31 +235,24 @@ describe('run failure telemetry smoke', () => {
     restoreSetTimeout = accelerateLangfuseTerminalFallbackDelay(1000);
     await putConfig(started.url, {
       agentId: 'claude',
-      agentCliEnv: { claude: { CLAUDE_BIN: path.join(binDir, 'claude-late-final') } },
+      agentCliEnv: { claude: { CLAUDE_BIN: path.join(binDir, 'claude-buffered-fallback') } },
       telemetry: { metrics: true, content: true, artifactManifest: false },
       privacyDecisionAt: Date.now(),
     });
 
     const run = await createAndWaitForRun(started.url, {
-      caseId: 'late_finalized_failed_message',
+      caseId: 'buffered_unfinalized_failed_message',
       agentId: 'claude',
-      message: 'od-failure-smoke-late-finalized-message',
+      message: 'od-failure-smoke-buffered-unfinalized-message',
     });
-    const finalContent = 'late finalized failed assistant content';
+    const bufferedContent = 'buffered unfinalized failed assistant content';
 
     await saveAssistantMessage(started.url, run, {
-      content: finalContent,
-      producedFiles: [{ name: 'late-final.html', kind: 'html', size: 42 }],
-    });
-    await delay(1200);
-    expect(ingestion.traces.some((trace) => trace.body.id === run.id)).toBe(false);
-
-    await finalizeAssistantMessage(started.url, run, {
-      content: finalContent,
-      producedFiles: [{ name: 'late-final.html', kind: 'html', size: 42 }],
+      content: bufferedContent,
+      producedFiles: [{ name: 'buffered-fallback.html', kind: 'html', size: 42 }],
     });
     const trace = await ingestion.waitForTrace(run.id);
-    expect(trace.body.output).toBe(finalContent);
+    expect(trace.body.output).toBe(bufferedContent);
   });
 });
 
