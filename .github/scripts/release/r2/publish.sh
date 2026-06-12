@@ -349,19 +349,22 @@ if (env.RELEASE_CHANNEL === "beta") {
     releaseVersion: env.RELEASE_VERSION,
     ...commonMetadata,
   };
+} else if (env.RELEASE_CHANNEL === "prerelease") {
+  metadata = {
+    baseVersion: env.BASE_VERSION,
+    prereleaseNumber: Number(env.RELEASE_VERSION.split("-prerelease.")[1]),
+    prereleaseVersion: env.RELEASE_VERSION,
+    releaseVersion: env.RELEASE_VERSION,
+    ...commonMetadata,
+  };
 } else {
   metadata = {
     baseVersion: env.BASE_VERSION,
     releaseVersion: env.RELEASE_VERSION,
     stableVersion: env.BASE_VERSION,
+    versionTag: env.VERSION_TAG,
     ...commonMetadata,
   };
-  if (env.RELEASE_CHANNEL === "nightly") {
-    metadata.nightlyNumber = Number(env.NIGHTLY_NUMBER);
-    metadata.nightlyVersion = env.RELEASE_VERSION;
-  } else {
-    metadata.versionTag = env.VERSION_TAG;
-  }
 }
 
 writeFileSync(env.METADATA_PATH, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");

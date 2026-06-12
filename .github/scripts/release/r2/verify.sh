@@ -49,7 +49,6 @@ curl -fsSL "$R2_METADATA_URL?run=${GITHUB_RUN_ID:-local}" -o "$downloaded_metada
 DOWNLOADED_METADATA="$downloaded_metadata" \
 EXPECTED_CHANNEL="$RELEASE_CHANNEL" \
 EXPECTED_MAC_INTEL_SIGNED="${MAC_INTEL_SIGNED:-}" \
-EXPECTED_NIGHTLY_NUMBER="${NIGHTLY_NUMBER:-}" \
 EXPECTED_RELEASE_VERSION="$RELEASE_VERSION" \
 node --input-type=module <<'NODE'
 import { readFileSync } from "node:fs";
@@ -72,17 +71,20 @@ if (metadata.channel === "beta") {
   if (metadata.previewNumber !== expectedPreviewNumber) {
     throw new Error("unexpected metadata previewNumber: " + metadata.previewNumber);
   }
-} else {
+} else if (metadata.channel === "prerelease") {
   if (metadata.releaseVersion !== process.env.EXPECTED_RELEASE_VERSION) {
     throw new Error("unexpected metadata releaseVersion: " + metadata.releaseVersion);
   }
-  if (metadata.channel === "nightly") {
-    if (metadata.nightlyVersion !== process.env.EXPECTED_RELEASE_VERSION) {
-      throw new Error("unexpected metadata nightlyVersion: " + metadata.nightlyVersion);
-    }
-    if (metadata.nightlyNumber !== Number(process.env.EXPECTED_NIGHTLY_NUMBER)) {
-      throw new Error("unexpected metadata nightlyNumber: " + metadata.nightlyNumber);
-    }
+  if (metadata.prereleaseVersion !== process.env.EXPECTED_RELEASE_VERSION) {
+    throw new Error("unexpected metadata prereleaseVersion: " + metadata.prereleaseVersion);
+  }
+  const expectedPrereleaseNumber = Number(process.env.EXPECTED_RELEASE_VERSION.split("-prerelease.")[1]);
+  if (metadata.prereleaseNumber !== expectedPrereleaseNumber) {
+    throw new Error("unexpected metadata prereleaseNumber: " + metadata.prereleaseNumber);
+  }
+} else {
+  if (metadata.releaseVersion !== process.env.EXPECTED_RELEASE_VERSION) {
+    throw new Error("unexpected metadata releaseVersion: " + metadata.releaseVersion);
   }
 }
 if (process.env.EXPECTED_MAC_INTEL_SIGNED !== "") {

@@ -113,8 +113,8 @@ const overviewRows = [
   ["Mac signed", boolLabel(env.RELEASE_SIGNED === "true")],
   ["Linux enabled", boolLabel(platforms.linux.enabled)],
 ];
-if (env.RELEASE_CHANNEL === "nightly") {
-  overviewRows.push(["Nightly number", code(env.NIGHTLY_NUMBER)]);
+if (env.RELEASE_CHANNEL === "prerelease") {
+  overviewRows.push(["Prerelease number", code(env.RELEASE_VERSION.split("-prerelease.")[1] ?? "")]);
 }
 
 const overviewTable = [

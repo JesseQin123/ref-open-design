@@ -5,8 +5,8 @@
 // Inputs (all via env):
 //   FEISHU_WEBHOOK        (required) custom-bot webhook URL
 //   FEISHU_SIGN_SECRET    (optional) signing secret when the bot enables 签名校验
-//   CHANNEL_LABEL         display channel name, e.g. "Nightly" (default "Nightly")
-//   VERSION               (required) build version, e.g. 0.9.0.nightly.1
+//   CHANNEL_LABEL         display channel name, e.g. "Prerelease" (default "Prerelease")
+//   VERSION               (required) build version, e.g. 0.9.0-prerelease.1
 //   BRANCH                git branch that was built
 //   COMMIT                commit SHA that was built
 //   PREVIOUS_COMMIT       changelog baseline (last published build); empty on cold start
@@ -38,7 +38,7 @@ function optional(name, fallback = "") {
 
 const webhook = required("FEISHU_WEBHOOK");
 const signSecret = optional("FEISHU_SIGN_SECRET");
-const channelLabel = optional("CHANNEL_LABEL", "Nightly");
+const channelLabel = optional("CHANNEL_LABEL", "Prerelease");
 const version = required("VERSION");
 const branch = optional("BRANCH");
 const commit = optional("COMMIT");

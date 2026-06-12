@@ -61,6 +61,14 @@ function fail(message: string): never {
   process.exit(1);
 }
 
+async function execGh(args: string[]): Promise<{ stdout: string }> {
+  const nodeScript = process.env.OPEN_DESIGN_GH_NODE_SCRIPT;
+  if (nodeScript != null && nodeScript.length > 0) {
+    return execFile(process.execPath, [nodeScript, ...args]);
+  }
+  return execFile(process.env.OPEN_DESIGN_GH_BIN ?? "gh", args);
+}
+
 function parseChannel(value: string | undefined): ReleaseChannel {
   const channel = value == null || value.length === 0 ? "stable" : value;
   const descriptor = releaseChannelDescriptor(channel);
@@ -406,7 +414,7 @@ async function readPackagedVersion(): Promise<string> {
 async function fetchReleases(repository: string): Promise<GitHubRelease[]> {
   const releases: GitHubRelease[] = [];
   for (let page = 1; ; page += 1) {
-    const { stdout } = await execFile("gh", ["api", `repos/${repository}/releases?per_page=100&page=${page}`]);
+    const { stdout } = await execGh(["api", `repos/${repository}/releases?per_page=100&page=${page}`]);
     const batch = JSON.parse(stdout) as GitHubRelease[];
     if (batch.length === 0) break;
     releases.push(...batch);

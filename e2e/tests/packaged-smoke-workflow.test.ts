@@ -69,6 +69,7 @@ async function runReleaseStableForFailure(env: Record<string, string>): Promise<
 
 async function writeFakeGhBin(binDir: string, releases: unknown[]): Promise<void> {
   const ghPath = join(binDir, "gh");
+  const ghCmdPath = join(binDir, "gh.cmd");
   await writeFile(
     ghPath,
     `#!/usr/bin/env node
@@ -83,6 +84,7 @@ process.exit(1);
 `,
   );
   await chmod(ghPath, 0o755);
+  await writeFile(ghCmdPath, `@echo off\r\n"${process.execPath}" "%~dp0gh" %*\r\n`);
 }
 
 describe("packaged smoke workflow", () => {
@@ -271,6 +273,7 @@ describe("packaged smoke workflow", () => {
     try {
       await mkdir(join(runnerTemp, "bin"), { recursive: true });
       await writeFakeGhBin(join(runnerTemp, "bin"), []);
+      const fakePath = `${join(runnerTemp, "bin")}${delimiter}${process.env.PATH ?? ""}`;
 
       const result = await execFileAsync(process.execPath, ["--experimental-strip-types", releaseStableScriptPath], {
         cwd: workspaceRoot,
@@ -283,9 +286,11 @@ describe("packaged smoke workflow", () => {
           OPEN_DESIGN_RELEASE_CHANNEL: "stable",
           OPEN_DESIGN_RELEASE_DRY_RUN: "true",
           OPEN_DESIGN_RELEASES_PUBLIC_ORIGIN: fixture.origin,
+          OPEN_DESIGN_GH_NODE_SCRIPT: join(runnerTemp, "bin", "gh"),
           OPEN_DESIGN_STABLE_PRERELEASE_VERSION: "0.10.0-prerelease.12",
           OPEN_DESIGN_STABLE_VERSION: "0.10.0",
-          PATH: `${join(runnerTemp, "bin")}${delimiter}${process.env.PATH ?? ""}`,
+          Path: fakePath,
+          PATH: fakePath,
         },
       });
 
