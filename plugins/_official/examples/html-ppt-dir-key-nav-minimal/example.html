@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dir-Key Nav Minimal</title>
 <style>/* html-ppt :: shared webfonts */
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap');
 
 </style>
@@ -33,10 +33,10 @@
   --radius-lg: 26px;
   --shadow: 0 10px 30px rgba(18,24,40,.08), 0 2px 6px rgba(18,24,40,.04);
   --shadow-lg: 0 24px 60px rgba(18,24,40,.14), 0 6px 16px rgba(18,24,40,.06);
-  --font-sans: 'Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
-  --font-serif: Georgia,'Songti SC',serif;
+  --font-sans: 'Inter',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
+  --font-serif: Georgia,serif;
   --font-mono: 'IBM Plex Mono',SFMono-Regular,Menlo,monospace;
-  --font-display: 'Archivo','Noto Sans SC',sans-serif;
+  --font-display: 'Archivo','Inter',sans-serif;
   --letter-tight: -.02em;
   --letter-normal: -.005em;
   --ease: cubic-bezier(.16,1,.3,1);
@@ -159,10 +159,10 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
 }
 
 </style>
-<style>/* dir-key-nav-minimal — 方向键极简 · 8 种 mono-background 切换 */
+<style>/* dir-key-nav-minimal — arrow-key minimal · 8 mono-background themes */
 .tpl-dir-key-nav-minimal{
-  --dk-font:'Noto Sans SC','PingFang SC',-apple-system,sans-serif;
-  --dk-display:'Archivo','Noto Sans SC','PingFang SC',sans-serif;
+  --dk-font:'Inter',-apple-system,sans-serif;
+  --dk-display:'Archivo','Inter',sans-serif;
   --dk-mono:'IBM Plex Mono',SFMono-Regular,Menlo,monospace;
   background:#0b0c0e;
   color:#fff;
@@ -265,7 +265,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
       <div class="dk-eyebrow">Open Design · Apache-2.0</div>
       <h1 class="dk-h0">Open<br><span class="dk-accent">Design</span></h1>
       <span class="dk-line"></span>
-      <p class="dk-lede">开源、本地、Agent 驱动的设计平台。从想法到原型、网页、Slides、HTML 视频，产品设计全流程在你自己的设备上完成。<strong>按 → 继续。</strong></p>
+      <p class="dk-lede">The open-source, local, agent-driven design platform. From idea to prototypes, websites, slides, and HTML video — the entire product design workflow runs on your own machine. <strong>Press → to continue.</strong></p>
     </div>
     <div class="dk-keyhint">nav · <kbd>←</kbd> <kbd>→</kbd> · <kbd>space</kbd></div>
     <div class="dk-page">cover</div>
@@ -278,7 +278,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
       <div class="dk-eyebrow">Chapter 01</div>
       <h1 class="dk-h0">The <span class="dk-accent">Problem</span>.</h1>
       <span class="dk-line"></span>
-      <p class="dk-lede">2026 年 4 月，Claude Design 首次证明 LLM 能真正做设计。但它闭源、付费、只跑在云端。</p>
+      <p class="dk-lede">In April 2026, Claude Design proved for the first time that an LLM can genuinely design. But it's closed source, paid, and cloud-only.</p>
     </div>
     <div class="dk-keyhint">chapter · 01 / 04</div>
     <div class="dk-page">section</div>
@@ -289,12 +289,12 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     <div class="dk-snum">03 / 08</div>
     <div style="margin:auto 0">
       <div class="dk-eyebrow">Pain Points</div>
-      <h2 class="dk-h1">四堵挡住<br>创作者的<br><span class="dk-accent">墙</span>。</h2>
+      <h2 class="dk-h1">Four walls<br>between you<br>and the <span class="dk-accent">work</span>.</h2>
       <ul class="dk-list">
-        <li>闭源：模型锁定 Anthropic，换 Agent 无从谈起</li>
-        <li>付费：月费 $500，能力跟着账单走</li>
-        <li>只跑云端：本地文件、代码仓库 Agent 都看不到</li>
-        <li>不能自部署、不能 BYOK，数据主权归平台</li>
+        <li>Closed source: locked to Anthropic, swapping agents is off the table</li>
+        <li>Paid: $500 a month — capability follows the bill</li>
+        <li>Cloud-only: the agent can't see local files or code repos</li>
+        <li>No self-hosting, no BYOK — the platform owns your data</li>
       </ul>
     </div>
     <div class="dk-keyhint">content · list</div>
@@ -306,11 +306,11 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     <div class="dk-snum">04 / 08</div>
     <div style="margin:auto 0">
       <div class="dk-eyebrow">The Fix</div>
-      <h2 class="dk-h1">答案不是<br>又一个<span class="dk-accent">云端</span>。</h2>
-      <p class="dk-lede" style="margin-top:10px">而是：把最前沿的 AI 设计能力<strong>开放、放回本地</strong>。<br>Open Design——Apache-2.0 开源，跑在你自己的设备上。</p>
+      <h2 class="dk-h1">The answer isn't<br>another <span class="dk-accent">cloud</span>.</h2>
+      <p class="dk-lede" style="margin-top:10px">It's taking frontier AI design capability and making it <strong>open — and local again</strong>.<br>Open Design: Apache-2.0, running on your own machine.</p>
       <div class="dk-grid-2">
-        <div class="dk-col"><h3>× 云端闭源</h3><p>锁模型、锁平台，数据和产物留在别人的服务器。</p></div>
-        <div class="dk-col"><h3>✓ 开源本地</h3><p>本地文件直接可读，BYOK 自由换端点，产物可 git diff。</p></div>
+        <div class="dk-col"><h3>× Closed cloud</h3><p>Locked models, locked platform — your data and output live on someone else's servers.</p></div>
+        <div class="dk-col"><h3>✓ Open &amp; local</h3><p>Reads local files directly, BYOK any endpoint, every artifact is git-diffable.</p></div>
       </div>
     </div>
     <div class="dk-keyhint">content · compare</div>
@@ -322,12 +322,12 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     <div class="dk-snum">05 / 08</div>
     <div style="margin:auto 0">
       <div class="dk-eyebrow">Zero Config</div>
-      <h2 class="dk-h2"><span class="dk-accent">21 个</span> Agent<br>零配置接入。</h2>
+      <h2 class="dk-h2"><span class="dk-accent">21 agents</span>,<br>zero config.</h2>
       <pre class="dk-code">agents:
   detected: claude-code, codex, cursor-agent, …
   count: 21               # auto-detected on PATH
   byok: anthropic / openai / azure / google</pre>
-      <p class="dk-lede" style="margin-top:16px;font-size:20px">你电脑上的 Coding Agent 已经够强。Open Design 把它们接进<strong>完整设计工作流</strong>——自动检测，无需注册。</p>
+      <p class="dk-lede" style="margin-top:16px;font-size:20px">The coding agents on your machine are already strong enough. Open Design wires them into a <strong>complete design workflow</strong> — auto-detected, no sign-up.</p>
     </div>
     <div class="dk-keyhint">content · code</div>
     <div class="dk-page">05</div>
@@ -339,7 +339,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     <div style="margin:auto 0">
       <div class="dk-eyebrow">Cost · vs Claude Design</div>
       <div class="dk-big dk-accent">-80%</div>
-      <p class="dk-lede" style="margin-top:14px;font-size:26px">的月成本降幅。从 <strong>$500</strong> 降到 <strong>~$73</strong>——前沿设计能力，不再跟着账单走。</p>
+      <p class="dk-lede" style="margin-top:14px;font-size:26px">monthly cost. From <strong>$500</strong> down to <strong>~$73</strong> — frontier design capability that no longer follows the bill.</p>
       <svg viewBox="0 0 900 80" style="width:100%;max-width:900px;margin-top:30px">
         <rect x="0" y="30" width="900" height="22" fill="rgba(255,255,255,.12)"/>
         <rect x="0" y="30" width="720" height="22" fill="#c4b5fd"/>
@@ -355,9 +355,9 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     <div class="dk-snum">07 / 08</div>
     <div style="margin:auto 0">
       <div class="dk-eyebrow">Start today</div>
-      <h2 class="dk-h1">把设计<br>带回<span class="dk-accent">本地</span>。</h2>
+      <h2 class="dk-h1">Take design<br>back <span class="dk-accent">local</span>.</h2>
       <span class="dk-line"></span>
-      <p class="dk-lede">不是又一个云端订阅。是决定：从今天起，<strong>你的设计全流程跑在自己的设备上</strong>。</p>
+      <p class="dk-lede">Not another cloud subscription. A decision: starting today, <strong>your entire design workflow runs on your own machine</strong>.</p>
       <pre class="dk-code" style="font-size:18px">$ git clone https://github.com/nexu-io/open-design
 $ pnpm install
 $ pnpm tools-dev</pre>
@@ -371,9 +371,9 @@ $ pnpm tools-dev</pre>
     <div class="dk-snum">08 / 08</div>
     <div style="margin:auto 0">
       <div class="dk-eyebrow">End · thanks for staying</div>
-      <h1 class="dk-h0"><span class="dk-accent">謝謝</span>。</h1>
+      <h1 class="dk-h0"><span class="dk-accent">Thanks</span>.</h1>
       <span class="dk-line"></span>
-      <p class="dk-lede">让最前沿的 AI 设计能力回到每一个创作者的桌上。源码与社区都在 <strong>github.com/nexu-io/open-design</strong> · discord.gg/qhbcCH8Am4。欢迎按 ← 再看一遍。</p>
+      <p class="dk-lede">Putting frontier AI design capability back on every creator's desk. Source and community: <strong>github.com/nexu-io/open-design</strong> · discord.gg/qhbcCH8Am4. Press ← to watch it again.</p>
     </div>
     <div class="dk-keyhint">press <kbd>←</kbd> to rewind · <kbd>F</kbd> for fullscreen</div>
     <div class="dk-page">fin</div>
