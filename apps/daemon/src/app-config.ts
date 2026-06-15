@@ -438,6 +438,30 @@ function normalizeAgentCliEnvPrefs(prefs: AppConfigPrefs): AppConfigPrefs {
   return next;
 }
 
+function inferAgentCliEnvIntentForExplicitEnvWrite(prefs: AppConfigPrefs): AppConfigPrefs {
+  if (!prefs.agentCliEnv) return prefs;
+  let nextAgentCliEnvIntent = prefs.agentCliEnvIntent;
+  let changed = false;
+
+  for (const [agentId, keys] of AGENT_CLI_AUTH_ENV_KEYS) {
+    const env = prefs.agentCliEnv[agentId];
+    if (!env) continue;
+    const hasBaseUrl = Object.keys(env).some((key) => keys.baseUrl.has(key));
+    if (hasBaseUrl) continue;
+    const hasAuthKey = Object.keys(env).some((key) => keys.auth.has(key));
+    if (!hasAuthKey) continue;
+    if (nextAgentCliEnvIntent?.[agentId]?.apiKeyOverride === true) continue;
+    nextAgentCliEnvIntent = {
+      ...(nextAgentCliEnvIntent ?? {}),
+      [agentId]: { apiKeyOverride: true },
+    };
+    changed = true;
+  }
+
+  if (!changed || !nextAgentCliEnvIntent) return prefs;
+  return { ...prefs, agentCliEnvIntent: nextAgentCliEnvIntent };
+}
+
 function applyConfigValue(
   target: Record<string, unknown>,
   key: keyof AppConfigPrefs,
@@ -714,7 +738,10 @@ async function doWrite(
     if (!ALLOWED_KEYS.has(key as keyof AppConfigPrefs)) continue;
     applyConfigValue(next, key as keyof AppConfigPrefs, partial[key]);
   }
-  const normalizedNext = normalizeAgentCliEnvPrefs(next as AppConfigPrefs);
+  const nextWithInferredIntent = Object.prototype.hasOwnProperty.call(partial, 'agentCliEnv')
+    ? inferAgentCliEnvIntentForExplicitEnvWrite(next as AppConfigPrefs)
+    : next as AppConfigPrefs;
+  const normalizedNext = normalizeAgentCliEnvPrefs(nextWithInferredIntent);
   const file = configFile(dataDir);
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = file + '.' + randomBytes(4).toString('hex') + '.tmp';

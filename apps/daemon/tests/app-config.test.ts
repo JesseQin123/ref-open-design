@@ -403,10 +403,43 @@ describe('app-config', () => {
       });
     });
 
+    it('infers CLI API key override intent for explicit agentCliEnv writes', async () => {
+      await writeAppConfig(dataDir, {
+        agentCliEnv: {
+          claude: { ANTHROPIC_AUTH_TOKEN: 'sk-anthropic-token' },
+          codex: { CODEX_API_KEY: 'sk-codex' },
+        },
+      });
+
+      const cfg = await readAppConfig(dataDir);
+
+      expect(cfg.agentCliEnv).toEqual({
+        claude: { ANTHROPIC_AUTH_TOKEN: 'sk-anthropic-token' },
+        codex: { CODEX_API_KEY: 'sk-codex' },
+      });
+      expect(cfg.agentCliEnvIntent).toEqual({
+        claude: { apiKeyOverride: true },
+        codex: { apiKeyOverride: true },
+      });
+    });
+
+    it('does not infer CLI API key override intent when reading legacy disk config', async () => {
+      await writeFile(path.join(dataDir, 'app-config.json'), JSON.stringify({
+        agentCliEnv: {
+          codex: { CODEX_API_KEY: 'sk-legacy-codex' },
+        },
+      }));
+
+      const cfg = await readAppConfig(dataDir);
+
+      expect(cfg.agentCliEnv).toBeUndefined();
+      expect(cfg.agentCliEnvIntent).toBeUndefined();
+    });
+
     it('drops orphan CLI env intent entries when the agent env is empty', async () => {
       await writeAppConfig(dataDir, {
         agentCliEnv: {
-          claude: { ANTHROPIC_API_KEY: 'sk-legacy-anthropic' },
+          claude: { CLAUDE_CONFIG_DIR: '~/.claude-2' },
         },
         agentCliEnvIntent: {
           codex: { apiKeyOverride: true },
@@ -415,7 +448,9 @@ describe('app-config', () => {
 
       const cfg = await readAppConfig(dataDir);
 
-      expect(cfg.agentCliEnv).toBeUndefined();
+      expect(cfg.agentCliEnv).toEqual({
+        claude: { CLAUDE_CONFIG_DIR: '~/.claude-2' },
+      });
       expect(cfg.agentCliEnvIntent).toBeUndefined();
     });
 
