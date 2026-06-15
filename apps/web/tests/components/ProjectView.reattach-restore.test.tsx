@@ -372,6 +372,88 @@ describe('ProjectView daemon reattach restore', () => {
     });
   });
 
+  it('finalizes reattached telemetry only after trace object files are restored', async () => {
+    const startedAt = Date.now();
+    listConversations.mockResolvedValue([{ id: 'conv-1', title: 'Conversation' }]);
+    listMessages.mockResolvedValue([
+      {
+        id: 'msg-reattach-trace',
+        role: 'assistant',
+        content: '',
+        createdAt: startedAt,
+        startedAt,
+        runId: 'run-trace',
+        runStatus: 'running',
+        preTurnFileNames: ['existing.html'],
+        events: [
+          {
+            kind: 'tool_use',
+            id: 'tool-edit',
+            name: 'str_replace_edit',
+            input: { path: 'existing.html' },
+          },
+          { kind: 'tool_result', toolUseId: 'tool-edit', content: '', isError: false },
+        ],
+      } satisfies ChatMessage,
+    ]);
+    fetchPreviewComments.mockResolvedValue([]);
+    loadTabs.mockResolvedValue({ tabs: [], activeTabId: null });
+    const beforeFiles = [
+      { name: 'existing.html', path: '/p/existing.html', size: 1, updatedAt: 0 },
+    ];
+    const afterFiles = [
+      { name: 'existing.html', path: '/p/existing.html', size: 2, updatedAt: 1 },
+    ];
+    fetchProjectFiles.mockResolvedValueOnce(beforeFiles).mockResolvedValue(afterFiles);
+    fetchLiveArtifacts.mockResolvedValue([]);
+    fetchSkill.mockResolvedValue(null);
+    fetchDesignSystem.mockResolvedValue(null);
+    getTemplate.mockResolvedValue(null);
+    fetchChatRunStatus.mockResolvedValue({
+      id: 'run-trace',
+      status: 'running',
+      createdAt: startedAt,
+      updatedAt: startedAt,
+      exitCode: null,
+      signal: null,
+    });
+    listActiveChatRuns.mockResolvedValue([]);
+
+    let capturedOnDone: (() => void) | null = null;
+    reattachDaemonRun.mockImplementation(async (options: any) => {
+      capturedOnDone = options.handlers.onDone;
+      return new Promise<void>(() => {});
+    });
+
+    renderProjectView();
+
+    await waitFor(() => expect(reattachDaemonRun).toHaveBeenCalledTimes(1));
+    expect(capturedOnDone).not.toBeNull();
+    capturedOnDone!();
+
+    await waitFor(() => {
+      const saves = saveMessage.mock.calls
+        .map((call) => ({
+          message: call[2] as ChatMessage,
+          options: call[3] as { telemetryFinalized?: boolean } | undefined,
+        }))
+        .filter(({ message }) => message?.id === 'msg-reattach-trace');
+      const firstFinalizedIndex = saves.findIndex(
+        ({ options }) => options?.telemetryFinalized === true,
+      );
+      expect(firstFinalizedIndex).toBeGreaterThan(-1);
+      expect(saves[firstFinalizedIndex]!.message.traceObjectFiles?.map((file) => [
+        file.name,
+        file.traceObjectReason,
+      ])).toEqual([['existing.html', 'modified']]);
+      expect(
+        saves.slice(0, firstFinalizedIndex).some(
+          ({ options }) => options?.telemetryFinalized === true,
+        ),
+      ).toBe(false);
+    });
+  });
+
   it('clears touched-file paths after a failed run before the next successful run finalizes', async () => {
     listConversations.mockResolvedValue([{ id: 'conv-1', title: 'Conversation' }]);
     listMessages.mockResolvedValue([]);

@@ -2769,7 +2769,6 @@ export function ProjectView({
                   endedAt: prev.endedAt ?? Date.now(),
                 }),
                 true,
-                { telemetryFinalized: true },
               );
               void (async () => {
                 const preTurn = message.preTurnFileNames;
@@ -2809,14 +2808,12 @@ export function ProjectView({
                 );
                 const producedHtmlToOpen = selectAutoOpenProducedHtml(produced);
                 if (producedHtmlToOpen) requestOpenFile(producedHtmlToOpen);
-                if (produced.length > 0 || traceObjectFiles.length > 0) {
-                  updateMessageById(
-                    message.id,
-                    (prev) => ({ ...prev, producedFiles: produced, traceObjectFiles }),
-                    true,
-                    { telemetryFinalized: true },
-                  );
-                }
+                updateMessageById(
+                  message.id,
+                  (prev) => ({ ...prev, producedFiles: produced, traceObjectFiles }),
+                  true,
+                  { telemetryFinalized: true },
+                );
                 await auditDesignSystemWorkspaceAfterRun(message.id);
               })();
               onProjectsRefresh();
