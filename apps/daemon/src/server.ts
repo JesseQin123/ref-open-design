@@ -213,6 +213,7 @@ import { attachPiRpcSession } from './pi-rpc.js';
 import { stageAmrImagePaths } from './amr-image-staging.js';
 import { ingestRoutineConnectorEvolution } from './automation-routine-evolution.js';
 import { createClaudeStreamHandler } from './claude-stream.js';
+import { createAgentTitleMarkerStripper } from './title-marker.js';
 import { createRoleMarkerGuard } from './role-marker-guard.js';
 import { diagnoseClaudeCliFailure } from './claude-diagnostics.js';
 import { loadCritiqueConfigFromEnv } from './critique/config.js';
@@ -12789,79 +12790,13 @@ export async function startServer({
     // Claude has its own per-message guards in claude-stream.ts.
     const runGuard = createRoleMarkerGuard('run');
     let runWarned = false;
-    const TITLE_OPEN_TAG = '<od-title>';
-    const TITLE_CLOSE_TAG = '</od-title>';
-    const TITLE_MARKER_SCAN_LIMIT = 512;
-    let titleMarkerBuffer = '';
-    let titleMarkerScanning = titleGenerationRequested;
-    let titleMarkerEmitted = false;
-
-    function sanitizeAgentGeneratedTitle(value) {
-      if (typeof value !== 'string') return '';
-      return value
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/[`*_#>\[\](){}]/g, ' ')
-        .replace(/[“”"']/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 80);
-    }
-
-    function emitAgentGeneratedTitle(value) {
-      if (titleMarkerEmitted) return;
-      const title = sanitizeAgentGeneratedTitle(value);
-      if (!title) return;
-      titleMarkerEmitted = true;
-      send('agent', { type: 'conversation_title', title });
-    }
-
-    function titleTagPrefixSuffixLength(text) {
-      const max = Math.min(text.length, TITLE_OPEN_TAG.length - 1);
-      for (let len = max; len > 0; len -= 1) {
-        if (TITLE_OPEN_TAG.startsWith(text.slice(-len))) return len;
-      }
-      return 0;
-    }
-
-    function stripAgentTitleMarker(delta) {
-      if (!titleMarkerScanning || titleMarkerEmitted) return delta;
-      titleMarkerBuffer += delta;
-      const openIndex = titleMarkerBuffer.indexOf(TITLE_OPEN_TAG);
-      if (openIndex === -1) {
-        const keep = titleTagPrefixSuffixLength(titleMarkerBuffer);
-        const visible = titleMarkerBuffer.slice(0, titleMarkerBuffer.length - keep);
-        titleMarkerBuffer = keep > 0 ? titleMarkerBuffer.slice(-keep) : '';
-        return visible;
-      }
-      const visiblePrefix = titleMarkerBuffer.slice(0, openIndex);
-      if (visiblePrefix) {
-        titleMarkerBuffer = titleMarkerBuffer.slice(openIndex);
-        return visiblePrefix;
-      }
-      const titleStart = TITLE_OPEN_TAG.length;
-      const closeIndex = titleMarkerBuffer.indexOf(TITLE_CLOSE_TAG, titleStart);
-      if (closeIndex === -1) {
-        if (titleMarkerBuffer.length > TITLE_MARKER_SCAN_LIMIT) {
-          titleMarkerBuffer = '';
-          titleMarkerScanning = false;
-          return '';
-        }
-        return '';
-      }
-      const title = titleMarkerBuffer.slice(titleStart, closeIndex);
-      const after = titleMarkerBuffer.slice(closeIndex + TITLE_CLOSE_TAG.length);
-      titleMarkerBuffer = '';
-      titleMarkerScanning = false;
-      emitAgentGeneratedTitle(title);
-      return after;
-    }
+    const titleMarkerStripper = createAgentTitleMarkerStripper({
+      enabled: Boolean(titleGenerationRequested),
+      emitTitle: (title) => send('agent', { type: 'conversation_title', title }),
+    });
 
     function flushAgentTitleMarkerBuffer() {
-      if (!titleMarkerScanning || titleMarkerEmitted || !titleMarkerBuffer) return;
-      const openIndex = titleMarkerBuffer.indexOf(TITLE_OPEN_TAG);
-      const visible = openIndex === -1 ? titleMarkerBuffer : titleMarkerBuffer.slice(0, openIndex);
-      titleMarkerBuffer = '';
-      titleMarkerScanning = false;
+      const visible = titleMarkerStripper.flush();
       if (visible) emitGuardedTextDelta(visible);
     }
 
@@ -12884,6 +12819,13 @@ export async function startServer({
           abortForRoleMarker(warn.marker);
         }
       }
+    }
+
+    function emitTitleFilteredGuardedTextDelta(delta: string) {
+      const visibleDelta = titleMarkerStripper.strip(delta);
+      if (!visibleDelta) return false;
+      emitGuardedTextDelta(visibleDelta);
+      return true;
     }
 
     // Detection-only is necessary but not sufficient: by the time we see
@@ -12978,11 +12920,9 @@ export async function startServer({
       noteAgentActivity();
       // Role-marker guard for qoder / json-event-stream / pi-rpc (#3247).
       if (ev?.type === 'text_delta' && typeof ev.delta === 'string') {
-        const visibleDelta = stripAgentTitleMarker(ev.delta);
-        if (visibleDelta) {
+        if (emitTitleFilteredGuardedTextDelta(ev.delta)) {
           noteFirstTokenAt();
           agentProducedOutput = true;
-          emitGuardedTextDelta(visibleDelta);
         }
         return;
       }
@@ -13055,6 +12995,14 @@ export async function startServer({
         }
         lastAgentEventPhase = summarizeAgentEventForInactivity(ev);
         noteAgentActivity();
+        if (ev?.type === 'text_delta' && typeof ev.delta === 'string') {
+          const visibleDelta = titleMarkerStripper.strip(ev.delta);
+          if (visibleDelta) {
+            noteFirstTokenAt();
+            send('agent', { ...ev, delta: visibleDelta });
+          }
+          return;
+        }
         noteFirstTokenFromAgentEvent(ev);
         send('agent', ev);
         // Claude uses per-message guards (claude-stream.ts) rather than the
@@ -13089,11 +13037,13 @@ export async function startServer({
       const copilot = createCopilotStreamHandler((ev) => {
         lastAgentEventPhase = summarizeAgentEventForInactivity(ev);
         noteAgentActivity();
-        noteFirstTokenFromAgentEvent(ev);
         if (ev?.type === 'text_delta' && typeof ev.delta === 'string') {
-          emitGuardedTextDelta(ev.delta);
+          if (emitTitleFilteredGuardedTextDelta(ev.delta)) {
+            noteFirstTokenAt();
+          }
           return;
         }
+        noteFirstTokenFromAgentEvent(ev);
         send('agent', ev);
       });
       child.stdout.on('data', (chunk) => copilot.feed(chunk));
@@ -13167,7 +13117,6 @@ export async function startServer({
             lastAgentEventPhase = summarizeAgentEventForInactivity(data);
           }
           noteAgentActivity();
-          if (event === 'agent') noteFirstTokenFromAgentEvent(data);
           if (event === 'error') flushVisibleAgentStderr();
           if (def.id === 'amr' && event === 'error') {
             const failure = classifyAmrAccountFailure(
@@ -13185,9 +13134,12 @@ export async function startServer({
             }
           }
           if (event === 'agent' && data?.type === 'text_delta' && typeof data.delta === 'string') {
-            emitGuardedTextDelta(data.delta);
+            if (emitTitleFilteredGuardedTextDelta(data.delta)) {
+              noteFirstTokenAt();
+            }
             return;
           }
+          if (event === 'agent') noteFirstTokenFromAgentEvent(data);
           send(event, data);
         },
         ...(acpStageTimeoutMs !== undefined ? { stageTimeoutMs: acpStageTimeoutMs } : {}),
@@ -13225,7 +13177,8 @@ export async function startServer({
       child.stdout.on('data', (chunk) => {
         noteAgentActivity();
         const text = typeof chunk === 'string' ? chunk : String(chunk);
-        const safe = guardTextDelta(text);
+        const visibleText = titleMarkerStripper.strip(text);
+        const safe = guardTextDelta(visibleText);
         if (safe.length > 0) {
           noteFirstTokenAt();
           send('stdout', { chunk: safe });
@@ -13275,12 +13228,12 @@ export async function startServer({
       }
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
-      flushAgentTitleMarkerBuffer();
       if (acpSession?.hasFatalError()) {
         markRpcCloseReason('fatal_rpc_error');
         return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
       }
       parseBufferedAntigravityGeminiJsonEventStream();
+      flushAgentTitleMarkerBuffer();
       if (agentStreamError) {
         markRpcCloseReason('stream_error');
         return finishWithRetryDecision('failed', code === 0 ? 1 : (code ?? 1), signal ?? null);
@@ -13598,8 +13551,11 @@ export async function startServer({
         noteFirstTokenAt(firstBufferedStdoutAt);
       }
       for (const chunk of plaintextStdoutBuffer) {
-        send('stdout', { chunk: chunk.text });
+        const visibleText = titleMarkerStripper.strip(chunk.text);
+        if (visibleText) send('stdout', { chunk: visibleText });
       }
+      const flushedTitleMarkerText = titleMarkerStripper.flush();
+      if (flushedTitleMarkerText) send('stdout', { chunk: flushedTitleMarkerText });
       // Capture the pi session file path for conversational continuity.
       // The session path is discovered by attachPiRpcSession when it
       // processes agent_end; persist it under (conversationId, agentId) so
