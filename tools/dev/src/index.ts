@@ -64,6 +64,7 @@ import {
   waitForDesktopRuntime,
   waitForWebRuntime,
 } from "./sidecar-client.js";
+import { rewriteCliArgsForDefaultStart } from "./cli-args.js";
 import { ensureDaemonGateForDesktop } from "./desktop-auth-gate.js";
 import { loadWorkspaceLocalEnv } from "./local-env.js";
 import { resolveSharedPortsFromRunningState } from "./shared-ports.js";
@@ -1073,19 +1074,6 @@ async function runForeground(config: ToolDevConfig, appName: string | undefined,
 }
 
 const cli = cac("tools-dev");
-const CLI_COMMANDS = new Set(["start", "run", "status", "stop", "restart", "logs", "inspect", "check", "help"]);
-const OPTIONS_WITH_VALUE = new Set([
-  "--daemon-port",
-  "--env-file",
-  "--expr",
-  "--namespace",
-  "--path",
-  "--selector",
-  "--timeout",
-  "--tools-dev-root",
-  "--update-action",
-  "--web-port",
-]);
 
 function addSharedOptions(command: ReturnType<typeof cli.command>) {
   return command
@@ -1192,27 +1180,6 @@ loadWorkspaceLocalEnv({
   log: (message) => process.stderr.write(`${message}\n`),
   workspaceRoot: WORKSPACE_ROOT,
 });
-process.argv.splice(2, process.argv.length - 2, ...cliArgs);
-
-function firstPositionalArgIndex(args: readonly string[]): number {
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (arg === "--") return index + 1 < args.length ? index + 1 : -1;
-    if (arg.startsWith("--") && arg.includes("=")) continue;
-    if (OPTIONS_WITH_VALUE.has(arg)) {
-      index += 1;
-      continue;
-    }
-    if (arg.startsWith("-")) continue;
-    return index;
-  }
-  return -1;
-}
-
-const firstPositionalIndex = firstPositionalArgIndex(cliArgs);
-const firstPositional = firstPositionalIndex >= 0 ? cliArgs[firstPositionalIndex] : undefined;
-if (firstPositional !== "--help" && firstPositional !== "-h" && !CLI_COMMANDS.has(firstPositional ?? "")) {
-  process.argv.splice(firstPositionalIndex >= 0 ? 2 + firstPositionalIndex : 2, 0, "start");
-}
+process.argv.splice(2, process.argv.length - 2, ...rewriteCliArgsForDefaultStart(cliArgs));
 
 cli.parse();
