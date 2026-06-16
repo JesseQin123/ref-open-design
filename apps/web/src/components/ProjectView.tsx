@@ -1767,7 +1767,12 @@ export function ProjectView({
   }, []);
 
   const persistArtifact = useCallback(
-    async (art: Artifact, projectFilesSnapshot?: ProjectFile[], sourceText?: string) => {
+    async (
+      art: Artifact,
+      projectFilesSnapshot?: ProjectFile[],
+      sourceText?: string,
+      options: { pointerMinMtime?: number } = {},
+    ) => {
       const recoveredHtml = recoverHtmlArtifactFromPrecedingDocument({
         artifactHtml: art.html,
         identifier: art.identifier,
@@ -1788,10 +1793,14 @@ export function ProjectView({
         n += 1;
       }
       if (ext === '.html') {
+        const pointerProjectFiles = filterProjectFilesByMinMtime(
+          currentProjectFiles,
+          options.pointerMinMtime,
+        );
         const pointerTarget = resolveHtmlPointerArtifactTarget({
           content: artifactToPersist.html,
           candidateFileName: fileName,
-          projectFiles: currentProjectFiles,
+          projectFiles: pointerProjectFiles,
         });
         if (pointerTarget) {
           if (savedArtifactRef.current === pointerTarget) return;
@@ -2907,7 +2916,12 @@ export function ProjectView({
                     requestOpenFile(recoveredExistingArtifact.name);
                   } else {
                     savedArtifactRef.current = null;
-                    await persistArtifact(artifactToPersist, nextFiles, replayedContent);
+                    await persistArtifact(
+                      artifactToPersist,
+                      nextFiles,
+                      replayedContent,
+                      { pointerMinMtime: runStartedAt },
+                    );
                     nextFiles = await refreshProjectFiles();
                   }
                 }
@@ -6252,10 +6266,7 @@ export function findExistingArtifactProjectFile(
   const ext = artifactExtensionFor(art);
   const baseName = artifactBaseNameFor(art);
   const candidateFileName = `${baseName}${ext}`;
-  const minMtime = options.minMtime;
-  const currentRunFiles = typeof minMtime === 'number' && Number.isFinite(minMtime)
-    ? projectFiles.filter((file) => file.mtime >= minMtime)
-    : projectFiles;
+  const currentRunFiles = filterProjectFilesByMinMtime(projectFiles, options.minMtime);
 
   if (ext === '.html') {
     const pointerTarget = resolveHtmlPointerArtifactTarget({
@@ -6278,6 +6289,15 @@ export function findExistingArtifactProjectFile(
   }
 
   return currentRunFiles.find((file) => file.name === candidateFileName) ?? null;
+}
+
+function filterProjectFilesByMinMtime(
+  projectFiles: readonly ProjectFile[],
+  minMtime?: number,
+): ProjectFile[] {
+  return typeof minMtime === 'number' && Number.isFinite(minMtime)
+    ? projectFiles.filter((file) => file.mtime >= minMtime)
+    : [...projectFiles];
 }
 
 export function selectPrimaryProjectFile(files: ProjectFile[]): ProjectFile | null {
