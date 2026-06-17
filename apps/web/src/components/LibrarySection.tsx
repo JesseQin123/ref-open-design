@@ -1146,39 +1146,56 @@ export function LibrarySection({ active, onOpenProject }: Props) {
         <div className={styles.viewToggle} role="group" aria-label="View mode">
           <button
             type="button"
-            className={styles.viewToggleBtn}
+            className={`${styles.viewToggleBtn} od-tooltip`}
             data-active={viewMode === 'grid' ? 'true' : 'false'}
             aria-pressed={viewMode === 'grid'}
             onClick={() => setViewMode('grid')}
+            data-tooltip="Show assets as a grid"
+            data-tooltip-placement="bottom"
           >
             Grid
           </button>
           <button
             type="button"
-            className={styles.viewToggleBtn}
+            className={`${styles.viewToggleBtn} od-tooltip`}
             data-active={viewMode === 'timeline' ? 'true' : 'false'}
             aria-pressed={viewMode === 'timeline'}
             onClick={() => setViewMode('timeline')}
+            data-tooltip="Group assets by day, newest first"
+            data-tooltip-placement="bottom"
           >
             Timeline
           </button>
         </div>
-        <Button variant="ghost" className={styles.refreshBtn} onClick={() => void load()} aria-busy={loading}>
+        <Button
+          variant="ghost"
+          className={`${styles.refreshBtn} od-tooltip`}
+          onClick={() => void load()}
+          aria-busy={loading}
+          data-tooltip="Reload the list with the current filters"
+          data-tooltip-placement="bottom"
+        >
           <Icon name="refresh" size={15} className={loading ? styles.spin : undefined} />
           Refresh
         </Button>
         <Button
           variant="ghost"
-          className={styles.refreshBtn}
+          className={`${styles.refreshBtn} od-tooltip`}
           onClick={() => void runSync()}
           aria-busy={syncing}
           disabled={syncing}
-          title="Pull design systems and agent-generated artifacts into the Library"
+          data-tooltip="Pull your design systems and agent-generated artifacts into the Library"
+          data-tooltip-placement="bottom"
         >
           <Icon name="refresh" size={15} className={syncing ? styles.spin : undefined} />
           {syncing ? 'Syncing…' : 'Sync'}
         </Button>
-        <Button className={styles.uploadBtn} onClick={() => openUpload()}>
+        <Button
+          className={`${styles.uploadBtn} od-tooltip`}
+          onClick={() => openUpload()}
+          data-tooltip="Upload images, fonts, or files into the Library"
+          data-tooltip-placement="bottom"
+        >
           <Icon name="upload" size={15} />
           Upload
         </Button>

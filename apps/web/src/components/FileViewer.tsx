@@ -7344,7 +7344,9 @@ function HtmlViewer({
     rendererId === 'html';
   const canShare = source !== null && isShareableArtifact;
   const canDownload = source !== null && (isShareableArtifact || isMarkdownArtifact);
-  const showPptxExport = canShare && isDeckArtifact;
+  // PPTX export is offered for any shareable artifact: decks export one slide
+  // per slide; a single page exports as a one-slide PPTX sized to its aspect.
+  const showPptxExport = canShare;
   const showMarkdownExport = source !== null && isMarkdownArtifact;
   const showImageExport = canShare;
 
