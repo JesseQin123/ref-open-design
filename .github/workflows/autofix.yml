@@ -163,6 +163,33 @@ jobs:
             fi
           }
 
+          clear_nix_fallback_comment() {
+            local id="$1"
+            local pr_number="$2"
+
+            if [ "$id" != "nix-pnpm-deps" ]; then
+              return 0
+            fi
+
+            local marker="<!-- nix-hash-refresh -->"
+            local comment_ids
+            comment_ids="$(
+              gh api --paginate "repos/$REPO/issues/$pr_number/comments" \
+                | jq -r --arg marker "$marker" '.[] | select((.body // "") | contains($marker)) | .id' || true
+            )"
+            if [ -z "$comment_ids" ]; then
+              echo "No stale Nix hash fallback comment found on PR $pr_number."
+              return 0
+            fi
+
+            while IFS= read -r comment_id; do
+              if [ -n "$comment_id" ]; then
+                gh api --method DELETE "repos/$REPO/issues/comments/$comment_id" >/dev/null
+                echo "Deleted stale Nix hash fallback comment $comment_id on PR $pr_number."
+              fi
+            done <<< "$comment_ids"
+          }
+
           while IFS= read -r entry_json; do
             id="$(jq -r '.id' <<< "$entry_json")"
             pr_number="$(jq -r '.pr_number' <<< "$entry_json")"
@@ -255,5 +282,6 @@ jobs:
               continue
             fi
             cd "$GITHUB_WORKSPACE"
+            clear_nix_fallback_comment "$id" "$pr_number"
             echo "Applied autofix handoff $id to PR $pr_number."
           done < "$ENTRIES_PATH"
