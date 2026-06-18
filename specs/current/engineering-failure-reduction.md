@@ -27,9 +27,9 @@ Status: proposed · Parent: #3408 · Upstream background: stability-performance-
 
 ### Slice 1 · fix_config: wildcard normalization for codex service_tier (ship first, small and certain)
 - **Current state**: The normalizer only patches `priority→fast`; the measured leaked value is `default`.
-- **Fix**: Change `normalizeCodexConfigContent` from "match `priority`" to "**match any service_tier value, and normalize it if it is not in the valid set {fast,flex}**" (normalize to safe default `fast`, or remove the line so the CLI uses its built-in default).
+- **Fix (decided after review)**: Change `normalizeCodexConfigContent` from "match `priority`" to "**any `service_tier` value not in the valid set {fast,flex} is removed** (the line is dropped so the Codex CLI uses its built-in default)". Removing — rather than forcing `fast` — is the smallest, safest assumption: it never downgrades a future-valid value the installed CLI would have accepted, and `default` semantically means "let the system choose" anyway.
 - **Keep scoped**: Still only touch the service_tier line (anchor to line start + exclude comments/other keys' string values); preserve everything else; idempotent; atomic write.
-- **Red spec**: Use injectable `CodexConfigIO`, asserting that `service_tier="default"` (and any invalid value) is normalized, valid values are unchanged, and comments/other keys are not touched.
+- **Red spec & existing tests**: Use injectable `CodexConfigIO`, asserting that `service_tier="default"` (and any value not in {fast,flex}) gets its line removed, valid values (`fast`/`flex`) are unchanged, and comments / other keys are not touched. NOTE: the existing tests at `apps/daemon/tests/codex-config-normalize.test.ts:82-85` and `:165-170` currently assert that *unknown* `service_tier` values are left UNTOUCHED — that assertion encodes the very bug this slice fixes, so those tests are intentionally updated (not new coverage added alongside the old behavior).
 - **Benefit**: Eliminates ~382/week current-version failures + avoids whack-a-mole if codex renames this again.
 
 ### Slice 2 · execution_failed deep dive (ongoing campaign)
@@ -70,6 +70,6 @@ Status: proposed · Parent: #3408 · Upstream background: stability-performance-
 
 ## Open questions
 
-- service_tier normalization: when encountering an unknown value, is it steadier to normalize to `fast` or remove the line (use CLI default)? (Current preference: remove the line, smallest assumption.)
+- ~~service_tier normalization: normalize to `fast` or remove the line?~~ **Resolved (review): remove the line** — smallest assumption, never downgrades a future-valid value.
 - Is spawn_ebadf just residue/regression of the #4100 FD leak?
 - In Langfuse, does the exit_nonzero sub-bucket of execution_failed contain extractable true causes, or are they swallowed too?

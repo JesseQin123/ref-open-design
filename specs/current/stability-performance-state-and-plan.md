@@ -39,7 +39,7 @@ Across platforms, 20,016 users/7d: claude_code 36% · **AMR 31%(6,217 users, few
 
 # Part 2 · Fix/optimization plan (write the full map first, then drill down)
 
-Ordered by `our-fault × ROI × user reach × engineering cost`. Each item notes: type / our fault / expected benefit / status / cost / deeper spec.
+Ordered by `our-fault × user reach × run count × balance/cost impact × engineering cost`; do not rank by run volume alone. Each item notes: type / our fault / expected benefit / status / cost / deeper spec.
 
 ### P0-a · Reliability metric calibration ✅ Done
 - **Type** Observability · **Our fault** N/A · **Benefit** Makes the "engineering view ~7%" visible instead of buried in noise · **Cost** Very small
@@ -49,7 +49,8 @@ Ordered by `our-fault × ROI × user reach × engineering cost`. Each item notes
 ### P0-b · fix_config: fill the codex service_tier normalizer gap ⭐ Next to implement
 - **Type** Engine bug · **Our fault** 100% · **Benefit** Directly reduces engineering-view failure rate a bit (~380/week, current versions) · **Cost** Small (one file)
 - **Current state** `codex-config-normalize.ts` only catches `service_tier="priority"→"fast"`; other invalid values slip through (the comment explicitly says unknown values are not handled). All 380/week are on 0.10.x/0.11 (real bug, not noise).
-- **Fix** Change this to "normalize any invalid value (not in {fast,flex})" to avoid whack-a-mole and future renames; red spec uses injectable `CodexConfigIO`. First sample real invalid values from Langfuse.
+- **Fix** Change this to "**remove any `service_tier` value not in {fast,flex}**" (drop the line so the CLI uses its built-in default) to avoid whack-a-mole and future renames; red spec uses injectable `CodexConfigIO` and replaces the existing "unknown values untouched" tests. First sample real invalid values from Langfuse.
+- **Priority framing** This is the lowest-cost **confirmed** bug and should ship first for fast reliability cleanup; it is **not** the highest-ROI bucket. `execution_failed` is roughly 10x larger by volume and its sampling runs in parallel under P1.
 - Drill-down: pending
 
 ### P1 · process_exit / execution_failed deep dive (#4502 follow-up)

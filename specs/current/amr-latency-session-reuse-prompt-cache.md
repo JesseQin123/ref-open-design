@@ -47,35 +47,43 @@ AMR repays 100-153k uncached tokens every turn because it feeds "history the mod
 
 ## Proposed design
 
-Two levers, **with cache_control changes determined by cache type**:
+Explicit order: measure first, run the cheap gateway/cache experiment second, and only then decide whether ACP session reuse is still justified.
 
-### Lever A — session reuse (**universally required**, useful for every model that can cache)
-- Three vela changes: ① change `initialize` to `loadSession=true`; ② add `case "session/load"` in `handleRequest`; ③ persist the opencode session (the current session id only lives in memory).
-- Daemon coordination: include AMR/ACP in resume-capable detection (or a dedicated path), switching to "one long-lived ACP connection per conversation, `session/prompt` per turn", and stop resending flattened history every turn.
-- Effect: turn-2+ uncached input drops from 153k → only new content for the current turn.
+### Step 0 — instrument and measure
+- Add production dashboards for `uncached_input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`, cache efficiency, TTFT, and turn ordinal. Use `uncached_input_tokens` for the main before/after metric; raw `input_tokens` is not sufficient when cache fields are present.
+- Confirm whether AMR follow-up latency is dominated by uncached follow-up input after separating turn-1 vs turn-2+ and hit vs miss cohorts.
 
-### Lever B — cache_control passthrough + stable prefix (**only for explicit-cache models**: Claude/Gemini)
-- Automatic-cache models (**DeepSeek, OpenAI**) **do not need this** — AMR's lead model `deepseek-v4-flash` uses automatic caching; it only needs a stable prefix + no resend.
-- Explicit-cache models (Claude / Gemini through Vertex): upstream requests need `cache_control` breakpoints + volatile system blocks moved after the stable breakpoint.
-- Layered breakpoints: `[common core]breakpoint[project stable]breakpoint[volatile]breakpoint[user]` — common core is **shared across users** (see below).
+### Step 1 — cheap gateway 1h-TTL + stable-prefix experiment
+- Change Vela Link's explicit-cache path from default ephemeral to **1h TTL** where the upstream provider supports it, and make the cacheable prefix byte-stable. Vela Link currently emits only `{type: ephemeral}` at `prompt_cache.go:340-342`; 1h on the AMR lead path is unverified.
+- Automatic-cache models (**DeepSeek, OpenAI**) do not need explicit `cache_control`; AMR's lead model `deepseek-v4-flash` needs a stable prefix and no unnecessary resend. Explicit-cache models (Claude / Gemini through Vertex) need cache breakpoints + volatile system blocks moved after the stable breakpoint.
+- Layered breakpoints: `[common core]breakpoint[project stable]breakpoint[volatile]breakpoint[user]`. Cross-user reuse of the common core is a hypothesis to validate, not an assumed production fact.
+
+### Step 2 — ACP session reuse only if uncached follow-up remains dominant
+- If Step 1 shows turn-2+ `uncached_input_tokens` still dominates TTFT/cost, implement session reuse: ① change vela `initialize` to `loadSession=true`; ② add `case "session/load"` in `handleRequest`; ③ persist the opencode session (the current session id only lives in memory).
+- Daemon coordination should reuse the existing centralized resume detection (`server.ts:7578-7595`) instead of duplicating an ACP-specific path. The behavior is "one long-lived ACP connection per conversation, `session/prompt` per turn", with flattened-history resend removed only after state-continuity gates pass.
+- Effect to verify: turn-2+ uncached input drops from 153k → only new content for the current turn.
 
 ### Cache model classification (for implementers)
 | Model | Cache | Read discount | TTL | Needs cache_control |
 |---|---|---|---|---|
 | Claude(Vertex/direct) | Explicit | 0.1× | 5m/1h(write 1.25×/2×) | Yes |
-| DeepSeek(AMR lead) | Automatic | ~0.1× | Automatic | No |
+| DeepSeek(AMR lead) | Automatic | 0.5× | Automatic | No |
 | OpenAI | Automatic | ~0.5× | Short/uncontrollable | No |
 | Gemini | Explicit ctx cache | ~0.25–0.75× | Configurable | Yes |
 
 ### Cache scope + TTL (design constraints)
-- **Scope = upstream account/project level, not global and not cross-organization**. AMR uses a **shared backend account** (AMR Cloud) → **the common system prefix can be shared across users**: write once, all users read (0.1×), high concurrency self-warms → **turn-1 is immune to TTL**. claude_code is BYOK and uses each user's own account → no cross-user sharing.
+- **Scope = upstream account/project level, not global and not cross-organization**. AMR uses server-side credentials, so a shared-cache cohort is architecturally plausible, but production catalog/routing is unverified. Treat **cross-user common-prefix benefit** and **turn-1 immunity to TTL** as explicit hypotheses until measured; `account.go` proves server-side credential selection, not a shared cache cohort. claude_code is BYOK and uses each user's own account → no cross-user sharing.
 - **turn-2+ single-session history is exposed to TTL** (human time between turns is often >5min) → use **1h extended TTL** + keep one process alive per conversation.
+
+### Session invalidation & lifecycle
+
+ACP session reuse must mirror the daemon's existing resume keying (`server.ts:7604-7615`) and invalidate on model, cwd, project, MCP/tool-contract, prompt-hash, or memory change. Cancellation must clean up the ACP session, and stale-process eviction must close any long-lived per-conversation process; vela is one-session-per-process at `acp_runtime.go:258-260`, so one long-lived process per conversation otherwise risks leaked sessions and cross-conversation state.
 
 ## Expected benefit (quantified + confidence)
 
 | Turn | Current uncached | Method | After cut | TTFT |
 |---|---|---|---|---|
-| turn-1 | ~100k | Common prefix shared across users + stable prefix (explicit models add cache_control) | Only first message remains | Estimate ~6-7s |
+| turn-1 | ~100k | Stable prefix + hypothesized common-prefix reuse if shared cache cohort is verified (explicit models add cache_control) | Only first message remains | Estimate ~6-7s |
 | turn-2+(~90%) | ~153k | session reuse (vela) | Only new content for this turn remains | **~11s → estimate ~6-7s** |
 
 - **Latency**: AMR follow-up turns ~11s → estimate ~6-7s (about −40%), covering ~90% of runs.
@@ -91,11 +99,16 @@ Two levers, **with cache_control changes determined by cache type**:
 - **Instrumentation gap**: AMR `cache_creation` field is empty (possibly Vertex does not report it) → AMR cache accounting may be incomplete; add instrumentation during acceptance.
 - **observability**: Add `cache_efficiency` / follow-up uncached_tokens dashboards to prevent regression.
 
+## Prior art
+
+Claude CLI resume already provides the desired host shape for native continuation. #3380 documents the lost edit-state failure mode from broken session continuity, and #3535 is the ACP session-reuse track. The daemon already centralizes resume detection at `server.ts:7578-7595`, so ACP work should plug into that path rather than adding a parallel resume detector.
+
 ## Validation · Acceptance (behavior-level)
 
-- before/after: AMR follow-up `time_to_first_token_ms` p50 drops; `input_tokens` (uncached) drops significantly from ~153k; `cache_read/(cache_read+input)` efficiency rises (target approaches claude's ~93%).
-- One falsifiable check: send two consecutive turns in the same `conversationId`, assert second-turn `input_tokens` << first-turn `input_tokens` (history is no longer repaid after session reuse).
-- Does not need #3545 QA gate (does not change model input semantics/output, only reduces resend and recomputation).
+- before/after: AMR follow-up `time_to_first_token_ms` p50 drops; `uncached_input_tokens` drops significantly from ~153k; `cache_read_input_tokens/(cache_read_input_tokens+uncached_input_tokens)` efficiency rises (target approaches claude's ~93%).
+- One falsifiable check: send two consecutive turns in the same `conversationId`, assert second-turn `uncached_input_tokens` << first-turn `uncached_input_tokens` (history is no longer repaid after session reuse).
+- Pure telemetry changes do not need #3545 QA gate. Prefix reordering and session reuse do need state-continuity / quality gates because they change model input: order is part of the input, and the daemon assembles that order at `server.ts:7670-7684`.
+- Session lifecycle acceptance: changing model / cwd / project / MCP+tool contract / prompt hash / memory forces a new ACP session; cancel closes the session; stale-process eviction removes long-lived conversation processes; a new conversation cannot observe prior conversation state.
 
 ## Regression guard
 
@@ -108,14 +121,15 @@ Two levers, **with cache_control changes determined by cache type**:
 This feasibility was checked premise by premise by codex, with material corrections; **treat this as authoritative**:
 
 1. **Caching is actually already implemented in the Vela Link gateway** (`services/link/internal/bifrostengine/prompt_cache.go`): after converting the OpenAI-compatible body to Bifrost, the gateway **injects cache control into system/developer content** (`:173/340`), strips directives unsupported by clients (`:107`), and uses **a limited number of cache breakpoints** (`markChatContentCacheable(content, remaining)`). → **No need to pass cache_control through ACP**; however, it **only injects `{type: ephemeral}` and no TTL** → default 5min, **1h is not wired**.
-2. **Provider table correction**: DeepSeek read discount is **not 0.1×** — **vela's own billing says deepseek-v3.2 reads at 0.5×** (`services/api/src/billing.ts:170`); **AMR actual model preference = DeepSeek/GLM/Gemini**, not Claude/OpenAI (`runtimes/defs/amr.ts:8`). Anthropic numbers are verified. OpenAI/Gemini vary by model/config.
+2. **Provider table correction**: DeepSeek read discount is **0.5×** — **vela's own billing says deepseek-v3.2 reads at 0.5×** (`services/api/src/billing.ts:178-180`); **AMR actual model preference = DeepSeek/GLM/Gemini**, not Claude/OpenAI (`runtimes/defs/amr.ts:8`). Anthropic numbers are verified. OpenAI/Gemini vary by model/config.
 3. **session reuse = architecture change, not a config switch** (single largest risk): opencode `serve` natively supports multi-turn (`/session/{id}/prompt_async`), while "single session/no load" is a vela ACP choice; **but vela creates/deletes an opencode temp home every turn** (`opencode_process.go:336/376`) → session is destroyed with it, and **whether a fresh serve process can reload a persisted session is unverified**. Required work: stop temp deletion + persist + prove opencode reload + one process per conversation in the daemon.
 4. **Cross-user shared cache is architecturally plausible, not production-proven**: Vela Link upstream credentials are selected from the **server-side catalog, not passed per user** (`account.go`) → provider account sharing is possible; but routing is key-weighted and production catalog layout is unverified.
 5. **1h TTL is not wired**: Anthropic supports `ttl:"1h"`, but Vertex/Bedrock automatic caching does not support it and only accepts explicit breakpoints; Vela Link currently defaults to ephemeral without TTL (`prompt_cache.go:340`) → 1h for Vertex-Claude on this path is unverified.
 
-**Therefore, reorder into two steps (after correcting difficulty/feasibility):**
-- **Step 1 (small, more feasible, first)**: Change Vela Link ephemeral to **1h TTL** + ensure the cacheable prefix is stable. Helps explicit-cache models only (Claude/Gemini); DeepSeek automatic-cache TTL cannot be set — partial benefit.
-- **Step 2 (large, a project)**: session reuse (stop temp deletion + persist + verify opencode reload + one daemon connection per conversation). This captures the large turn-2+ 153k item, but needs a project.
+**Therefore, reorder into Step 0/1/2 (after correcting difficulty/feasibility):**
+- **Step 0 (measure first)**: Add uncached/cache-field dashboards and confirm the dominant cohort before changing behavior.
+- **Step 1 (small, more feasible, first)**: Change Vela Link ephemeral to **1h TTL** where supported + ensure the cacheable prefix is stable. Helps explicit-cache models only (Claude/Gemini); DeepSeek automatic-cache TTL cannot be set — partial benefit.
+- **Step 2 (large, conditional project)**: session reuse (stop temp deletion + persist + verify opencode reload + one daemon connection per conversation) **only if uncached follow-up remains dominant after Step 1**. This captures the large turn-2+ 153k item, but needs a project.
 
 > Therefore, this optimization is **not low-hanging fruit; it is a vela cross-repo project that needs to be planned**. Step 1 is comparatively small, but its benefit is limited by "AMR's lead models are automatic-cache models (DeepSeek/GLM)".
 
@@ -128,6 +142,6 @@ This feasibility was checked premise by premise by codex, with material correcti
 ## Reproduction · Reproduce
 
 PostHog OpenDesign=420348, `POST /api/projects/420348/query/`. HogQL: use `toFloat()` for numbers, `isNull()` for null, `quantile(0.9)` for P90, and `row_number() OVER (PARTITION BY conversation_id ORDER BY timestamp)` for turn ordinal.
-- Input composition (turn-1 vs turn-2+): `avg(toFloat(properties.input_tokens))` / `cache_read_input_tokens` / `cache_creation_input_tokens`, bucketed by `if(turn=1,...)`.
+- Input composition (turn-1 vs turn-2+): `avg(toFloat(properties.uncached_input_tokens))` / `cache_read_input_tokens` / `cache_creation_input_tokens`, bucketed by `if(turn=1,...)`.
 - Hit vs miss TTFT: group by `if(toFloat(properties.cache_read_input_tokens)>0,'HIT','MISS')`.
 - vela verification: `git -C ~/Documents/vela grep -n 'loadSession\|session/load' apps/cli`.
