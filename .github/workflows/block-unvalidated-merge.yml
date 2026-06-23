@@ -1,0 +1,77 @@
+name: block-unvalidated-merge
+# Hard gate: a PR that still carries the `needs-validation` label must not merge.
+#
+# Runs on:
+#   - merge_group  -> when a PR enters the merge queue. If any PR in the group still
+#                     has `needs-validation`, this check fails and GitHub ejects the
+#                     group from the queue (the PR cannot merge).
+#   - pull_request -> gives the same red/green signal on the PR itself (incl. when the
+#                     label is added/removed) so an unvalidated PR can't be queued.
+#
+# To actually enforce it, add this job as a REQUIRED status check for `main`
+# (Branch protection / Merge queue → Require status checks). The workflow only reports
+# pass/fail; the required-check setting is what blocks the merge.
+#
+# Keying on the presence of `needs-validation` automatically respects the maintainer
+# override: `skip-validation` means the bot never adds `needs-validation`, so the gate
+# passes.
+
+on:
+  merge_group:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: block-unvalidated-merge-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    if: github.repository == 'nexu-io/open-design'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any PR in scope still needs validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        run: |
+          set -euo pipefail
+
+          # Collect the PR number(s) to inspect.
+          if [ "$EVENT" = "pull_request" ]; then
+            prs="$PR_NUMBER"
+          else
+            # merge_group: every PR whose commits are part of this queued group.
+            shas=$(gh api "repos/$REPO/compare/$BASE_SHA...$HEAD_SHA" --jq '.commits[].sha')
+            prs=$(for s in $shas; do
+                    gh api "repos/$REPO/commits/$s/pulls" --jq '.[].number' 2>/dev/null || true
+                  done | sort -u)
+          fi
+
+          if [ -z "${prs// /}" ]; then
+            echo "No PR in scope — nothing to gate."
+            exit 0
+          fi
+
+          blocked=""
+          for pr in $prs; do
+            labels=$(gh pr view "$pr" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null || true)
+            if printf '%s\n' "$labels" | grep -qx 'needs-validation'; then
+              echo "::warning::PR #$pr still has 'needs-validation'"
+              blocked="$blocked #$pr"
+            fi
+          done
+
+          if [ -n "$blocked" ]; then
+            echo "::error::Blocking merge — still needs validation:$blocked. Validate (/explore Pass or manual QA) and remove the 'needs-validation' label."
+            exit 1
+          fi
+          echo "✅ No PR in scope has 'needs-validation' — clear to merge."
