@@ -90,7 +90,7 @@ describe('AMR (vela) ACP session resume — full server cycle', () => {
     expect(await readInvocations(logPath)).toEqual(['new', 'load']);
   });
 
-  it('clears the dead handle on resume_failed and reseeds a fresh session next turn', async () => {
+  it('transparently auto-reseeds within the same turn when the resumed session is gone', async () => {
     binDir = await mkdtemp(path.join(os.tmpdir(), 'od-amr-deadresume-bin-'));
     const logPath = path.join(binDir, 'invocations.jsonl');
     // The resumed session is gone: any session/load turn fails with the
@@ -113,19 +113,17 @@ describe('AMR (vela) ACP session resume — full server cycle', () => {
     expect(turn1.status).toBe('succeeded');
 
     // Turn 2 resumes (session/load), but the upstream session is gone → vela
-    // returns resume_failed → retryable failure, stale handle cleared.
+    // returns resume_failed. The daemon must NOT surface an error: it clears the
+    // dead handle and TRANSPARENTLY re-runs the same turn with a fresh session
+    // (session/new) + full transcript, all within this one run. The user sees a
+    // succeeded turn, never a "could not be resumed" message.
     const turn2 = await sendRunAndWait(started.url, conversationId, 'second request');
-    expect(turn2.status).toBe('failed');
-    expect(turn2.errorCode).toBe('AGENT_EXECUTION_FAILED');
-    expect(turn2.error ?? '').toMatch(/could not be resumed/i);
+    expect(turn2.status).toBe('succeeded');
+    expect(turn2.error ?? '').not.toMatch(/could not be resumed/i);
 
-    // Turn 3 must NOT retry the dead resume — the cleared handle forces a fresh
-    // session/new (reseeded with the full transcript), which succeeds.
-    const turn3 = await sendRunAndWait(started.url, conversationId, 'third request');
-    expect(turn3.status).toBe('succeeded');
-
-    // The session-bind sequence is the regression signal: fixed = new/load/new;
-    // buggy (handle never cleared) would be new/load/load with turn-3 failing.
+    // The bind sequence proves the in-turn reseed: turn 1 = new, turn 2 =
+    // load (dead) → new (transparent reseed). Pre-feature this surfaced a failed
+    // turn-2 and deferred the fresh session to a turn 3 the user had to trigger.
     expect(await readInvocations(logPath)).toEqual(['new', 'load', 'new']);
   });
 

@@ -107,7 +107,7 @@ describe('codex native session resume', () => {
     expect(resume.stdin).toContain('second user request please');
   });
 
-  it('clears a dead thread on `no rollout found` and starts fresh next turn', async () => {
+  it('transparently auto-reseeds within the same turn on `no rollout found`', async () => {
     binDir = await mkdtemp(path.join(os.tmpdir(), 'od-codex-fallback-bin-'));
     const { bin, logPath } = await writeMissingRolloutCodex(binDir, 'codex-fallback');
 
@@ -126,17 +126,15 @@ describe('codex native session resume', () => {
     const turn1 = await sendRunAndWait(started.url, conversationId, 'first request');
     expect(turn1.status).toBe('succeeded');
 
-    // Turn 2 resumes, but the rollout is gone → retryable failure, stale
-    // handle cleared.
+    // Turn 2 resumes, but the rollout is gone (`no rollout found`). The daemon
+    // must NOT surface an error: it clears the dead thread and TRANSPARENTLY
+    // re-runs the same turn as a fresh `exec` (full transcript), within this one
+    // run. The user sees a succeeded turn — no "resend" prompt, no turn 3.
     const turn2 = await sendRunAndWait(started.url, conversationId, 'second request');
-    expect(turn2.status).toBe('failed');
-    expect(turn2.errorCode).toBe('AGENT_EXECUTION_FAILED');
+    expect(turn2.status).toBe('succeeded');
 
-    // Turn 3 must NOT retry the dead resume — the cleared session forces a
-    // fresh `exec` (re-seeded with the full transcript).
-    const turn3 = await sendRunAndWait(started.url, conversationId, 'third request');
-    expect(turn3.status).toBe('succeeded');
-
+    // Two execs happened inside turn 1+2: the create, then turn 2's dead
+    // `exec resume`, then the in-turn fresh `exec` reseed.
     const runs = await readChatTurnExecs(logPath, conversationId);
     expect(runs).toHaveLength(3);
     const [create, deadResume, fresh] = runs as [

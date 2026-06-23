@@ -99,7 +99,7 @@ describe('opencode native session resume', () => {
     expect(resume.stdin).toContain('second user request please');
   });
 
-  it('clears a dead session on `Session not found` and starts fresh next turn', async () => {
+  it('transparently auto-reseeds within the same turn on `Session not found`', async () => {
     binDir = await mkdtemp(path.join(os.tmpdir(), 'od-opencode-fallback-bin-'));
     const { bin, logPath } = await writeMissingSessionOpencode(binDir, 'opencode-fallback');
 
@@ -117,18 +117,15 @@ describe('opencode native session resume', () => {
     const turn1 = await sendRunAndWait(started.url, conversationId, 'first request');
     expect(turn1.status).toBe('succeeded');
 
-    // Turn 2 resumes, but the session store is gone → retryable failure, stale
-    // handle cleared. OpenCode prints "Session not found" and exits 0, so this
-    // exercises the exit-0 resume-failure path too.
+    // Turn 2 resumes, but the session store is gone (OpenCode prints "Session
+    // not found" and exits 0, exercising the exit-0 resume-failure path). The
+    // daemon must NOT surface an error: it clears the dead handle and
+    // TRANSPARENTLY re-runs the same turn as a fresh `run` (full transcript),
+    // within this one run. The user sees a succeeded turn — no turn 3.
     const turn2 = await sendRunAndWait(started.url, conversationId, 'second request');
-    expect(turn2.status).toBe('failed');
-    expect(turn2.errorCode).toBe('AGENT_EXECUTION_FAILED');
+    expect(turn2.status).toBe('succeeded');
 
-    // Turn 3 must NOT retry the dead resume — the cleared session forces a
-    // fresh `run` (re-seeded with the full transcript).
-    const turn3 = await sendRunAndWait(started.url, conversationId, 'third request');
-    expect(turn3.status).toBe('succeeded');
-
+    // The create, then turn 2's dead resume (`-s`), then the in-turn fresh reseed.
     const runs = await readChatTurnRuns(logPath, conversationId);
     expect(runs).toHaveLength(3);
     const [create, deadResume, fresh] = runs as [
