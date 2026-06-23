@@ -31,26 +31,28 @@ jobs:
           app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
-      - name: Resolve the backport PR for this branch
+      - name: Resolve the backport PR for this run
         id: pr
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           REPO: ${{ github.repository }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          # Authoritative run -> PR association from GitHub (populated for same-repo PRs; empty
+          # for forks, which we never auto-merge anyway).
+          RUN_PRS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
         run: |
           set -euo pipefail
-          all="$(gh pr list --repo "$REPO" --head "$BRANCH" --state open \
-                  --json number,baseRefName,isDraft,title,author,isCrossRepository,headRefOid)"
-          # Bind to the exact PR this CI run was for: same head branch AND head == the run's SHA,
-          # not just a branch-name match (which could resolve a different / newer PR).
-          row="$(printf '%s' "$all" | jq --arg sha "$HEAD_SHA" \
-                  '[.[] | select(.baseRefName | startswith("release/v")) | select(.headRefOid == $sha)][0] // empty')"
-          if [ -z "$row" ]; then
+          # Pick the run's own PR that targets a release/* branch at exactly the SHA CI ran on —
+          # bound to workflow_run.pull_requests, not a branch-name guess.
+          num="$(printf '%s' "$RUN_PRS" | jq -r --arg sha "$HEAD_SHA" \
+                  '[.[] | select(.base.ref | startswith("release/v")) | select(.head.sha == $sha)][0].number // empty')"
+          if [ -z "$num" ]; then
             echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "No open backport PR to release/* for $BRANCH at $HEAD_SHA"
+            echo "Run has no associated release/* PR at $HEAD_SHA — skipping"
             exit 0
           fi
+          row="$(gh pr view "$num" --repo "$REPO" \
+                  --json number,baseRefName,isDraft,title,author,isCrossRepository,headRefOid)"
           {
             echo "found=true"
             echo "number=$(printf '%s' "$row" | jq -r .number)"
