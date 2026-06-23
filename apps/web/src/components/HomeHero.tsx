@@ -76,6 +76,7 @@ import { applyFacetSelection } from './plugins-home/facets';
 import { inferPluginPreview } from './plugins-home/preview';
 import { pluginSubfacetLabel } from './plugins-home/subfacetLabel';
 import { ComposerPlusMenu } from './ComposerPlusMenu';
+import { TemplatePicker } from './home-hero/TemplatePicker';
 import { LibraryPicker } from './LibraryPicker';
 import { assetTitle } from './LibraryAssetMeta';
 import { libraryAssetRawUrl } from '../providers/registry';
@@ -539,6 +540,14 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
       ? chipsForGroup('create').find((chip) => chip.id === activeChipId) ?? null
       : null,
     [activeChipId],
+  );
+  // Footer Template picker options: the ordered create-scenario chips (pure
+  // project-type templates — Slides / Prototype / Wireframe / Document / …).
+  // Excludes action chips (Brand Kit / Figma) that navigate away instead of
+  // seeding a template, so the dropdown matches the rail's template set.
+  const templateChips = useMemo(
+    () => orderedCreateChips().filter((chip) => chip.action.kind === 'apply-scenario'),
+    [],
   );
   const activeExamplePlugins = useMemo(
     () =>
@@ -1500,7 +1509,17 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
             ) : null}
             {activeCreateChip ? (
               <ActiveTypeChip chip={activeCreateChip} onClear={onClearActiveChip} />
-            ) : null}
+            ) : (
+              <TemplatePicker
+                templates={templateChips}
+                activeChipId={activeChipId}
+                disabled={pluginsLoading || pendingChipId !== null || pendingPluginId !== null}
+                labelFor={(id) => homeHeroChipLabel(id, t)}
+                descriptionFor={(id) => homeHeroChipDescription(id, t)}
+                onPick={handlePickTaskChip}
+                onClear={onClearActiveChip}
+              />
+            )}
             {footerInputFields.length > 0 ? (
               <div className="home-hero__footer-options" data-testid="home-hero-footer-options">
                 {footerInputFields.map((field) => (

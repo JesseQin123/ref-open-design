@@ -1548,6 +1548,21 @@ function AppInner() {
     [analytics.track, rememberLocalProject],
   );
 
+  const handleCreateProjectFromDesignSystem = useCallback(
+    async (designSystemId: string) => {
+      await handleCreateProject({
+        name: t('common.untitled'),
+        skillId: null,
+        designSystemId,
+        metadata: {
+          kind: 'prototype',
+          nameSource: 'generated',
+        },
+      });
+    },
+    [handleCreateProject, t],
+  );
+
   const handleCreatePluginShareProject = useCallback(
     async (
       pluginId: string,
@@ -2177,6 +2192,7 @@ function AppInner() {
         onProjectsRefresh={refreshProjects}
         onChangeDefaultDesignSystem={handleChangeDefaultDesignSystem}
         onDesignSystemsRefresh={refreshDesignSystems}
+        onCreateProjectFromDesignSystem={handleCreateProjectFromDesignSystem}
       />
     );
   } else {

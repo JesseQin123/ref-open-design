@@ -2681,3 +2681,164 @@
   }
 }
 
+
+/* ============================================================
+   Composer-footer Template picker (project-type templates)
+   ============================================================ */
+.home-hero__footer-option--select[data-field-name='template'] {
+  max-width: 220px;
+}
+.home-hero__template-trigger {
+  max-width: 188px;
+}
+/* Small "Template" caption inside the trigger so the field is self-labeling
+   (the field's sr-only <span> pattern is not used here). */
+.home-hero__template-kicker {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.home-hero__template-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 7px);
+  z-index: 140;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(440px, calc(100vh - 200px));
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-panel) 98%, white);
+  box-shadow:
+    0 16px 38px rgba(15, 23, 42, 0.14),
+    0 2px 6px rgba(15, 23, 42, 0.08);
+  isolation: isolate;
+}
+.home-hero__template-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.home-hero__template-search {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  transition:
+    border-color 120ms var(--ease-out),
+    box-shadow 120ms var(--ease-out);
+}
+.home-hero__template-search:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.home-hero__template-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.home-hero__template-clear {
+  appearance: none;
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 120ms var(--ease-out),
+    background-color 120ms var(--ease-out);
+}
+.home-hero__template-clear:hover,
+.home-hero__template-clear:focus-visible {
+  outline: none;
+  color: var(--text-strong);
+  background: var(--bg-subtle);
+}
+.home-hero__template-group-label {
+  padding: 2px 2px 8px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.home-hero__template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.home-hero__template-empty {
+  padding: 12px 4px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.home-hero__template-card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 120ms var(--ease-out),
+    background-color 120ms var(--ease-out),
+    transform 120ms var(--ease-out);
+}
+.home-hero__template-card:hover,
+.home-hero__template-card:focus-visible {
+  outline: none;
+  border-color: var(--border-strong);
+  background: var(--bg-subtle);
+  transform: translateY(-1px);
+}
+.home-hero__template-card.is-active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-tint);
+}
+.home-hero__template-card-art {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-subtle) 70%, var(--bg-panel));
+  color: var(--text-muted);
+}
+.home-hero__template-card.is-active .home-hero__template-card-art {
+  color: var(--accent);
+}
+.home-hero__template-card-label {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}

@@ -27,51 +27,10 @@
   background: var(--bg-panel);
 }
 
-/* Primary segmented control — Design system | Template */
-.segmented {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid var(--border-soft, var(--border));
-  border-radius: var(--radius);
-  background: var(--bg-subtle);
-}
-
-.segmentedBtn {
-  appearance: none;
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  font-size: 12.5px;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--text-muted);
-  background: transparent;
-  cursor: pointer;
-  transition: background-color var(--dur-quick) var(--ease-out),
-    color var(--dur-quick) var(--ease-out);
-}
-
-.segmentedBtn:hover {
-  color: var(--text);
-}
-
-.segmentedBtn.active {
-  background: var(--bg-panel);
-  color: var(--text-strong);
-  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.06));
-}
-
-.segmentedBtn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
 .newBtn {
   width: 100%;
   justify-content: center;
+  min-height: 36px;
 }
 
 /* Search */
@@ -120,7 +79,11 @@
 
 .scopeChip {
   appearance: none;
-  padding: 5px 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 5px 9px 5px 11px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--bg-subtle);
@@ -149,6 +112,33 @@
 .scopeChip:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+.scopeCount,
+.scopeComingSoon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 18px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-panel);
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.scopeChipActive .scopeCount {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+  color: var(--accent);
+}
+
+.scopeComingSoon {
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 /* Official-presets filters — surface pills + category select */
@@ -579,6 +569,7 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .actionsSpacer {
@@ -586,11 +577,24 @@
 }
 
 /* Publish toggle — pill switch */
+.actionButton {
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.defaultButton {
+  box-shadow: var(--shadow-xs);
+}
+
 .statusToggle {
   appearance: none;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 34px;
   padding: 6px 11px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
@@ -652,6 +656,8 @@
 }
 
 .dangerBtn {
+  width: 34px;
+  min-height: 34px;
   color: var(--red);
 }
 

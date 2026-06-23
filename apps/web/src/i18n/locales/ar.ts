@@ -493,7 +493,7 @@ export const ar: Dict = {
   'workspaceTabs.project': 'المشروع',
   'workspaceTabs.pluginDetails': 'تفاصيل الإضافة',
   'workspaceTabs.marketplace': 'المتجر',
-  'homeHero.title': 'ماذا تريد أن تصمّم؟',
+  'homeHero.title': 'ماذا ستصمّم اليوم؟',
   'homeHero.startWithTemplate': 'ابدأ بقالب…',
   'homeHero.startBlankProject': '…أو ابدأ مشروعًا فارغًا',
   'homeHero.templatePicker.label': 'قالب',

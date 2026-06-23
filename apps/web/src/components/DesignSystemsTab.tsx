@@ -57,9 +57,7 @@ const CATEGORY_ORDER = [
 ];
 
 type SurfaceFilter = 'all' | Surface;
-type PrimaryCollection = 'design-system' | 'template';
 type DesignSystemCollection = 'mine' | 'official' | 'enterprise';
-type TemplateCollection = 'mine' | 'enterprise';
 
 const SURFACE_PILLS: { value: SurfaceFilter; labelKey: 'examples.modeAll' | 'ds.surfaceWeb' | 'ds.surfaceImage' | 'ds.surfaceVideo' | 'ds.surfaceAudio' }[] = [
   { value: 'all', labelKey: 'examples.modeAll' },
@@ -68,13 +66,6 @@ const SURFACE_PILLS: { value: SurfaceFilter; labelKey: 'examples.modeAll' | 'ds.
   { value: 'video', labelKey: 'ds.surfaceVideo' },
   { value: 'audio', labelKey: 'ds.surfaceAudio' },
 ];
-
-const SURFACE_LABEL_KEY: Record<Surface, 'ds.surfaceWeb' | 'ds.surfaceImage' | 'ds.surfaceVideo' | 'ds.surfaceAudio'> = {
-  web: 'ds.surfaceWeb',
-  image: 'ds.surfaceImage',
-  video: 'ds.surfaceVideo',
-  audio: 'ds.surfaceAudio',
-};
 
 function surfaceOf(system: DesignSystemSummary): Surface {
   return system.surface ?? 'web';
@@ -100,18 +91,6 @@ function mapStatusToTracking(
     default:
       return 'unknown';
   }
-}
-
-function formatShortDate(value: number | string | undefined): string {
-  if (!value) return 'just now';
-  const time = typeof value === 'number' ? value : Date.parse(value);
-  if (!Number.isFinite(time)) return String(value);
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(time));
 }
 
 function systemMatchesQuery(
@@ -141,7 +120,6 @@ export function DesignSystemsTab({
   onCreate,
   onOpenSystem,
   onSystemsRefresh,
-  templates = [],
 }: Props) {
   const { locale, t } = useI18n();
   const analytics = useAnalytics();
@@ -166,9 +144,7 @@ export function DesignSystemsTab({
   const categoryTrackedRef = useRef(false);
   const [filter, setFilter] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [primaryCollection, setPrimaryCollection] = useState<PrimaryCollection>('design-system');
   const [designSystemCollection, setDesignSystemCollection] = useState<DesignSystemCollection>('mine');
-  const [templateCollection, setTemplateCollection] = useState<TemplateCollection>('mine');
   const [surfaceFilter, setSurfaceFilter] = useState<SurfaceFilter>('all');
   const [category, setCategory] = useState<string>('All');
   // The master-detail selection — which row renders in the right preview pane.
@@ -258,30 +234,16 @@ export function DesignSystemsTab({
     [queryScoped, surfaceFilter],
   );
 
-  const templatesSearched = useMemo(() => {
-    if (!q) return templates;
-    return templates.filter((tpl) =>
-      tpl.name.toLowerCase().includes(q) ||
-      (tpl.description ?? '').toLowerCase().includes(q),
-    );
-  }, [templates, q]);
-
   // The list backing the active scope. Design-system scopes carry summaries;
-  // template scope is handled through `templatesSearched`.
   const activeSystems = useMemo<DesignSystemSummary[]>(() => {
-    if (primaryCollection !== 'design-system') return [];
     if (designSystemCollection === 'mine') return userSearched;
     if (designSystemCollection === 'official') return filtered;
     return [];
-  }, [primaryCollection, designSystemCollection, userSearched, filtered]);
+  }, [designSystemCollection, userSearched, filtered]);
 
   const activeIds = useMemo(() => {
-    if (primaryCollection === 'design-system') return activeSystems.map((s) => s.id);
-    if (primaryCollection === 'template' && templateCollection === 'mine') {
-      return templatesSearched.map((tpl) => tpl.id);
-    }
-    return [];
-  }, [primaryCollection, templateCollection, activeSystems, templatesSearched]);
+    return activeSystems.map((s) => s.id);
+  }, [activeSystems]);
 
   // Keep the previewed row valid as scopes / filters change: hold the current
   // pick when it still exists, otherwise fall back to the first row (mirrors
@@ -295,20 +257,15 @@ export function DesignSystemsTab({
   }, [activeIds]);
 
   const selectedSystem = useMemo(() => {
-    if (primaryCollection !== 'design-system' || !previewId) return null;
+    if (!previewId) return null;
     return activeSystems.find((s) => s.id === previewId) ?? null;
-  }, [primaryCollection, previewId, activeSystems]);
-
-  const selectedTemplate = useMemo(() => {
-    if (primaryCollection !== 'template' || !previewId) return null;
-    return templatesSearched.find((tpl) => tpl.id === previewId) ?? null;
-  }, [primaryCollection, previewId, templatesSearched]);
+  }, [previewId, activeSystems]);
 
   // Lazily fetch the showcase HTML for the previewed design system. Only one
   // iframe is ever mounted (the selected detail), so unlike the old card grid
   // there is no need for an IntersectionObserver gate.
   useEffect(() => {
-    if (primaryCollection !== 'design-system' || !previewId) return;
+    if (!previewId) return;
     setThumbs((prev) => {
       if (prev[previewId] !== undefined) return prev;
       void fetchDesignSystemShowcase(previewId).then((html) => {
@@ -316,7 +273,7 @@ export function DesignSystemsTab({
       });
       return { ...prev, [previewId]: null };
     });
-  }, [primaryCollection, previewId]);
+  }, [previewId]);
 
   // Category metadata is authored in English; keep raw values in state for
   // filtering while localizing the visible labels for the current UI locale.
@@ -473,56 +430,18 @@ export function DesignSystemsTab({
     onPreview(system.id);
   }
 
-  const activeScope = primaryCollection === 'design-system'
-    ? designSystemCollection
-    : templateCollection;
+  const scopeTabs = [
+    { value: 'mine' as const, label: t('dsManager.yourSystems'), count: userSearched.length },
+    { value: 'official' as const, label: t('dsManager.officialPresets'), count: queryScoped.length },
+    { value: 'enterprise' as const, label: t('dsManager.enterprise'), comingSoon: true },
+  ];
 
-  const scopeTabs = primaryCollection === 'design-system'
-    ? [
-        { value: 'mine' as const, label: t('dsManager.yourSystems') },
-        { value: 'official' as const, label: t('dsManager.officialPresets') },
-        { value: 'enterprise' as const, label: t('dsManager.enterprise') },
-      ]
-    : [
-        { value: 'mine' as const, label: t('dsManager.yourTemplates') },
-        { value: 'enterprise' as const, label: t('dsManager.enterprise') },
-      ];
-
-  function setScope(value: DesignSystemCollection | TemplateCollection): void {
-    if (primaryCollection === 'design-system') {
-      setDesignSystemCollection(value as DesignSystemCollection);
-    } else {
-      setTemplateCollection(value as TemplateCollection);
-    }
-  }
-
-  const showPresetFilters = primaryCollection === 'design-system' && designSystemCollection === 'official';
+  const showPresetFilters = designSystemCollection === 'official';
 
   return (
     <div className={styles.root} data-testid="design-systems-tab">
       <aside className={styles.sidebar}>
-        <div className={styles.segmented} role="tablist" aria-label={t('dsManager.areaAria')}>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={primaryCollection === 'design-system'}
-            className={`${styles.segmentedBtn} ${primaryCollection === 'design-system' ? styles.active : ''}`}
-            onClick={() => setPrimaryCollection('design-system')}
-          >
-            {t('dsManager.tabDesignSystem')}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={primaryCollection === 'template'}
-            className={`${styles.segmentedBtn} ${primaryCollection === 'template' ? styles.active : ''}`}
-            onClick={() => setPrimaryCollection('template')}
-          >
-            {t('dsManager.tabTemplate')}
-          </button>
-        </div>
-
-        {primaryCollection === 'design-system' && onCreate ? (
+        {onCreate ? (
           <Button
             variant="primary"
             className={styles.newBtn}
@@ -558,20 +477,24 @@ export function DesignSystemsTab({
         <div
           className={styles.scopes}
           role="tablist"
-          aria-label={primaryCollection === 'design-system'
-            ? t('dsManager.sourceAria')
-            : t('dsManager.templateSourceAria')}
+          aria-label={t('dsManager.sourceAria')}
         >
           {scopeTabs.map((tab) => (
             <button
               key={tab.value}
               type="button"
               role="tab"
-              aria-selected={activeScope === tab.value}
-              className={`${styles.scopeChip} ${activeScope === tab.value ? styles.scopeChipActive : ''}`}
-              onClick={() => setScope(tab.value)}
+              aria-selected={designSystemCollection === tab.value}
+              className={`${styles.scopeChip} ${designSystemCollection === tab.value ? styles.scopeChipActive : ''}`}
+              onClick={() => setDesignSystemCollection(tab.value)}
             >
-              {tab.label}
+              <span>{tab.label}</span>
+              {'count' in tab ? (
+                <span className={styles.scopeCount} aria-hidden>{tab.count}</span>
+              ) : null}
+              {tab.comingSoon ? (
+                <span className={styles.scopeComingSoon} aria-hidden>{t('dsManager.comingSoonBadge')}</span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -644,83 +567,46 @@ export function DesignSystemsTab({
   );
 
   function renderSidebarList() {
-    if (primaryCollection === 'design-system') {
-      if (designSystemCollection === 'enterprise') {
-        return (
-          <div className={styles.sidebarEmpty}>
-            <p className={styles.sidebarEmptyText}>{t('dsManager.enterpriseDsBody')}</p>
-          </div>
-        );
-      }
-      if (activeSystems.length === 0) {
-        if (designSystemCollection === 'official') {
-          return (
-            <div className={styles.sidebarEmpty} data-testid="design-systems-empty">
-              <p className={styles.sidebarEmptyText}>{t('ds.emptyNoMatch')}</p>
-            </div>
-          );
-        }
-        return (
-          <div className={styles.sidebarEmpty}>
-            <p className={styles.sidebarEmptyText}>{t('dsManager.emptyMine')}</p>
-          </div>
-        );
-      }
-      return activeSystems.map((system) => (
-        <SystemRow
-          key={system.id}
-          system={system}
-          active={system.id === previewId}
-          isDefault={system.id === selectedId}
-          categoryLabel={localizeDesignSystemCategory(locale, system.category || 'Uncategorized')}
-          statusLabel={(system.status ?? 'draft') === 'published' ? t('dsManager.statusPublished') : t('dsManager.statusDraft')}
-          onSelect={() => handleSelectSystem(system)}
-        />
-      ));
-    }
-
-    // Template collection
-    if (templateCollection === 'enterprise') {
+    if (designSystemCollection === 'enterprise') {
       return (
         <div className={styles.sidebarEmpty}>
-          <p className={styles.sidebarEmptyText}>{t('dsManager.enterpriseTplBody')}</p>
+          <p className={styles.sidebarEmptyText}>{t('dsManager.enterpriseDsBody')}</p>
         </div>
       );
     }
-    if (templatesSearched.length === 0) {
+    if (activeSystems.length === 0) {
+      if (designSystemCollection === 'official') {
+        return (
+          <div className={styles.sidebarEmpty} data-testid="design-systems-empty">
+            <p className={styles.sidebarEmptyText}>{t('ds.emptyNoMatch')}</p>
+          </div>
+        );
+      }
       return (
         <div className={styles.sidebarEmpty}>
-          <p className={styles.sidebarEmptyText}>{t('dsManager.emptyTemplates')}</p>
+          <p className={styles.sidebarEmptyText}>{t('dsManager.emptyMine')}</p>
         </div>
       );
     }
-    return templatesSearched.map((tpl) => (
-      <button
-        key={tpl.id}
-        type="button"
-        className={`${styles.item} ${tpl.id === previewId ? styles.itemActive : ''}`}
-        aria-pressed={tpl.id === previewId}
-        onClick={() => setPreviewId(tpl.id)}
-      >
-        <span className={styles.itemThumb}>
-          <span className={styles.itemThumbFallback}>{(tpl.name || '?').charAt(0).toUpperCase()}</span>
-        </span>
-        <span className={styles.itemMeta}>
-          <span className={styles.itemNameRow}>
-            <span className={styles.itemName}>{tpl.name}</span>
-          </span>
-          <span className={styles.itemSub}>{formatShortDate(tpl.createdAt)}</span>
-        </span>
-      </button>
+    return activeSystems.map((system) => (
+      <SystemRow
+        key={system.id}
+        system={system}
+        active={system.id === previewId}
+        isDefault={system.id === selectedId}
+        categoryLabel={localizeDesignSystemCategory(locale, system.category || 'Uncategorized')}
+        statusLabel={(system.status ?? 'draft') === 'published' ? t('dsManager.statusPublished') : t('dsManager.statusDraft')}
+        onSelect={() => handleSelectSystem(system)}
+      />
     ));
   }
 
   function renderPreview() {
-    if (activeScope === 'enterprise') {
+    if (designSystemCollection === 'enterprise') {
       return (
         <ComingSoon
-          title={primaryCollection === 'design-system' ? t('dsManager.enterpriseDsTitle') : t('dsManager.enterpriseTplTitle')}
-          body={primaryCollection === 'design-system' ? t('dsManager.enterpriseDsBody') : t('dsManager.enterpriseTplBody')}
+          title={t('dsManager.enterpriseDsTitle')}
+          body={t('dsManager.enterpriseDsBody')}
           comingSoonLabel={t('dsManager.comingSoonBadge')}
         />
       );
@@ -733,9 +619,6 @@ export function DesignSystemsTab({
           isDefault={selectedSystem.id === selectedId}
           showcaseHtml={thumbs[selectedSystem.id]}
           busy={busyId === selectedSystem.id}
-          categoryLabel={localizeDesignSystemCategory(locale, selectedSystem.category || 'Uncategorized')}
-          surfaceLabel={t(SURFACE_LABEL_KEY[surfaceOf(selectedSystem)])}
-          summary={localizeDesignSystemSummary(locale, selectedSystem)}
           t={t}
           onEdit={onOpenSystem}
           onMakeDefault={handleMakeDefaultClick}
@@ -747,31 +630,11 @@ export function DesignSystemsTab({
       );
     }
 
-    if (selectedTemplate) {
-      return (
-        <div className={styles.detail}>
-          <div className={styles.head}>
-            <div className={styles.headText}>
-              <div className={styles.titleRow}>
-                <h2 className={styles.title}>{selectedTemplate.name}</h2>
-              </div>
-              <div className={styles.metaRow}>{formatShortDate(selectedTemplate.createdAt)}</div>
-            </div>
-          </div>
-          <p className={styles.summary}>
-            {selectedTemplate.description?.trim() || t('dsManager.templateDescFallback')}
-          </p>
-        </div>
-      );
-    }
-
     // Empty scope — invite the relevant next action.
-    const emptyText = primaryCollection === 'template'
-      ? t('dsManager.emptyTemplates')
-      : designSystemCollection === 'official'
+    const emptyText = designSystemCollection === 'official'
         ? t('ds.emptyNoMatch')
         : t('dsManager.emptyMine');
-    const emptyTitle = primaryCollection === 'design-system' && designSystemCollection === 'mine'
+    const emptyTitle = designSystemCollection === 'mine'
       ? t('dsManager.createTitle')
       : null;
     return (
@@ -862,9 +725,6 @@ interface DetailProps {
   isDefault: boolean;
   showcaseHtml: string | null | undefined;
   busy: boolean;
-  categoryLabel: string;
-  surfaceLabel: string;
-  summary: string;
   t: ReturnType<typeof useI18n>['t'];
   onEdit?: (id: string) => void;
   onMakeDefault: (system: DesignSystemSummary) => void;
@@ -960,7 +820,12 @@ function DesignSystemDetail({
   const actionsSlot = (
     <>
       {isUser && onEdit ? (
-        <Button variant="ghost" onClick={() => onEdit(system.id)} disabled={busy}>
+        <Button
+          variant="ghost"
+          className={styles.actionButton}
+          onClick={() => onEdit(system.id)}
+          disabled={busy}
+        >
           <Icon name="external-link" />
           {t('dsManager.openSystem')}
         </Button>
@@ -968,6 +833,7 @@ function DesignSystemDetail({
       {canBeDefault && !isDefault ? (
         <Button
           variant="primary"
+          className={`${styles.actionButton} ${styles.defaultButton}`}
           data-testid={`design-system-select-${system.id}`}
           onClick={() => onMakeDefault(system)}
           disabled={busy}
@@ -977,6 +843,7 @@ function DesignSystemDetail({
       ) : null}
       <Button
         variant="ghost"
+        className={styles.actionButton}
         data-testid={`design-system-preview-${system.id}`}
         onClick={() => onPreviewFull(system)}
         disabled={busy}

@@ -29,7 +29,7 @@ export interface EdgeAutoScroll {
  * changes so the reachable-edge state is re-measured.
  */
 export function useEdgeAutoScroll(contentKey?: unknown): EdgeAutoScroll {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const [edges, setEdges] = useState<{ left: boolean; right: boolean }>({
     left: false,

@@ -936,20 +936,32 @@
 /* ══ Showcase cover (design systems) ═══════════════════════════════════
    When the cover holds a live showcase iframe instead of a logo, fill the
    frame edge-to-edge and give it a touch more height to read as a hero. */
-.cover:has(.coverFrame) {
+.cover:has(.coverFrameViewport) {
   padding: 0;
   height: 280px;
+  overflow: hidden;
 }
 
-.coverFrame {
+.coverFrameViewport {
+  display: block;
   width: 100%;
   height: 100%;
-  border: 0;
-  display: block;
+  overflow: hidden;
   background: #fff;
 }
 
-.compact .cover:has(.coverFrame) {
+.coverFrame {
+  width: 142.857%;
+  height: 142.857%;
+  border: 0;
+  display: block;
+  background: #fff;
+  pointer-events: none;
+  transform: scale(0.7);
+  transform-origin: top left;
+}
+
+.compact .cover:has(.coverFrameViewport) {
   height: 120px;
 }
 

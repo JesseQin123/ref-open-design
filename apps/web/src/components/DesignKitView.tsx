@@ -345,14 +345,15 @@ export function DesignKitView({
 
       <div className={styles.cover}>
         {kit.showcaseHtml ? (
-          <iframe
-            className={styles.coverFrame}
-            title={`${kit.name} preview`}
-            sandbox="allow-scripts"
-            srcDoc={buildSrcdoc(kit.showcaseHtml)}
-            tabIndex={-1}
-            aria-hidden
-          />
+          <span className={styles.coverFrameViewport} aria-hidden>
+            <iframe
+              className={styles.coverFrame}
+              title={`${kit.name} preview`}
+              sandbox="allow-scripts"
+              srcDoc={buildSrcdoc(kit.showcaseHtml)}
+              tabIndex={-1}
+            />
+          </span>
         ) : (
           <BrandLogo
             brandId={kit.brandId}

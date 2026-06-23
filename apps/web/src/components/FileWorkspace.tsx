@@ -150,7 +150,7 @@ interface Props {
   onFocusModeChange?: (next: boolean) => void;
   designSystemProject?: DesignSystemSummary | null;
   defaultDesignSystemId?: string | null;
-  onSetDefaultDesignSystem?: (id: string | null) => void;
+  onSetDefaultDesignSystem?: (id: string | null) => Promise<void> | void;
   onDesignSystemsRefresh?: () => Promise<void> | void;
   onDesignSystemNeedsWork?: (
     sectionTitle: string,
@@ -163,7 +163,7 @@ interface Props {
     decision: DesignSystemReviewDecision,
     details?: DesignSystemReviewDetails,
   ) => void;
-  onUseDesignSystem?: (id: string, title: string) => void;
+  onUseDesignSystem?: (id: string, title: string) => Promise<void> | void;
   onConnectRepo?: () => void;
   githubConnected?: boolean;
   commentPortalId?: string;
@@ -2405,7 +2405,7 @@ function DesignSystemProjectPanel({
   onOpenFile: (name: string) => void;
   onUploadAssets: () => void;
   defaultDesignSystemId?: string | null;
-  onSetDefaultDesignSystem?: (id: string | null) => void;
+  onSetDefaultDesignSystem?: (id: string | null) => Promise<void> | void;
   onDesignSystemsRefresh?: () => Promise<void> | void;
   onNeedsWork?: (
     sectionTitle: string,
@@ -2418,7 +2418,7 @@ function DesignSystemProjectPanel({
     decision: DesignSystemReviewDecision,
     details?: DesignSystemReviewDetails,
   ) => void;
-  onUseDesignSystem?: (id: string, title: string) => void;
+  onUseDesignSystem?: (id: string, title: string) => Promise<void> | void;
   onConnectRepo?: () => void;
   githubConnected?: boolean;
 }) {
@@ -2428,6 +2428,7 @@ function DesignSystemProjectPanel({
   const [feedbackText, setFeedbackText] = useState('');
   const [status, setStatus] = useState(system.status ?? 'draft');
   const [statusBusy, setStatusBusy] = useState(false);
+  const [defaultBusy, setDefaultBusy] = useState(false);
   const [cardManifest, setCardManifest] = useState<DesignSystemCardManifestMap>(() => new Map());
   const [cardManifestError, setCardManifestError] = useState<string | null>(null);
   useEffect(() => {
@@ -2592,6 +2593,16 @@ function DesignSystemProjectPanel({
       await onDesignSystemsRefresh?.();
     } finally {
       setStatusBusy(false);
+    }
+  }
+
+  async function toggleDefault(nextDefault: boolean) {
+    if (!onSetDefaultDesignSystem) return;
+    setDefaultBusy(true);
+    try {
+      await onSetDefaultDesignSystem(nextDefault ? system.id : null);
+    } finally {
+      setDefaultBusy(false);
     }
   }
 
@@ -2882,17 +2893,16 @@ function DesignSystemProjectPanel({
         </button>
       </span>
       {published ? (
-        <label className="ds-project-default-toggle">
-          <input
-            type="checkbox"
-            checked={isDefault}
-            disabled={statusBusy}
-            onChange={(event) => {
-              onSetDefaultDesignSystem?.(event.target.checked ? system.id : null);
-            }}
-          />
-          Default
-        </label>
+        <button
+          type="button"
+          className={`ds-project-default-toggle ${isDefault ? 'is-on' : ''}`}
+          aria-pressed={isDefault}
+          disabled={statusBusy || defaultBusy || !onSetDefaultDesignSystem}
+          onClick={() => void toggleDefault(!isDefault)}
+        >
+          {isDefault ? <Icon name="check" size={14} /> : null}
+          {isDefault ? 'Default' : 'Make default'}
+        </button>
       ) : null}
     </>
   );
@@ -2912,6 +2922,7 @@ function DesignSystemProjectPanel({
               variant="ghost"
               className="compact"
               onClick={() => onUseDesignSystem?.(system.id, system.title)}
+              disabled={!onUseDesignSystem}
             >
               <Icon name="external-link" size={13} />
               New design

@@ -349,6 +349,38 @@ describe('FileWorkspace design-system project surface', () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
+  it('routes New design to the selected design system', async () => {
+    const onUseDesignSystem = vi.fn();
+    const container = renderWorkspace(
+      <FileWorkspace
+        projectId="ds-acme"
+        projectKind="prototype"
+        files={[workspaceFile('DESIGN.md'), workspaceFile('preview/colors.html')]}
+        liveArtifacts={[]}
+        onRefreshFiles={vi.fn()}
+        isDeck={false}
+        tabsState={{ tabs: [], active: null }}
+        onTabsStateChange={vi.fn()}
+        designSystemProject={designSystem({ status: 'published' })}
+        onUseDesignSystem={onUseDesignSystem}
+      />,
+    );
+
+    await flushKit();
+
+    const newDesignButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('New design'),
+    );
+    expect(newDesignButton).toBeTruthy();
+
+    await act(async () => {
+      newDesignButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onUseDesignSystem).toHaveBeenCalledWith('user:acme', 'Acme Design System');
+  });
+
   it('offers a Connect GitHub action that routes to Connectors when repo evidence is missing', async () => {
     const onConnectRepo = vi.fn();
     const container = renderWorkspace(
@@ -458,7 +490,7 @@ describe('FileWorkspace design-system project surface', () => {
     expect(importButton).toBeTruthy();
   });
 
-  it('routes the default checkbox to the selected design system id', async () => {
+  it('routes the default button to the selected design system id', async () => {
     const onSetDefault = vi.fn();
     const container = renderWorkspace(
       <FileWorkspace
@@ -478,10 +510,9 @@ describe('FileWorkspace design-system project surface', () => {
 
     await flushKit();
 
-    const defaultToggle = container.querySelector<HTMLInputElement>(
-      '.ds-project-default-toggle input[type="checkbox"]',
-    );
+    const defaultToggle = container.querySelector<HTMLButtonElement>('.ds-project-default-toggle');
     expect(defaultToggle).toBeTruthy();
+    expect(defaultToggle?.textContent).toContain('Make default');
 
     await act(async () => {
       defaultToggle?.click();
@@ -491,7 +522,7 @@ describe('FileWorkspace design-system project surface', () => {
     expect(onSetDefault).toHaveBeenCalledWith('user:acme');
   });
 
-  it('clears the default design system when the selected default checkbox is unchecked', async () => {
+  it('clears the default design system when the selected default button is pressed', async () => {
     const onSetDefault = vi.fn();
     const container = renderWorkspace(
       <FileWorkspace
@@ -511,10 +542,9 @@ describe('FileWorkspace design-system project surface', () => {
 
     await flushKit();
 
-    const defaultToggle = container.querySelector<HTMLInputElement>(
-      '.ds-project-default-toggle input[type="checkbox"]',
-    );
-    expect(defaultToggle?.checked).toBe(true);
+    const defaultToggle = container.querySelector<HTMLButtonElement>('.ds-project-default-toggle');
+    expect(defaultToggle?.getAttribute('aria-pressed')).toBe('true');
+    expect(defaultToggle?.textContent).toContain('Default');
 
     await act(async () => {
       defaultToggle?.click();

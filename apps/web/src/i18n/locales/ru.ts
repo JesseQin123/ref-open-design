@@ -493,7 +493,7 @@ export const ru: Dict = {
   'workspaceTabs.project': 'Проект',
   'workspaceTabs.pluginDetails': 'Сведения о плагине',
   'workspaceTabs.marketplace': 'Маркетплейс',
-  'homeHero.title': 'Что вы хотите спроектировать?',
+  'homeHero.title': 'Что вы спроектируете сегодня?',
   'homeHero.startWithTemplate': 'Начать с шаблона…',
   'homeHero.startBlankProject': '…или создать пустой проект',
   'homeHero.templatePicker.label': 'Шаблон',

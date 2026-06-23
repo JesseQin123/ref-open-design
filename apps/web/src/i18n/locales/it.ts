@@ -493,7 +493,7 @@ export const it: Dict = {
   'workspaceTabs.project': 'Progetto',
   'workspaceTabs.pluginDetails': 'Dettagli del plugin',
   'workspaceTabs.marketplace': 'Marketplace',
-  'homeHero.title': 'Cosa vuoi progettare?',
+  'homeHero.title': 'Cosa progetterai oggi?',
   'homeHero.startWithTemplate': 'Inizia con un modello…',
   'homeHero.startBlankProject': '…oppure inizia un progetto vuoto',
   'homeHero.templatePicker.label': 'Modello',

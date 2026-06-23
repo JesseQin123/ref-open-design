@@ -40,11 +40,15 @@ const CURATED_PROTOTYPE_PLUGIN_IDS = [
   'example-doc-kami-parchment',
 ] as const;
 
-// Wireframe scenario: lo-fi / sketch explorations. The bundled
-// wireframe-sketch template leads; the chip's tag-matching surfaces any other
-// lo-fi templates behind it.
+// Wireframe scenario: lo-fi / sketch explorations across distinct styles —
+// hand-drawn sketch, crisp greybox/blueprint, a multi-screen mobile flow, and
+// an annotated/redline landing wireframe. The chip's tag-matching surfaces any
+// other lo-fi templates behind these.
 const CURATED_WIREFRAME_PLUGIN_IDS = [
   'example-wireframe-sketch',
+  'example-wireframe-greybox',
+  'example-wireframe-mobile-flow',
+  'example-wireframe-annotated',
 ] as const;
 
 // Mobile scenario: real native-app prototype mockups (iOS / Android phone
