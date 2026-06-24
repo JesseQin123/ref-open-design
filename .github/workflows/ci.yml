@@ -16,6 +16,10 @@ on:
         description: Run only the persistent self-hosted runner POC job
         type: boolean
         default: false
+      runner_perf_probe:
+        description: Run runner CPU/V8 performance probe jobs
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -245,6 +249,223 @@ jobs:
 
       - name: Web workspace tests
         run: pnpm --filter @open-design/web test
+
+  runner_perf_probe:
+    name: Runner perf probe (${{ matrix.name }})
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_perf_probe == true }}
+    runs-on: ${{ fromJSON(matrix.runs_on) }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: blacksmith-4vcpu
+            runs_on: '["blacksmith-4vcpu-ubuntu-2404"]'
+          - name: blacksmith-8vcpu
+            runs_on: '["blacksmith-8vcpu-ubuntu-2404"]'
+          - name: zxiyun-8vcpu
+            runs_on: '["self-hosted","Linux","X64","od-persistent-ci","od-zxiyun-poc"]'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Probe runner CPU and V8
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "probe_started_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "host=$(hostname)"
+          echo "kernel=$(uname -a)"
+          if [ -r /etc/os-release ]; then
+            . /etc/os-release
+            echo "os=${PRETTY_NAME:-unknown}"
+          fi
+          echo "nproc=$(nproc)"
+          uptime
+          lscpu | grep -E '^(Architecture|CPU\(s\)|On-line CPU\(s\) list|Thread\(s\) per core|Core\(s\) per socket|Socket\(s\)|NUMA node\(s\)|Vendor ID|Model name|CPU family|Model|Stepping|CPU MHz|CPU max MHz|CPU min MHz|BogoMIPS|Hypervisor vendor|Virtualization type|L1d cache|L1i cache|L2 cache|L3 cache):' || true
+          echo "getconf_nprocessors_onln=$(getconf _NPROCESSORS_ONLN)"
+          grep -E '^(Cpus_allowed|Cpus_allowed_list|Mems_allowed|Mems_allowed_list):' /proc/self/status || true
+          awk -F: '/^flags/ { gsub(/^[ \t]+/, "", $2); print "cpu_flags_first=" $2; exit }' /proc/cpuinfo
+          for file in \
+            /sys/devices/system/cpu/smt/active \
+            /sys/devices/system/cpu/smt/control \
+            /sys/devices/system/cpu/online \
+            /sys/devices/system/cpu/offline \
+            /sys/devices/system/cpu/possible \
+            /sys/devices/system/cpu/present
+          do
+            if [ -r "$file" ]; then
+              echo "sysfs_$(basename "$(dirname "$file")")_$(basename "$file")=$(tr '\n' ' ' < "$file")"
+            fi
+          done
+          echo "lscpu_extended_begin"
+          lscpu --extended=CPU,CORE,SOCKET,NODE,CACHE,MHZ,ONLINE || true
+          echo "lscpu_extended_end"
+          echo "lscpu_caches_begin"
+          lscpu --caches || true
+          echo "lscpu_caches_end"
+          echo "cpu_topology_begin"
+          for cpu_dir in /sys/devices/system/cpu/cpu[0-9]*; do
+            cpu="${cpu_dir##*/cpu}"
+            [ -r "$cpu_dir/topology/core_id" ] || continue
+            printf 'cpu_topology cpu=%s' "$cpu"
+            for field in physical_package_id core_id thread_siblings_list core_siblings_list; do
+              if [ -r "$cpu_dir/topology/$field" ]; then
+                printf ' %s=%s' "$field" "$(tr '\n' ' ' < "$cpu_dir/topology/$field")"
+              fi
+            done
+            printf '\n'
+          done
+          echo "cpu_topology_end"
+          for file in \
+            /sys/fs/cgroup/cpu.max \
+            /sys/fs/cgroup/cpu.weight \
+            /sys/fs/cgroup/cpu.stat \
+            /sys/fs/cgroup/cpu.pressure \
+            /sys/fs/cgroup/cpuset.cpus \
+            /sys/fs/cgroup/cpuset.cpus.effective \
+            /sys/fs/cgroup/cpuset.mems \
+            /sys/fs/cgroup/cpuset.mems.effective
+          do
+            if [ -r "$file" ]; then
+              echo "cgroup_$(basename "$file")=$(tr '\n' ' ' < "$file")"
+            fi
+          done
+          for file in \
+            /sys/class/dmi/id/sys_vendor \
+            /sys/class/dmi/id/product_name \
+            /sys/class/dmi/id/product_version \
+            /sys/class/dmi/id/chassis_vendor
+          do
+            if [ -r "$file" ]; then
+              echo "dmi_$(basename "$file")=$(tr '\n' ' ' < "$file")"
+            fi
+          done
+          awk -F: '/cpu MHz/ { gsub(/^[ \t]+/, "", $2); mhz[++n]=$2 } END { if (n) { min=mhz[1]; max=mhz[1]; sum=0; for (i=1;i<=n;i++){ if(mhz[i]<min)min=mhz[i]; if(mhz[i]>max)max=mhz[i]; sum+=mhz[i]; } printf "cpu_mhz_samples=%d min=%.3f avg=%.3f max=%.3f\n", n, min, sum/n, max; } }' /proc/cpuinfo
+          if [ -r /sys/fs/cgroup/cpu.max ]; then
+            echo "cgroup_cpu_max=$(tr '\n' ' ' < /sys/fs/cgroup/cpu.max)"
+          fi
+          if [ -r /sys/fs/cgroup/cpu.stat ]; then
+            echo "cgroup_cpu_stat=$(tr '\n' ' ' < /sys/fs/cgroup/cpu.stat)"
+          fi
+          echo "node=$(command -v node)"
+          node --version
+          cpu_stat_before="$(awk '/^cpu / { for (i=2; i<=NF; i++) printf "%s%s", $i, (i==NF ? "" : " " ); print "" }' /proc/stat)"
+          node <<'NODE'
+          const { Worker } = require('node:worker_threads');
+          const { performance } = require('node:perf_hooks');
+          const os = require('node:os');
+
+          function work(iterations, seed = 0x12345678) {
+            let x = seed | 0;
+            for (let i = 0; i < iterations; i++) {
+              x = Math.imul((x ^ i) + 0x9e3779b9, 1664525) | 0;
+              x ^= x >>> 13;
+            }
+            return x;
+          }
+
+          function timedWork(durationMs, chunkIterations) {
+            const end = performance.now() + durationMs;
+            let iterations = 0;
+            let checksum = 0;
+            while (performance.now() < end) {
+              checksum ^= work(chunkIterations, checksum);
+              iterations += chunkIterations;
+            }
+            return { iterations, checksum };
+          }
+
+          function jsonBench(durationMs) {
+            const payload = JSON.stringify(Array.from({ length: 400 }, (_, i) => ({
+              id: i,
+              name: `component-${i}`,
+              tags: ['web', 'test', 'runner', String(i % 17)],
+              props: { a: i, b: i * 2, enabled: i % 3 === 0 },
+            })));
+            const end = performance.now() + durationMs;
+            let parses = 0;
+            let checksum = 0;
+            while (performance.now() < end) {
+              const value = JSON.parse(payload);
+              checksum += value[parses % value.length].props.b;
+              parses++;
+            }
+            return { parses, bytesPerParse: Buffer.byteLength(payload), checksum };
+          }
+
+          const workerSource = `
+            const { parentPort, workerData } = require('node:worker_threads');
+            const { performance } = require('node:perf_hooks');
+            function work(iterations, seed = 0x12345678) {
+              let x = seed | 0;
+              for (let i = 0; i < iterations; i++) {
+                x = Math.imul((x ^ i) + 0x9e3779b9, 1664525) | 0;
+                x ^= x >>> 13;
+              }
+              return x;
+            }
+            function timedWork(durationMs, chunkIterations) {
+              const end = performance.now() + durationMs;
+              let iterations = 0;
+              let checksum = 0;
+              while (performance.now() < end) {
+                checksum ^= work(chunkIterations, checksum);
+                iterations += chunkIterations;
+              }
+              return { iterations, checksum };
+            }
+            parentPort.postMessage(timedWork(workerData.durationMs, workerData.chunkIterations));
+          `;
+
+          (async () => {
+            const cpus = os.cpus();
+            const nproc = cpus.length;
+            console.log(`v8=${process.versions.v8}`);
+            console.log(`arch=${process.arch}`);
+            console.log(`cpu_models=${[...new Set(cpus.map((cpu) => cpu.model))].join(' | ')}`);
+            console.log(`cpu_speeds_mhz=${cpus.map((cpu) => cpu.speed).join(',')}`);
+
+            let start = performance.now();
+            const single = timedWork(3000, 250000);
+            let elapsed = performance.now() - start;
+            console.log(`js_int_single_iterations_per_s=${Math.round(single.iterations / elapsed * 1000)} checksum=${single.checksum}`);
+
+            start = performance.now();
+            const json = jsonBench(3000);
+            elapsed = performance.now() - start;
+            console.log(`json_parse_per_s=${Math.round(json.parses / elapsed * 1000)} bytes_per_parse=${json.bytesPerParse} checksum=${json.checksum}`);
+
+            start = performance.now();
+            const workers = Array.from({ length: nproc }, () => new Worker(workerSource, {
+              eval: true,
+              workerData: { durationMs: 5000, chunkIterations: 250000 },
+            }));
+            const results = await Promise.all(workers.map((worker) => new Promise((resolve, reject) => {
+              worker.once('message', resolve);
+              worker.once('error', reject);
+              worker.once('exit', (code) => {
+                if (code !== 0) reject(new Error(`worker exit ${code}`));
+              });
+            })));
+            elapsed = performance.now() - start;
+            const totalIterations = results.reduce((sum, result) => sum + result.iterations, 0);
+            const checksum = results.reduce((sum, result) => sum ^ result.checksum, 0);
+            console.log(`js_int_multi_workers=${nproc} iterations_per_s=${Math.round(totalIterations / elapsed * 1000)} checksum=${checksum} elapsed_ms=${Math.round(elapsed)}`);
+          })();
+          NODE
+          cpu_stat_after="$(awk '/^cpu / { for (i=2; i<=NF; i++) printf "%s%s", $i, (i==NF ? "" : " " ); print "" }' /proc/stat)"
+          awk -v b="$cpu_stat_before" -v a="$cpu_stat_after" 'BEGIN { split(b, B, " " ); split(a, A, " " ); total=0; for (i=1; i<=length(A); i++) { d=A[i]-B[i]; D[i]=d; total+=d; } if (total <= 0) total=1; printf "node_probe_cpu_delta_total_ticks=%d user_pct=%.2f system_pct=%.2f idle_pct=%.2f iowait_pct=%.2f steal_pct=%.2f\n", total, D[1]*100/total, D[3]*100/total, D[4]*100/total, D[5]*100/total, D[8]*100/total }'
+          if [ -r /sys/fs/cgroup/cpu.stat ]; then
+            echo "cgroup_cpu_stat_after=$(tr '\n' ' ' < /sys/fs/cgroup/cpu.stat)"
+          fi
+          echo "probe_finished_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
   nix_validation:
     name: Validate Nix flake
