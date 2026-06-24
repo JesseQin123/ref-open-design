@@ -428,6 +428,10 @@ async function capturePage(
 
   const dbg = window.webContents.debugger;
   let attached = false;
+  // Set if the debugger attached but a CDP command later threw — distinct from a
+  // failed attach. Lets the too-tall PDF refusal surface the real error vs a
+  // misleading "renderer is busy, retry".
+  let cdpError: unknown = null;
   try {
     dbg.attach("1.3");
     attached = true;
@@ -486,8 +490,12 @@ async function capturePage(
       }
       return await scrollSegmentStitch(window, docH, jpeg, outputDir);
     }
-  } catch {
-    // CDP path failed — fall through to scroll-segment.
+  } catch (error) {
+    // The debugger attached but a later CDP command failed (Chromium/GPU/clip
+    // error) — remember it so the too-tall PDF refusal below can surface the
+    // real, actionable error instead of the retryable "renderer busy" message
+    // (which is only correct when the debugger could not attach at all).
+    cdpError = error;
   } finally {
     if (attached) {
       try {
@@ -506,11 +514,19 @@ async function capturePage(
   const totalLogical = Math.max(PAGE_VIEW_H, Number.isFinite(measured) ? measured : PAGE_VIEW_H);
   // Same budget guard as the debugger path: refuse rather than truncate. The PDF
   // path normally paginates a too-tall page (paginateTallPage), but that needs
-  // CDP (captureBeyondViewport per chunk) and we only reach here because the
-  // debugger could not attach. Surface a distinct, retryable error instead of
-  // the self-contradictory "export as PDF instead" (the user already chose PDF).
+  // CDP. We reach here either because the debugger could not attach, or because
+  // it attached and a CDP command later failed (cdpError). Surface the real CDP
+  // error in the latter case; only show the retryable "busy" message when the
+  // attach itself failed. Either way, don't tell the user to "export as PDF
+  // instead" — they already chose PDF.
   if (totalLogical * dpr > ramMaxOutH) {
     if (jpeg) {
+      if (cdpError) {
+        return {
+          ok: false,
+          error: `couldn't render this long page to PDF: ${cdpError instanceof Error ? cdpError.message : String(cdpError)}`,
+        };
+      }
       return {
         ok: false,
         error: `couldn't render this long page to PDF — the renderer is busy, please retry`,
