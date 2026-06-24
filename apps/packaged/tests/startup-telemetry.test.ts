@@ -161,6 +161,38 @@ describe('captureStartupFailure', () => {
     expect((body.properties as Record<string, unknown>).$os).toBeDefined();
   });
 
+  it('stamps the shared safety-event envelope so dashboards bucket it', async () => {
+    // Mirrors captureSafety in apps/daemon/src/analytics.ts. Without these,
+    // env/schema-filtered dashboards miss or mis-bucket the event even though
+    // PostHog accepts the raw payload (PerishCode review on #4696).
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('ok'));
+    await captureStartupFailure(
+      {
+        posthogKey: 'phc_test',
+        posthogHost: null,
+        distinctId: 'install-123',
+        event: STARTUP_FAILURE_EVENT,
+        properties: { failure_kind: 'daemon-start', app_version: '0.11.0' },
+      },
+      {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        now: () => '2026-06-23T00:00:00.000Z',
+        insertId: 'ins-fixed',
+      },
+    );
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const p = (JSON.parse(init.body as string) as { properties: Record<string, unknown> })
+      .properties;
+    expect(p.event_schema_version).toBe(2);
+    expect(p.device_id).toBe('install-123');
+    expect(p.client_type).toBe('packaged_main');
+    expect(p.capture_source).toBe('packaged/startup');
+    expect(p.ui_version).toBe('0.11.0');
+    expect(p.event_id).toBe('ins-fixed');
+    expect(p.$insert_id).toBe('ins-fixed');
+    expect(typeof p.env).toBe('string');
+  });
+
   it('never blocks past the timeout even if fetch hangs forever', async () => {
     // The critical guarantee for "no startup side-effect": a hung (offline)
     // request must not wedge the exit. Race must resolve via the timeout.

@@ -42,6 +42,40 @@ const LOG_TAIL_MAX_BYTES = 16_384;
 
 export const STARTUP_FAILURE_EVENT = "packaged_runtime_failed";
 
+// Shared safety-event envelope constants. `captureSafety` in
+// apps/daemon/src/analytics.ts stamps these on every stability event; we mirror
+// them here so env/schema-filtered dashboards bucket packaged_runtime_failed
+// beside the rest of the analytics stream instead of dropping it.
+//
+// EVENT_SCHEMA_VERSION must stay in lockstep with
+// packages/contracts/src/analytics/public-params.ts. It is replicated (not
+// imported) because apps/packaged does not depend on @open-design/contracts and
+// a single integer isn't worth a new cross-package dependency that also
+// complicates the daemon-chunk externalization.
+const EVENT_SCHEMA_VERSION = 2;
+const CLIENT_TYPE = "packaged_main";
+const CAPTURE_SOURCE = "packaged/startup";
+
+// Replicates apps/daemon/src/telemetry-environment.ts (daemon src, not
+// importable here) so the packaged main process resolves the same `env` bucket
+// as daemon-emitted events for a given process environment.
+function resolveTelemetryEnv(env: NodeJS.ProcessEnv = process.env): string {
+  const explicit =
+    env.OD_TELEMETRY_ENV?.trim() ||
+    env.OPEN_DESIGN_ENV?.trim() ||
+    env.POSTHOG_ENV?.trim() ||
+    env.LANGFUSE_ENVIRONMENT?.trim();
+  if (explicit) return explicit;
+  if (env.NODE_ENV === "production") return "production";
+  return "development";
+}
+
+// Mirrors apps/daemon/src/analytics.ts randomInsertId. $insert_id is PostHog's
+// dedup key; event_id carries the same value.
+function randomInsertId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export type StartupFailureKind =
   | "daemon-start"
   | "web-start"
@@ -166,6 +200,7 @@ export interface CaptureDeps {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   now?: () => string;
+  insertId?: string;
 }
 
 // Fire a single PostHog capture over plain HTTPS. No-op without a key; never
@@ -186,16 +221,29 @@ export async function captureStartupFailure(
   const fetchImpl = deps.fetchImpl ?? fetch;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const now = deps.now ?? (() => new Date().toISOString());
+  const insertId = deps.insertId ?? randomInsertId();
+  const appVersion =
+    typeof args.properties.app_version === "string" ? args.properties.app_version : null;
   const body = JSON.stringify({
     api_key: key,
     event: args.event,
     distinct_id: args.distinctId,
     properties: {
       ...args.properties,
-      // posthog-node-style manual enrichment (the SDK auto-fills these for
-      // posthog-js but not for server emits; we mirror analytics.ts).
+      // Shared safety-event envelope, mirroring captureSafety in
+      // apps/daemon/src/analytics.ts. posthog-node-style manual enrichment:
+      // the SDK auto-fills $os/$insert_id for posthog-js but not for server
+      // emits, and dashboards filter on env / event_schema_version.
+      event_id: insertId,
+      event_schema_version: EVENT_SCHEMA_VERSION,
+      env: resolveTelemetryEnv(),
+      device_id: args.distinctId,
+      client_type: CLIENT_TYPE,
+      capture_source: CAPTURE_SOURCE,
+      ui_version: appVersion,
       $os: osName(),
       $os_version: release(),
+      $insert_id: insertId,
     },
     timestamp: now(),
   });
