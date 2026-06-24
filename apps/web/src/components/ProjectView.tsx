@@ -77,6 +77,7 @@ import {
   trackArtifactHeaderClick,
   trackComposerBarClick,
   trackDesignSystemApplyResult,
+  trackDesignSystemEnrichClick,
   trackPageView,
   trackRunCreated,
   trackRunFinished,
@@ -6125,6 +6126,13 @@ export function ProjectView({
     if (brandEnrichmentStarting) return;
     const system = designSystemProject ?? activeDesignSystemSummary;
     const skillIds = installedBrandEnrichmentSkillIds(skills);
+    trackDesignSystemEnrichClick(analytics.track, {
+      page_name: 'design_system_project',
+      area: 'design_system_enrich',
+      element: 'ai_optimize',
+      design_system_id: projectDesignSystemId ?? undefined,
+      project_kind: 'design_system',
+    });
     setBrandEnrichmentStarting(true);
     void handleSend(
       buildBrandEnrichmentPrompt(brandEnrichmentPromptSeed || brandEnrichmentPromptSeedCache, {
@@ -6139,12 +6147,14 @@ export function ProjectView({
     ).finally(() => setBrandEnrichmentStarting(false));
   }, [
     activeDesignSystemSummary,
+    analytics,
     brandEnrichmentPromptSeed,
     brandEnrichmentPromptSeedCache,
     brandEnrichmentStarting,
     designSystemProject,
     handleSend,
     currentProject.metadata,
+    projectDesignSystemId,
     projectFiles,
     skills,
   ]);
