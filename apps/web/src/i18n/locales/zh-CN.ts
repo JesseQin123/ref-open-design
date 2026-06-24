@@ -3403,5 +3403,11 @@ export const zhCN: Dict = {
   'ds.uploadImage': '上传图片',
   'ds.uploading': '上传中…',
   'ds.moduleEmptyLogo': '暂无 Logo',
+  'ds.actionDone': '完成',
+  'ds.actionFailed': '出错了,请重试。',
+  'ds.uploadDone': '已上传',
+  'ds.uploadFailed': '上传失败,请重试。',
+  'ds.kitErrorTitle': '此视图遇到问题。',
+  'ds.kitErrorRetry': '重新加载',
   'ds.moduleEmptyImages': '暂无图片',
 };

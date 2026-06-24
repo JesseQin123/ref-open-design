@@ -3402,5 +3402,11 @@ export const hu: Dict = {
   'ds.uploadImage': 'Kép feltöltése',
   'ds.uploading': 'Feltöltés…',
   'ds.moduleEmptyLogo': 'Még nincs logó',
+  'ds.actionDone': 'Kész',
+  'ds.actionFailed': 'Hiba történt. Kérjük, próbáld újra.',
+  'ds.uploadDone': 'Feltöltve',
+  'ds.uploadFailed': 'A feltöltés nem sikerült. Kérjük, próbáld újra.',
+  'ds.kitErrorTitle': 'Ez a nézet hibába ütközött.',
+  'ds.kitErrorRetry': 'Újratöltés',
   'ds.moduleEmptyImages': 'Még nincsenek képek',
 };

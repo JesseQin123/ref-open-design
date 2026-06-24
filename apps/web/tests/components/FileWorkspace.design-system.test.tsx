@@ -143,7 +143,15 @@ describe('FileWorkspace design-system project surface', () => {
     // lowercase by the parser; CSS upper-cases them only visually).
     expect(container.textContent?.toLowerCase()).toContain('#10b981');
     expect(container.textContent?.toLowerCase()).toContain('#111827');
-    // The DESIGN.md edit affordance is available in the kit toolbar.
+    // The DESIGN.md edit affordance lives in the sticky header's "More" menu.
+    const moreTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="design-kit-more-actions"]',
+    );
+    expect(moreTrigger).toBeTruthy();
+    await act(async () => {
+      moreTrigger?.click();
+      await Promise.resolve();
+    });
     expect(container.textContent).toContain('Edit DESIGN.md');
   });
 
@@ -623,12 +631,23 @@ describe('FileWorkspace design-system project surface', () => {
 
     await flushKit();
 
-    const defaultToggle = container.querySelector<HTMLButtonElement>('.ds-project-default-toggle');
-    expect(defaultToggle).toBeTruthy();
-    expect(defaultToggle?.textContent).toContain('Default for new chats');
+    const moreTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="design-kit-more-actions"]',
+    );
+    expect(moreTrigger).toBeTruthy();
+    await act(async () => {
+      moreTrigger?.click();
+      await Promise.resolve();
+    });
+
+    const defaultItem = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]'),
+    ).find((button) => button.textContent?.includes('Default for new chats'));
+    expect(defaultItem).toBeTruthy();
+    expect(defaultItem?.getAttribute('aria-checked')).toBe('false');
 
     await act(async () => {
-      defaultToggle?.click();
+      defaultItem?.click();
       await Promise.resolve();
     });
 
@@ -655,12 +674,21 @@ describe('FileWorkspace design-system project surface', () => {
 
     await flushKit();
 
-    const defaultToggle = container.querySelector<HTMLButtonElement>('.ds-project-default-toggle');
-    expect(defaultToggle?.getAttribute('aria-pressed')).toBe('true');
-    expect(defaultToggle?.textContent).toContain('Chat default');
+    const moreTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="design-kit-more-actions"]',
+    );
+    await act(async () => {
+      moreTrigger?.click();
+      await Promise.resolve();
+    });
+
+    const defaultItem = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]'),
+    ).find((button) => button.textContent?.includes('Chat default'));
+    expect(defaultItem?.getAttribute('aria-checked')).toBe('true');
 
     await act(async () => {
-      defaultToggle?.click();
+      defaultItem?.click();
       await Promise.resolve();
     });
 

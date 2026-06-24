@@ -3402,5 +3402,11 @@ export const tr: Dict = {
   'ds.uploadImage': 'Görsel yükle',
   'ds.uploading': 'Yükleniyor…',
   'ds.moduleEmptyLogo': 'Henüz logo yok',
+  'ds.actionDone': 'Tamam',
+  'ds.actionFailed': 'Bir şeyler ters gitti. Lütfen tekrar deneyin.',
+  'ds.uploadDone': 'Yüklendi',
+  'ds.uploadFailed': 'Yükleme başarısız oldu. Lütfen tekrar deneyin.',
+  'ds.kitErrorTitle': 'Bu görünümde bir sorun oluştu.',
+  'ds.kitErrorRetry': 'Yeniden yükle',
   'ds.moduleEmptyImages': 'Henüz görsel yok',
 };

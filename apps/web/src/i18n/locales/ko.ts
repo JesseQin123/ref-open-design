@@ -3402,5 +3402,11 @@ export const ko: Dict = {
   'ds.uploadImage': '이미지 업로드',
   'ds.uploading': '업로드 중…',
   'ds.moduleEmptyLogo': '로고 없음',
+  'ds.actionDone': '완료',
+  'ds.actionFailed': '문제가 발생했습니다. 다시 시도해 주세요.',
+  'ds.uploadDone': '업로드됨',
+  'ds.uploadFailed': '업로드에 실패했습니다. 다시 시도해 주세요.',
+  'ds.kitErrorTitle': '이 화면에서 문제가 발생했습니다.',
+  'ds.kitErrorRetry': '새로고침',
   'ds.moduleEmptyImages': '이미지 없음',
 };

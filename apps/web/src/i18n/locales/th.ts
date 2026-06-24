@@ -3402,5 +3402,11 @@ export const th: Dict = {
   'ds.uploadImage': 'อัปโหลดรูปภาพ',
   'ds.uploading': 'กำลังอัปโหลด…',
   'ds.moduleEmptyLogo': 'ยังไม่มีโลโก้',
+  'ds.actionDone': 'เสร็จสิ้น',
+  'ds.actionFailed': 'เกิดข้อผิดพลาด โปรดลองอีกครั้ง',
+  'ds.uploadDone': 'อัปโหลดแล้ว',
+  'ds.uploadFailed': 'อัปโหลดไม่สำเร็จ โปรดลองอีกครั้ง',
+  'ds.kitErrorTitle': 'มุมมองนี้เกิดปัญหา',
+  'ds.kitErrorRetry': 'โหลดใหม่',
   'ds.moduleEmptyImages': 'ยังไม่มีรูปภาพ',
 };

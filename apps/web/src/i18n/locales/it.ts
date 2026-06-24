@@ -3402,5 +3402,11 @@ export const it: Dict = {
   'ds.uploadImage': 'Carica immagine',
   'ds.uploading': 'Caricamento…',
   'ds.moduleEmptyLogo': 'Nessun logo',
+  'ds.actionDone': 'Fatto',
+  'ds.actionFailed': 'Si è verificato un errore. Riprova.',
+  'ds.uploadDone': 'Caricato',
+  'ds.uploadFailed': 'Caricamento non riuscito. Riprova.',
+  'ds.kitErrorTitle': 'Questa vista ha riscontrato un problema.',
+  'ds.kitErrorRetry': 'Ricarica',
   'ds.moduleEmptyImages': 'Nessuna immagine',
 };

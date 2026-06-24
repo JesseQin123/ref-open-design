@@ -3402,5 +3402,11 @@ export const ar: Dict = {
   'ds.uploadImage': 'رفع صورة',
   'ds.uploading': 'جارٍ الرفع…',
   'ds.moduleEmptyLogo': 'لا يوجد شعار',
+  'ds.actionDone': 'تم',
+  'ds.actionFailed': 'حدث خطأ ما. يرجى المحاولة مرة أخرى.',
+  'ds.uploadDone': 'تم الرفع',
+  'ds.uploadFailed': 'فشل الرفع. يرجى المحاولة مرة أخرى.',
+  'ds.kitErrorTitle': 'واجه هذا العرض مشكلة.',
+  'ds.kitErrorRetry': 'إعادة التحميل',
   'ds.moduleEmptyImages': 'لا توجد صور',
 };

@@ -3402,5 +3402,11 @@ export const pl: Dict = {
   'ds.uploadImage': 'Prześlij obraz',
   'ds.uploading': 'Przesyłanie…',
   'ds.moduleEmptyLogo': 'Brak logo',
+  'ds.actionDone': 'Gotowe',
+  'ds.actionFailed': 'Coś poszło nie tak. Spróbuj ponownie.',
+  'ds.uploadDone': 'Przesłano',
+  'ds.uploadFailed': 'Przesyłanie nie powiodło się. Spróbuj ponownie.',
+  'ds.kitErrorTitle': 'W tym widoku wystąpił problem.',
+  'ds.kitErrorRetry': 'Przeładuj',
   'ds.moduleEmptyImages': 'Brak obrazów',
 };

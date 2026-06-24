@@ -1159,6 +1159,13 @@ export function ProjectView({
   const skillCache = useRef<Map<string, string>>(new Map());
   const designCache = useRef<Map<string, string>>(new Map());
   const templateCache = useRef<Map<string, ProjectTemplate>>(new Map());
+  // The composed prompt memoizes design-system bodies in designCache. Whenever
+  // the systems list refreshes (App re-fetches it after any edit — including
+  // edits made in the in-project Design System tab), drop the cached bodies so
+  // the next message consumes the latest content from the project (the SSOT).
+  useEffect(() => {
+    designCache.current.clear();
+  }, [designSystems]);
   // We auto-save the most recent artifact to the project folder. Track the
   // last name we persisted so re-renders during streaming don't spawn
   // duplicate writes.

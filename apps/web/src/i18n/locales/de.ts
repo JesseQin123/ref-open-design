@@ -3402,5 +3402,11 @@ export const de: Dict = {
   'ds.uploadImage': 'Bild hochladen',
   'ds.uploading': 'Wird hochgeladen…',
   'ds.moduleEmptyLogo': 'Noch kein Logo',
+  'ds.actionDone': 'Fertig',
+  'ds.actionFailed': 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
+  'ds.uploadDone': 'Hochgeladen',
+  'ds.uploadFailed': 'Upload fehlgeschlagen. Bitte versuche es erneut.',
+  'ds.kitErrorTitle': 'Bei dieser Ansicht ist ein Problem aufgetreten.',
+  'ds.kitErrorRetry': 'Neu laden',
   'ds.moduleEmptyImages': 'Noch keine Bilder',
 };

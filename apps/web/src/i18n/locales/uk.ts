@@ -3402,5 +3402,11 @@ export const uk: Dict = {
   'ds.uploadImage': 'Завантажити зображення',
   'ds.uploading': 'Завантаження…',
   'ds.moduleEmptyLogo': 'Немає логотипа',
+  'ds.actionDone': 'Готово',
+  'ds.actionFailed': 'Щось пішло не так. Спробуйте ще раз.',
+  'ds.uploadDone': 'Завантажено',
+  'ds.uploadFailed': 'Не вдалося завантажити. Спробуйте ще раз.',
+  'ds.kitErrorTitle': 'У цьому поданні виникла проблема.',
+  'ds.kitErrorRetry': 'Перезавантажити',
   'ds.moduleEmptyImages': 'Немає зображень',
 };

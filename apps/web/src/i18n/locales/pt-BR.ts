@@ -3402,5 +3402,11 @@ export const ptBR: Dict = {
   'ds.uploadImage': 'Enviar imagem',
   'ds.uploading': 'Enviando…',
   'ds.moduleEmptyLogo': 'Sem logo',
+  'ds.actionDone': 'Concluído',
+  'ds.actionFailed': 'Algo deu errado. Tente novamente.',
+  'ds.uploadDone': 'Enviado',
+  'ds.uploadFailed': 'Falha no envio. Tente novamente.',
+  'ds.kitErrorTitle': 'Esta visualização encontrou um problema.',
+  'ds.kitErrorRetry': 'Recarregar',
   'ds.moduleEmptyImages': 'Sem imagens',
 };

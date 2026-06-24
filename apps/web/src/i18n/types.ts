@@ -2064,6 +2064,12 @@ export interface Dict {
   'ds.uploadImage': string;
   'ds.uploading': string;
   'ds.moduleEmptyLogo': string;
+  'ds.actionDone': string;
+  'ds.actionFailed': string;
+  'ds.uploadDone': string;
+  'ds.uploadFailed': string;
+  'ds.kitErrorTitle': string;
+  'ds.kitErrorRetry': string;
   'ds.moduleEmptyImages': string;
   'ds.previewTitle': string;
   'ds.categoryAll': string;

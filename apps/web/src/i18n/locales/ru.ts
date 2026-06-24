@@ -3402,5 +3402,11 @@ export const ru: Dict = {
   'ds.uploadImage': 'Загрузить изображение',
   'ds.uploading': 'Загрузка…',
   'ds.moduleEmptyLogo': 'Нет логотипа',
+  'ds.actionDone': 'Готово',
+  'ds.actionFailed': 'Что-то пошло не так. Попробуйте ещё раз.',
+  'ds.uploadDone': 'Загружено',
+  'ds.uploadFailed': 'Не удалось загрузить. Попробуйте ещё раз.',
+  'ds.kitErrorTitle': 'В этом представлении возникла проблема.',
+  'ds.kitErrorRetry': 'Перезагрузить',
   'ds.moduleEmptyImages': 'Нет изображений',
 };

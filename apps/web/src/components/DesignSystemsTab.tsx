@@ -20,25 +20,14 @@ import {
 import { BRAND_REFERENCES } from '../runtime/brand-references';
 import { takeDesignSystemFocus } from '../runtime/brands';
 import {
-  deleteProjectFile,
   deleteDesignSystemDraft,
   fetchDesignSystem,
   fetchDesignSystemShowcase,
-  fetchProjectFileText,
-  startDesignSystemTokenContractRebuildJob,
   updateDesignSystemDraft,
-  writeProjectTextFile,
 } from '../providers/registry';
 import { downloadDesignSystemArchive, downloadProjectArchive } from '../runtime/exports';
 import { useDesignKit } from '../runtime/design-kit';
-import {
-  deleteBrandImage,
-  deleteBrandLogo,
-  replaceDesignMdColorAtIndex,
-  updateBrandColor,
-} from '../runtime/kit-edit';
-import { useKitModuleUpload } from '../runtime/kit-upload';
-import { DesignKitView } from './DesignKitView';
+import { DesignKitView, HeaderActionsMenu, type HeaderMenuAction } from './DesignKitView';
 import { hostnameOf } from './BrandPreviewCard';
 import { Icon } from './Icon';
 import type { DesignSystemDetail, DesignSystemSummary, ProjectTemplate, Surface } from '../types';
@@ -914,68 +903,50 @@ function DesignSystemDetail({
   // the full detail. The kit view derives every module from brand.json (when a
   // backing project carries one) or the parsed DESIGN.md (presets).
   const [detail, setDetail] = useState<DesignSystemDetail | null>(null);
-  const [designMdBody, setDesignMdBody] = useState('');
-  const [savingDesignMd, setSavingDesignMd] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [downloadFailed, setDownloadFailed] = useState(false);
-  const initialDesignMdRef = useRef<string | null>(null);
-  const initialBrandJsonRef = useRef<string | null>(null);
-  const initialBrandJsonLoadedRef = useRef(false);
+  const lastSystemIdRef = useRef<string | null>(null);
 
+  // The design-system project is the single source of truth. Re-read the full
+  // detail whenever the selected `system` changes — that covers both a new
+  // selection AND the parent refreshing the list after an edit anywhere (e.g.
+  // the in-project Design System tab), since `onSystemsRefresh` replaces the
+  // summary objects. A same-system refresh updates in place (no loading flash)
+  // and bumps `reloadKey` so brand.json-derived modules (logo / images /
+  // palette) re-read too.
   useEffect(() => {
     let cancelled = false;
-    setDetail(null);
-    setDesignMdBody('');
-    setDownloadFailed(false);
-    initialDesignMdRef.current = null;
-    initialBrandJsonRef.current = null;
+    const isNewSelection = lastSystemIdRef.current !== system.id;
+    lastSystemIdRef.current = system.id;
+    if (isNewSelection) {
+      setDetail(null);
+      setDownloadFailed(false);
+    } else {
+      setReloadKey((k) => k + 1);
+    }
     void fetchDesignSystem(system.id).then((d) => {
-      if (cancelled) return;
-      setDetail(d);
-      const body = d?.body ?? '';
-      setDesignMdBody(body);
-      initialDesignMdRef.current = body;
+      if (!cancelled && d) setDetail(d);
     });
     return () => {
       cancelled = true;
     };
-  }, [system.id]);
+  }, [system]);
 
   const host = designSystemLogoHost(system) || undefined;
   const projectId = detail?.projectId ?? system.projectId;
-
-  useEffect(() => {
-    if (!projectId) return;
-    let cancelled = false;
-    void fetchProjectFileText(projectId, 'brand.json', { cache: 'no-store' }).then((text) => {
-      if (!cancelled && !initialBrandJsonLoadedRef.current) {
-        initialBrandJsonRef.current = text;
-        initialBrandJsonLoadedRef.current = true;
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
-
-  const { uploading, uploadModule } = useKitModuleUpload({
-    projectId,
-    title: system.title,
-    onUploaded: () => {
-      setReloadKey((k) => k + 1);
-      void onSystemsRefresh?.();
-    },
-  });
 
   const { kit } = useDesignKit({
     designSystemId: system.id,
     title: system.title,
     projectId,
-    body: designMdBody || detail?.body,
+    body: detail?.body,
     packageInfo: detail?.packageInfo,
     swatches: system.swatches,
     showcaseHtml: showcaseHtml ?? null,
+    // Read-only is enforced by withholding the edit handlers below — not by
+    // this flag. Keep user systems "editable" so their kit renders live from
+    // the project (the SSOT / latest) rather than a stale published snapshot.
     editable: isUser,
     host,
     reloadKey,
@@ -999,82 +970,48 @@ function DesignSystemDetail({
     }
   }
 
-  async function saveDesignMd(nextBody: string) {
-    if (!isUser) return;
-    setSavingDesignMd(true);
-    try {
-      const updated = await updateDesignSystemDraft(system.id, { body: nextBody });
-      if (projectId) await writeProjectTextFile(projectId, 'DESIGN.md', nextBody);
-      setDesignMdBody(nextBody);
-      if (updated) setDetail((current) => current ? { ...current, body: nextBody } : updated);
-      setReloadKey((k) => k + 1);
-      await onSystemsRefresh?.();
-    } finally {
-      setSavingDesignMd(false);
-    }
-  }
-
-  async function refreshKit() {
-    await startDesignSystemTokenContractRebuildJob(system.id, { force: true });
-    setReloadKey((k) => k + 1);
-    await onSystemsRefresh?.();
-  }
-
-  async function resetKitEdits() {
-    if (!isUser) return;
-    const originalMd = initialDesignMdRef.current ?? designMdBody;
-    await updateDesignSystemDraft(system.id, { body: originalMd });
-    if (projectId) {
-      await writeProjectTextFile(projectId, 'DESIGN.md', originalMd);
-      if (initialBrandJsonRef.current !== null) {
-        await writeProjectTextFile(projectId, 'brand.json', initialBrandJsonRef.current);
-      } else if (initialBrandJsonLoadedRef.current) {
-        await deleteProjectFile(projectId, 'brand.json');
-      }
-    }
-    setDesignMdBody(originalMd);
-    setReloadKey((k) => k + 1);
-    await onSystemsRefresh?.();
-  }
-
-  async function changeKitColor(index: number, hex: string) {
-    if (!projectId) return;
-    const ok = await updateBrandColor(projectId, index, hex);
-    if (!ok) {
-      const nextBody = replaceDesignMdColorAtIndex(designMdBody || detail?.body || '', index, hex);
-      if (!nextBody) return;
-      await saveDesignMd(nextBody);
-      return;
-    }
-    setReloadKey((k) => k + 1);
-    await onSystemsRefresh?.();
-  }
-
-  async function removeKitLogo(index: number) {
-    if (!projectId) return;
-    const ok = await deleteBrandLogo(projectId, index);
-    if (!ok) return;
-    setReloadKey((k) => k + 1);
-    await onSystemsRefresh?.();
-  }
-
-  async function removeKitImage(index: number) {
-    if (!projectId) return;
-    const ok = await deleteBrandImage(projectId, index);
-    if (!ok) return;
-    setReloadKey((k) => k + 1);
-    await onSystemsRefresh?.();
-  }
-
   const badgeSlot = isDefault ? (
     <span className={styles.badgeDefault}>{t('dsManager.badgeDefault')}</span>
   ) : null;
+
+  // Keep only the two primary actions on the bar — "Edit with agent" and the
+  // publish toggle — and tuck the secondary actions (download / make-default /
+  // delete) into a single ⋯ overflow so the toolbar reads clean (issue #5).
+  const overflowActions: HeaderMenuAction[] = [
+    ...(isUser
+      ? [{
+          id: 'download',
+          label: t('dsManager.downloadTitle'),
+          icon: 'download' as const,
+          onClick: () => void handleDownload(),
+          disabled: busy || downloading,
+        }]
+      : []),
+    ...(canBeDefault && !isDefault
+      ? [{
+          id: 'make-default',
+          label: t('dsManager.makeDefault'),
+          icon: 'star' as const,
+          onClick: () => onMakeDefault(system),
+          disabled: busy,
+        }]
+      : []),
+    ...(isUser
+      ? [{
+          id: 'delete',
+          label: t('dsManager.deleteSystemAria', { title: system.title }),
+          icon: 'trash' as const,
+          onClick: () => void onDelete(system),
+          disabled: busy,
+        }]
+      : []),
+  ];
 
   const actionsSlot = (
     <>
       {isUser && onEdit ? (
         <Button
-          variant="ghost"
+          variant="primary"
           className={styles.actionButton}
           onClick={() => onEdit(system.id)}
           disabled={busy}
@@ -1082,57 +1019,6 @@ function DesignSystemDetail({
         >
           <Icon name="sparkles" />
           {t('dsManager.editWithAgent')}
-        </Button>
-      ) : null}
-      {isUser ? (
-        <Button
-          variant="ghost"
-          className={styles.actionButton}
-          onClick={() => void refreshKit()}
-          disabled={busy}
-          title="Refresh generated design-system assets"
-        >
-          <Icon name="refresh" />
-          Refresh
-        </Button>
-      ) : null}
-      {isUser ? (
-        <Button
-          size="icon"
-          className={`${styles.downloadBtn} od-tooltip`}
-          data-testid={`design-system-download-${system.id}`}
-          aria-label={t('dsManager.downloadAria', { title: system.title })}
-          data-tooltip={t('dsManager.downloadTitle')}
-          data-tooltip-placement="top"
-          onClick={() => void handleDownload()}
-          disabled={busy || downloading}
-        >
-          <Icon name={downloading ? 'spinner' : 'download'} />
-        </Button>
-      ) : null}
-      {isUser ? (
-        <Button
-          size="icon"
-          className={`${styles.downloadBtn} od-tooltip`}
-          aria-label="Reset design-system edits"
-          data-tooltip="Reset this session's DESIGN.md and brand.json edits"
-          data-tooltip-placement="top"
-          onClick={() => void resetKitEdits()}
-          disabled={busy}
-        >
-          <Icon name="reload" />
-        </Button>
-      ) : null}
-      {canBeDefault && !isDefault ? (
-        <Button
-          variant="ghost"
-          className={styles.defaultButton}
-          data-testid={`design-system-select-${system.id}`}
-          onClick={() => onMakeDefault(system)}
-          disabled={busy}
-          title="Preselect this design system for new chats and new projects."
-        >
-          {t('dsManager.makeDefault')}
         </Button>
       ) : null}
       {isUser ? (
@@ -1147,18 +1033,8 @@ function DesignSystemDetail({
           <span className={styles.statusToggleTrack} aria-hidden />
         </button>
       ) : null}
-      {isUser ? (
-        <Button
-          size="icon"
-          className={`${styles.dangerBtn} od-tooltip`}
-          aria-label={t('dsManager.deleteSystemAria', { title: system.title })}
-          data-tooltip={t('dsManager.deleteSystemAria', { title: system.title })}
-          data-tooltip-placement="top"
-          onClick={() => void onDelete(system)}
-          disabled={busy}
-        >
-          <Icon name="close" />
-        </Button>
+      {overflowActions.length > 0 ? (
+        <HeaderActionsMenu groups={[overflowActions]} label={t('designs.menuMore')} />
       ) : null}
     </>
   );
@@ -1170,32 +1046,12 @@ function DesignSystemDetail({
           kit={kit}
           badgeSlot={badgeSlot}
           actionsSlot={actionsSlot}
+          showCover={false}
           noticeSlot={
             downloadFailed ? (
               <div className={styles.missingProjectNotice}>{t('dsManager.downloadFailed')}</div>
             ) : null
           }
-          onPreviewCover={() => onPreviewFull(system)}
-          designMd={
-            isUser
-              ? {
-                  body: designMdBody,
-                  onSave: saveDesignMd,
-                  saving: savingDesignMd,
-                  canEdit: true,
-                }
-              : detail?.body
-                ? { body: detail.body, canEdit: false }
-                : undefined
-          }
-          onUploadModule={uploadModule}
-          onColorChange={projectId ? (index, hex) => void changeKitColor(index, hex) : undefined}
-          onDeleteLogo={projectId ? (index) => void removeKitLogo(index) : undefined}
-          onDeleteImage={projectId ? (index) => void removeKitImage(index) : undefined}
-          onRefresh={isUser ? () => void refreshKit() : undefined}
-          onDownload={isUser ? () => void handleDownload() : undefined}
-          onReset={isUser ? () => void resetKitEdits() : undefined}
-          uploading={uploading}
           dataTestId={`design-kit-view-${system.id}`}
         />
       ) : (

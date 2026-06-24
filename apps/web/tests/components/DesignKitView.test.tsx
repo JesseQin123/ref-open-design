@@ -148,7 +148,8 @@ describe('DesignKitView iframe sandboxing', () => {
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByTitle('Open full system'));
+    fireEvent.click(screen.getByTestId('design-kit-more-actions'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open full system' }));
 
     expect(screen.getByRole('dialog', { name: 'Preview Kit full system' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();

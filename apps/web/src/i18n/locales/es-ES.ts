@@ -3402,5 +3402,11 @@ export const esES: Dict = {
   'ds.uploadImage': 'Subir imagen',
   'ds.uploading': 'Subiendo…',
   'ds.moduleEmptyLogo': 'Sin logo',
+  'ds.actionDone': 'Listo',
+  'ds.actionFailed': 'Algo salió mal. Inténtalo de nuevo.',
+  'ds.uploadDone': 'Subido',
+  'ds.uploadFailed': 'Error al subir. Inténtalo de nuevo.',
+  'ds.kitErrorTitle': 'Esta vista tuvo un problema.',
+  'ds.kitErrorRetry': 'Recargar',
   'ds.moduleEmptyImages': 'Sin imágenes',
 };

@@ -3402,5 +3402,11 @@ export const ja: Dict = {
   'ds.uploadImage': '画像をアップロード',
   'ds.uploading': 'アップロード中…',
   'ds.moduleEmptyLogo': 'ロゴがありません',
+  'ds.actionDone': '完了',
+  'ds.actionFailed': '問題が発生しました。もう一度お試しください。',
+  'ds.uploadDone': 'アップロードしました',
+  'ds.uploadFailed': 'アップロードに失敗しました。もう一度お試しください。',
+  'ds.kitErrorTitle': 'このビューで問題が発生しました。',
+  'ds.kitErrorRetry': '再読み込み',
   'ds.moduleEmptyImages': '画像がありません',
 };

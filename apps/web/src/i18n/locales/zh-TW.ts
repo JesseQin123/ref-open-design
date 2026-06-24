@@ -3403,5 +3403,11 @@ export const zhTW: Dict = {
   'ds.uploadImage': '上傳圖片',
   'ds.uploading': '上傳中…',
   'ds.moduleEmptyLogo': '尚無 Logo',
+  'ds.actionDone': '完成',
+  'ds.actionFailed': '發生錯誤,請重試。',
+  'ds.uploadDone': '已上傳',
+  'ds.uploadFailed': '上傳失敗,請重試。',
+  'ds.kitErrorTitle': '此檢視遇到問題。',
+  'ds.kitErrorRetry': '重新載入',
   'ds.moduleEmptyImages': '尚無圖片',
 };

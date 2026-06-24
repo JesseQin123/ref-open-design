@@ -50,7 +50,7 @@ import { deliverableSlideNavForActiveFile, isSlideNavDeliverableNow } from '../r
 import { buildSrcdoc } from '../runtime/srcdoc';
 import { useDesignKit, hostnameOf, type KitColor } from '../runtime/design-kit';
 import { useKitModuleUpload } from '../runtime/kit-upload';
-import { DesignKitView } from './DesignKitView';
+import { DesignKitView, type HeaderMenuAction } from './DesignKitView';
 import {
   type AgentEvent,
   type AgentInfo,
@@ -2449,6 +2449,7 @@ function DesignSystemProjectPanel({
   onConnectRepo?: () => void;
   githubConnected?: boolean;
 }) {
+  const t = useT();
   const [reviewDecisions, setReviewDecisions] = useState<Record<string, DesignSystemReviewDecision>>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [feedbackSection, setFeedbackSection] = useState<string | null>(null);
@@ -2474,6 +2475,13 @@ function DesignSystemProjectPanel({
   const [designMdBody, setDesignMdBody] = useState('');
   const [savingDesignMd, setSavingDesignMd] = useState(false);
   const [kitActionBusy, setKitActionBusy] = useState<string | null>(null);
+  // Transient feedback for kit edits (upload / refresh / reset / delete) so an
+  // action that previously fired-and-forgot now reports success or failure.
+  const [kitToast, setKitToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const notifyKit = useCallback(
+    (tone: 'success' | 'error', message: string) => setKitToast({ tone, message }),
+    [],
+  );
   const [kitReloadKey, setKitReloadKey] = useState(0);
   const initialDesignMdRef = useRef<string | null>(null);
   const initialBrandJsonRef = useRef<string | null>(null);
@@ -2505,7 +2513,9 @@ function DesignSystemProjectPanel({
     onUploaded: () => {
       setKitReloadKey((k) => k + 1);
       void onDesignSystemsRefresh?.();
+      notifyKit('success', t('ds.uploadDone'));
     },
+    onError: () => notifyKit('error', t('ds.uploadFailed')),
   });
   const { kit } = useDesignKit({
     designSystemId: system.id,
@@ -2537,6 +2547,9 @@ function DesignSystemProjectPanel({
       await startDesignSystemTokenContractRebuildJob(system.id, { force: true });
       setKitReloadKey((k) => k + 1);
       await onDesignSystemsRefresh?.();
+      notifyKit('success', t('ds.actionDone'));
+    } catch {
+      notifyKit('error', t('ds.actionFailed'));
     } finally {
       setKitActionBusy(null);
     }
@@ -2549,7 +2562,9 @@ function DesignSystemProjectPanel({
       const ok =
         await downloadDesignSystemArchive({ designSystemId: system.id, fallbackTitle: system.title }) ||
         await downloadProjectArchive({ projectId, fallbackTitle: system.title });
-      if (!ok) window.alert('Could not download the design system. Please try again.');
+      if (!ok) notifyKit('error', t('ds.actionFailed'));
+    } catch {
+      notifyKit('error', t('ds.actionFailed'));
     } finally {
       setKitActionBusy(null);
     }
@@ -2571,6 +2586,9 @@ function DesignSystemProjectPanel({
       setDesignMdBody(originalMd);
       setKitReloadKey((k) => k + 1);
       await onDesignSystemsRefresh?.();
+      notifyKit('success', t('ds.actionDone'));
+    } catch {
+      notifyKit('error', t('ds.actionFailed'));
     } finally {
       setKitActionBusy(null);
     }
@@ -2602,16 +2620,24 @@ function DesignSystemProjectPanel({
 
   async function removeKitLogo(index: number) {
     const ok = await deleteBrandLogo(projectId, index);
-    if (!ok) return;
+    if (!ok) {
+      notifyKit('error', t('ds.actionFailed'));
+      return;
+    }
     setKitReloadKey((k) => k + 1);
     await onDesignSystemsRefresh?.();
+    notifyKit('success', t('ds.actionDone'));
   }
 
   async function removeKitImage(index: number) {
     const ok = await deleteBrandImage(projectId, index);
-    if (!ok) return;
+    if (!ok) {
+      notifyKit('error', t('ds.actionFailed'));
+      return;
+    }
     setKitReloadKey((k) => k + 1);
     await onDesignSystemsRefresh?.();
+    notifyKit('success', t('ds.actionDone'));
   }
 
   const allFileNames = files.map((file) => file.name);
@@ -2986,75 +3012,68 @@ function DesignSystemProjectPanel({
   // the kit header, and the publish card + repo / font / manifest warnings above
   // the modules. The Looks-good / Needs-work review flow is intentionally gone
   // here — the kit is the single, on-brand view of the system.
+  // The publish lifecycle button stays a visible primary; everything else
+  // (asset refresh/download/reset and the chat-default toggle) folds into the
+  // header's "More" dropdown so the sticky row reads as one clear action.
   const actionsSlot = (
-    <>
+    <span
+      className="ds-project-publish-trigger"
+      title={
+        !published && !githubEvidence.ready
+          ? 'Finish importing your GitHub repo before you can publish.'
+          : undefined
+      }
+    >
       <button
         type="button"
-        className="ghost compact"
-        disabled={Boolean(kitActionBusy)}
-        onClick={() => void refreshKit()}
-        title="Refresh generated design-system assets"
+        className={published ? 'ghost compact' : 'primary'}
+        data-testid="design-system-publish"
+        aria-label={published ? 'Unpublish design system' : 'Publish design system'}
+        title={published ? 'Unpublish design system' : 'Publish design system'}
+        disabled={statusBusy || (!published && !githubEvidence.ready)}
+        onClick={() => void togglePublished(!published)}
       >
-        <Icon name="refresh" size={13} />
-        Refresh
+        <Icon name={published ? 'check' : 'arrow-up'} size={14} />
+        {published ? 'Published' : 'Publish'}
       </button>
-      <button
-        type="button"
-        className="ghost compact"
-        disabled={Boolean(kitActionBusy)}
-        onClick={() => void downloadKit()}
-        title="Download design-system ZIP"
-      >
-        <Icon name="download" size={13} />
-        Download
-      </button>
-      <button
-        type="button"
-        className="ghost compact"
-        disabled={Boolean(kitActionBusy)}
-        onClick={() => void resetKitEdits()}
-        title="Reset this session's DESIGN.md and brand.json edits"
-      >
-        <Icon name="reload" size={13} />
-        Reset
-      </button>
-      <span
-        className="ds-project-publish-trigger"
-        title={
-          !published && !githubEvidence.ready
-            ? 'Finish importing your GitHub repo before you can publish.'
-            : undefined
-        }
-      >
-        <button
-          type="button"
-          className={published ? 'ghost compact' : 'primary'}
-          data-testid="design-system-publish"
-          aria-label={published ? 'Unpublish design system' : 'Publish design system'}
-          title={published ? 'Unpublish design system' : 'Publish design system'}
-          disabled={statusBusy || (!published && !githubEvidence.ready)}
-          onClick={() => void togglePublished(!published)}
-        >
-          <Icon name={published ? 'check' : 'arrow-up'} size={14} />
-          {published ? 'Published' : 'Publish'}
-        </button>
-      </span>
-      {published ? (
-        <button
-          type="button"
-          className={`ds-project-default-toggle ${isDefault ? 'is-on' : ''}`}
-          aria-pressed={isDefault}
-          aria-label={isDefault ? 'Stop using as chat default' : 'Use as default for new chats'}
-          title="Preselect this design system for new chats and new projects."
-          disabled={statusBusy || defaultBusy || !onSetDefaultDesignSystem}
-          onClick={() => void toggleDefault(!isDefault)}
-        >
-          <Icon name={isDefault ? 'check' : 'star'} size={14} />
-          {isDefault ? 'Chat default' : 'Default for new chats'}
-        </button>
-      ) : null}
-    </>
+    </span>
   );
+
+  const headerMenuActions: HeaderMenuAction[] = [
+    {
+      id: 'refresh',
+      label: 'Refresh',
+      icon: 'refresh',
+      onClick: () => void refreshKit(),
+      disabled: Boolean(kitActionBusy),
+    },
+    {
+      id: 'download',
+      label: 'Download',
+      icon: 'download',
+      onClick: () => void downloadKit(),
+      disabled: Boolean(kitActionBusy),
+    },
+    {
+      id: 'reset',
+      label: 'Reset',
+      icon: 'reload',
+      onClick: () => void resetKitEdits(),
+      disabled: Boolean(kitActionBusy),
+    },
+    ...(published && onSetDefaultDesignSystem
+      ? [
+          {
+            id: 'default',
+            label: isDefault ? 'Chat default' : 'Default for new chats',
+            icon: (isDefault ? 'check' : 'star') as IconName,
+            onClick: () => void toggleDefault(!isDefault),
+            disabled: statusBusy || defaultBusy,
+            active: isDefault,
+          } satisfies HeaderMenuAction,
+        ]
+      : []),
+  ];
 
   const topSlot = (
     <>
@@ -3155,10 +3174,19 @@ function DesignSystemProjectPanel({
 
   return (
     <div className="ds-project-panel ds-project-panel--kit" data-testid="design-system-project-tab-panel">
+      {kitToast ? (
+        <Toast
+          message={kitToast.message}
+          tone={kitToast.tone}
+          role={kitToast.tone === 'error' ? 'alert' : 'status'}
+          onDismiss={() => setKitToast(null)}
+        />
+      ) : null}
       {kit ? (
         <DesignKitView
           kit={kit}
           actionsSlot={actionsSlot}
+          headerMenuActions={headerMenuActions}
           topSlot={topSlot}
           stickyHeader
           designMd={{

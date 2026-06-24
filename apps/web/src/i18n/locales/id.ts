@@ -3402,5 +3402,11 @@ export const id: Dict = {
   'ds.uploadImage': 'Unggah gambar',
   'ds.uploading': 'Mengunggah…',
   'ds.moduleEmptyLogo': 'Belum ada logo',
+  'ds.actionDone': 'Selesai',
+  'ds.actionFailed': 'Terjadi kesalahan. Silakan coba lagi.',
+  'ds.uploadDone': 'Terunggah',
+  'ds.uploadFailed': 'Unggahan gagal. Silakan coba lagi.',
+  'ds.kitErrorTitle': 'Tampilan ini mengalami masalah.',
+  'ds.kitErrorRetry': 'Muat ulang',
   'ds.moduleEmptyImages': 'Belum ada gambar',
 };

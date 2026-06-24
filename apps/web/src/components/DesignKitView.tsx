@@ -13,6 +13,8 @@
 // Empty modules expose upload affordances when the backing kit is writable.
 
 import {
+  Fragment,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -35,6 +37,7 @@ import {
 } from '../runtime/design-kit';
 import type { KitUploadModule } from '../runtime/kit-upload';
 import { Icon, type IconName } from './Icon';
+import { KitErrorBoundary } from './KitErrorBoundary';
 import styles from './BrandPreviewCard.module.css';
 
 const IMAGE_CAP = 8;
@@ -215,19 +218,40 @@ export interface KitDesignMdActions {
   canEdit?: boolean;
 }
 
+/** A single entry in the sticky header's "More" overflow dropdown. */
+export interface HeaderMenuAction {
+  id: string;
+  label: string;
+  icon: IconName;
+  onClick: () => void;
+  disabled?: boolean;
+  /** Toggles render with checkbox semantics + a trailing check when active. */
+  active?: boolean;
+}
+
 export interface DesignKitViewProps {
   kit: DesignKit;
   variant?: 'panel' | 'compact';
   /** Rendered next to the title (status badges). */
   badgeSlot?: ReactNode;
-  /** Rendered on the header's right (action buttons). */
+  /** Rendered on the header's right (primary action buttons). */
   actionsSlot?: ReactNode;
+  /**
+   * Overflow actions folded into the sticky header's "More" dropdown, shown
+   * after the kit's own DESIGN.md actions. Only used when `stickyHeader`.
+   */
+  headerMenuActions?: HeaderMenuAction[];
   /** Rendered directly under the header (notices / errors). */
   noticeSlot?: ReactNode;
   /** Rendered above the modules (e.g. publish / default card). */
   topSlot?: ReactNode;
   /** Keep the identity and action row reachable while the panel scrolls. */
   stickyHeader?: boolean;
+  /**
+   * Show the showcase/logo cover above the header. Defaults to true; the
+   * read-only Design Systems manager hides it as redundant.
+   */
+  showCover?: boolean;
   /**
    * Opens a full, scrollable preview when the user clicks the hover button
    * over the showcase cover. When omitted, the cover falls back to a built-in
@@ -249,14 +273,16 @@ export interface DesignKitViewProps {
   dataTestId?: string;
 }
 
-export function DesignKitView({
+function DesignKitViewInner({
   kit,
   variant = 'panel',
   badgeSlot,
   actionsSlot,
+  headerMenuActions,
   noticeSlot,
   topSlot,
   stickyHeader = false,
+  showCover = true,
   onPreviewCover,
   designMd,
   onUploadModule,
@@ -278,6 +304,19 @@ export function DesignKitView({
   const [dsTheme, setDsTheme] = useState<'light' | 'dark'>('light');
   const [activeLogo, setActiveLogo] = useState(0);
   const [imagesExpanded, setImagesExpanded] = useState(false);
+  // Tracks logo/image srcs that failed to load so we drop them from the view
+  // instead of rendering the browser's broken-image glyph. A broken logo then
+  // advances to the next candidate (or collapses to the empty state); a broken
+  // gallery tile hides itself while preserving the other tiles' delete indices.
+  const [brokenSrc, setBrokenSrc] = useState<ReadonlySet<string>>(() => new Set());
+  const markBroken = useCallback((src: string) => {
+    setBrokenSrc((prev) => {
+      if (prev.has(src)) return prev;
+      const next = new Set(prev);
+      next.add(src);
+      return next;
+    });
+  }, []);
   const [lightbox, setLightbox] = useState<{ src: string; caption: string } | null>(null);
   const [assetPreview, setAssetPreview] = useState<{ url: string; label: string } | null>(null);
   const [designMdOpen, setDesignMdOpen] = useState(false);
@@ -298,8 +337,11 @@ export function DesignKitView({
   useBrandFonts(kit.projectId, kit.fonts);
 
   const logoCandidates = useMemo(
-    () => [kit.logoSrc, ...kit.logoAlternates].filter((c): c is string => Boolean(c)),
-    [kit.logoSrc, kit.logoAlternates],
+    () =>
+      [kit.logoSrc, ...kit.logoAlternates]
+        .filter((c): c is string => Boolean(c))
+        .filter((c) => !brokenSrc.has(c)),
+    [kit.logoSrc, kit.logoAlternates, brokenSrc],
   );
   const activeLogoSrc = logoCandidates[activeLogo] ?? logoCandidates[0] ?? null;
 
@@ -727,6 +769,61 @@ export function DesignKitView({
     );
   }
 
+  // Sticky-header overflow menu: the kit's own DESIGN.md actions, then any
+  // consumer-supplied actions, then "Open full system" — each its own group so
+  // they read as separated clusters in the dropdown.
+  const designMdMenuActions: HeaderMenuAction[] = designMd
+    ? [
+        ...(canEditDesignMd
+          ? [{
+              id: 'design-md-edit',
+              label: t('ds.editDesignMd'),
+              icon: 'edit' as IconName,
+              onClick: openDesignMdEditor,
+              disabled: Boolean(designMd.saving),
+            }]
+          : designMd.onOpenFile
+            ? [{
+                id: 'design-md-open',
+                label: t('ds.openDesignMd'),
+                icon: 'file-text' as IconName,
+                onClick: designMd.onOpenFile,
+              }]
+            : []),
+        {
+          id: 'design-md-copy',
+          label: t('ds.copyDesignMd'),
+          icon: 'copy' as IconName,
+          onClick: () => void copyDesignMd(),
+          disabled: !designMd.body,
+        },
+        ...(canEditDesignMd
+          ? [{
+              id: 'design-md-upload',
+              label: t('ds.uploadMd'),
+              icon: 'upload' as IconName,
+              onClick: () => designMdInputRef.current?.click(),
+              disabled: Boolean(designMd.saving),
+            }]
+          : []),
+      ]
+    : [];
+  const openFullSystemMenuActions: HeaderMenuAction[] =
+    stickyHeader && fullSystemUrl
+      ? [{
+          id: 'open-full-system',
+          label: t('brandDetail.openFullSystem'),
+          icon: 'external-link' as IconName,
+          onClick: openFullSystemPreview,
+        }]
+      : [];
+  const headerMenuGroups: HeaderMenuAction[][] = [
+    designMdMenuActions,
+    headerMenuActions ?? [],
+    openFullSystemMenuActions,
+  ];
+  const hasHeaderMenu = headerMenuGroups.some((group) => group.length > 0);
+
   return (
     <div
       className={[
@@ -766,6 +863,7 @@ export function DesignKitView({
         onChange={(e) => void handleDesignMdUpload(e)}
       />
 
+      {showCover ? (
       <div className={styles.cover}>
         {kit.showcaseHtml ? (
           <>
@@ -824,6 +922,7 @@ export function DesignKitView({
           />
         )}
       </div>
+      ) : null}
 
       <header
         ref={stickyHeader ? stickyHeaderRef : undefined}
@@ -867,22 +966,17 @@ export function DesignKitView({
             ) : null}
           </div>
         </div>
-        {actionsSlot || (!compact && designMd) || (stickyHeader && fullSystemUrl) ? (
+        {stickyHeader ? (
+          actionsSlot || hasHeaderMenu ? (
+            <div className={styles.previewActions}>
+              {actionsSlot}
+              <HeaderActionsMenu groups={headerMenuGroups} label={t('designs.menuMore')} />
+            </div>
+          ) : null
+        ) : actionsSlot || (!compact && designMd) ? (
           <div className={styles.previewActions}>
             {!compact ? designMdActionButtons() : null}
             {actionsSlot}
-            {stickyHeader && fullSystemUrl ? (
-              <button
-                type="button"
-                className={`${styles.dsOpen} ${styles.dsOpenButton}`}
-                onClick={openFullSystemPreview}
-                title={t('brandDetail.openFullSystem')}
-                aria-label={t('brandDetail.openFullSystem')}
-              >
-                {t('brandDetail.openFullSystem')}
-                <ExternalGlyph />
-              </button>
-            ) : null}
           </div>
         ) : null}
       </header>
@@ -928,7 +1022,12 @@ export function DesignKitView({
                     onClick={() => setLightbox({ src: activeLogoSrc, caption: kit.name })}
                     aria-label={`${t('common.openPreview')}: ${kit.name}`}
                   >
-                    <img className={styles.logoStageImg} src={activeLogoSrc} alt={kit.name} />
+                    <img
+                      className={styles.logoStageImg}
+                      src={activeLogoSrc}
+                      alt={kit.name}
+                      onError={() => markBroken(activeLogoSrc)}
+                    />
                   </button>
                   {logoCandidates.length > 1 ? (
                     <div className={styles.logoThumbs}>
@@ -940,7 +1039,7 @@ export function DesignKitView({
                           onClick={() => setActiveLogo(i)}
                           aria-pressed={i === activeLogo}
                         >
-                          <img src={cand} alt="" />
+                          <img src={cand} alt="" onError={() => markBroken(cand)} />
                         </button>
                       ))}
                     </div>
@@ -1168,6 +1267,10 @@ export function DesignKitView({
                 <div className={styles.gallery}>
                   {(imagesExpanded ? samples : samples.slice(0, IMAGE_CAP)).map((s, i) => {
                     const sampleIndex = imagesExpanded ? i : i;
+                    // Drop tiles whose source 404s/fails so the grid never shows
+                    // a broken-image glyph. Returning null keeps the remaining
+                    // tiles' indices aligned with the delete handler.
+                    if (brokenSrc.has(s.url)) return null;
                     const cap = s.caption || s.kind || kit.name;
                     return (
                       <figure key={`${s.url}-${i}`} className={styles.shot}>
@@ -1177,7 +1280,7 @@ export function DesignKitView({
                           onClick={() => setLightbox({ src: s.url, caption: cap })}
                           aria-label={cap}
                         >
-                          <img src={s.url} alt={cap} loading="lazy" />
+                          <img src={s.url} alt={cap} loading="lazy" onError={() => markBroken(s.url)} />
                         </button>
                         {onDeleteImage ? (
                           <button
@@ -1557,6 +1660,105 @@ export function DesignKitView({
             document.body,
           )
         : null}
+    </div>
+  );
+}
+
+// Public entry point: the kit view wrapped in an error boundary so a render
+// exception (malformed brand.json, a just-deleted asset, etc.) degrades to a
+// recoverable fallback instead of white-screening the whole app.
+export function DesignKitView(props: DesignKitViewProps) {
+  return (
+    <KitErrorBoundary>
+      <DesignKitViewInner {...props} />
+    </KitErrorBoundary>
+  );
+}
+
+// Compact "More" overflow dropdown for the sticky header. Renders grouped
+// action items (icon + full label) so every action stays legible instead of
+// crowding the header as an anonymous icon-only square. Mirrors the
+// EntryHelpMenu popover pattern: click-outside + Escape to dismiss.
+// Exported so the Design Systems tab can tuck its secondary toolbar actions
+// (download / make-default / delete) into the same ⋯ menu.
+export function HeaderActionsMenu({
+  groups,
+  label,
+}: {
+  groups: HeaderMenuAction[][];
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function onPointerDown(event: globalThis.MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  const visibleGroups = groups.filter((group) => group.length > 0);
+  if (visibleGroups.length === 0) return null;
+
+  return (
+    <div className={styles.headerMenu} ref={wrapRef}>
+      <button
+        type="button"
+        className={styles.headerMenuTrigger}
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={label}
+        title={label}
+        data-testid="design-kit-more-actions"
+      >
+        <Icon name="more-horizontal" size={16} />
+      </button>
+      {open ? (
+        <div className={styles.headerMenuPopover} role="menu" aria-label={label}>
+          {visibleGroups.map((group, groupIndex) => (
+            <Fragment key={group[0]?.id ?? groupIndex}>
+              {groupIndex > 0 ? <div className={styles.headerMenuDivider} aria-hidden /> : null}
+              {group.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role={item.active === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                  aria-checked={item.active === undefined ? undefined : item.active}
+                  className={styles.headerMenuItem}
+                  disabled={item.disabled}
+                  onClick={() => {
+                    item.onClick();
+                    setOpen(false);
+                  }}
+                >
+                  <span className={styles.headerMenuItemIcon} aria-hidden>
+                    <Icon name={item.icon} size={15} />
+                  </span>
+                  <span className={styles.headerMenuItemLabel}>{item.label}</span>
+                  {item.active ? (
+                    <span className={styles.headerMenuItemCheck} aria-hidden>
+                      <Icon name="check" size={14} />
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </Fragment>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

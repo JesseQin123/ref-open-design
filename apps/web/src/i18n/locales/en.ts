@@ -3402,5 +3402,11 @@ export const en: Dict = {
   'ds.uploadImage': 'Upload image',
   'ds.uploading': 'Uploading…',
   'ds.moduleEmptyLogo': 'No logo yet',
+  'ds.actionDone': 'Done',
+  'ds.actionFailed': 'Something went wrong. Please try again.',
+  'ds.uploadDone': 'Uploaded',
+  'ds.uploadFailed': 'Upload failed. Please try again.',
+  'ds.kitErrorTitle': 'This view ran into a problem.',
+  'ds.kitErrorRetry': 'Reload',
   'ds.moduleEmptyImages': 'No images yet',
 };

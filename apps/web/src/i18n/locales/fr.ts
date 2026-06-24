@@ -3402,5 +3402,11 @@ export const fr: Dict = {
   'ds.uploadImage': 'Importer une image',
   'ds.uploading': 'Import…',
   'ds.moduleEmptyLogo': 'Aucun logo',
+  'ds.actionDone': 'Terminé',
+  'ds.actionFailed': 'Une erreur est survenue. Veuillez réessayer.',
+  'ds.uploadDone': 'Importé',
+  'ds.uploadFailed': "Échec de l'import. Veuillez réessayer.",
+  'ds.kitErrorTitle': 'Cette vue a rencontré un problème.',
+  'ds.kitErrorRetry': 'Recharger',
   'ds.moduleEmptyImages': 'Aucune image',
 };

@@ -3397,5 +3397,11 @@ export const fa: Dict = {
   'ds.uploadImage': 'بارگذاری تصویر',
   'ds.uploading': 'در حال بارگذاری…',
   'ds.moduleEmptyLogo': 'بدون لوگو',
+  'ds.actionDone': 'انجام شد',
+  'ds.actionFailed': 'مشکلی پیش آمد. لطفاً دوباره تلاش کنید.',
+  'ds.uploadDone': 'بارگذاری شد',
+  'ds.uploadFailed': 'بارگذاری ناموفق بود. لطفاً دوباره تلاش کنید.',
+  'ds.kitErrorTitle': 'این نما با مشکلی مواجه شد.',
+  'ds.kitErrorRetry': 'بارگذاری مجدد',
   'ds.moduleEmptyImages': 'بدون تصویر',
 };
