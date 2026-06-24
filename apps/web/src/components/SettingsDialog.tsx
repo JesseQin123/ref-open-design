@@ -3862,7 +3862,6 @@ export function SettingsDialog({
                                   <button
                                     type="button"
                                     className="agent-card-amr-wallet-refresh"
-                                    title={t('settings.amrWalletRefreshTitle')}
                                     aria-label={t('settings.amrWalletRefreshTitle')}
                                     disabled={amrWalletRefreshing}
                                     onClick={() => void refreshAmrWallet(true)}
