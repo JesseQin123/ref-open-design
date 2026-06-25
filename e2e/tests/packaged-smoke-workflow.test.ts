@@ -40,6 +40,7 @@ const releaseStableScriptPath = join(workspaceRoot, "tools", "release", "src", "
 const releaseBetaScriptPath = join(workspaceRoot, "tools", "release", "src", "metadata", "prepare-beta.ts");
 const packagedPackageJsonPath = join(workspaceRoot, "apps", "packaged", "package.json");
 const scopesScriptPath = join(workspaceRoot, "scripts", "scopes.ts");
+const runnersScriptPath = join(workspaceRoot, ".github", "scripts", "runners.py");
 const notifyDailyFeishuWorkflowPath = join(workspaceRoot, ".github", "workflows", "notify-daily-feishu.yml");
 const releasePublishMetadataScriptPath = join(
   workspaceRoot,
@@ -129,6 +130,32 @@ if (${JSON.stringify(changedFiles.length > 0)}) process.stdout.write("\\n");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+async function runRunners(mode?: string): Promise<Record<string, string>> {
+  const env = { ...process.env };
+  if (mode === undefined) {
+    delete env.OD_CI_RUNNER_MODE;
+  } else {
+    env.OD_CI_RUNNER_MODE = mode;
+  }
+  delete env.GITHUB_OUTPUT;
+
+  const { stdout } = await execFileAsync("python3", [runnersScriptPath], {
+    cwd: workspaceRoot,
+    env,
+  });
+  return Object.fromEntries(
+    stdout
+      .trim()
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => {
+        const separatorIndex = line.indexOf("=");
+        expect(separatorIndex).toBeGreaterThan(0);
+        return [line.slice(0, separatorIndex), line.slice(separatorIndex + 1)];
+      }),
+  );
 }
 
 async function writeFakeGhBin(binDir: string, releases: unknown[]): Promise<void> {
@@ -393,7 +420,7 @@ describe("packaged smoke workflow", () => {
 
   it("[P2] keeps PR and merge queue CI separated by hot/full validation mode", async () => {
     const workflow = await readFile(ciWorkflowPath, "utf8");
-    const scopes = sectionBetween(workflow, "  scopes:", "  static_gate:");
+    const scopes = sectionBetween(workflow, "  scopes:", "  runners:");
     const validate = sectionBetween(workflow, "  validate:", "  runtime_summary:");
 
     expect(workflow).toContain("ci_mode:");
@@ -435,31 +462,32 @@ describe("packaged smoke workflow", () => {
 
   it("[P2] routes default CI through cost-sensitive runner tiers", async () => {
     const workflow = await readFile(ciWorkflowPath, "utf8");
-    const scopes = sectionBetween(workflow, "  scopes:", "  static_gate:");
+    const scopes = sectionBetween(workflow, "  scopes:", "  runners:");
+    const runners = sectionBetween(workflow, "  runners:", "  static_gate:");
     const staticGate = sectionBetween(workflow, "  static_gate:", "  persistent_runner_poc:");
     const workspaceUnitTests = sectionBetween(workflow, "  workspace_unit_tests:", "  windows_tools_pack_payload_tests:");
     const webWorkspaceTests = sectionBetween(workflow, "  web_workspace_tests:", "  e2e_vitest:");
     const e2eVitest = sectionBetween(workflow, "  e2e_vitest:", "  playwright_critical:");
     const nixValidation = sectionBetween(workflow, "  nix_validation:", "  preflight:");
+    const preflight = sectionBetween(workflow, "  preflight:", "  workspace_unit_tests:");
     const dockerPr = sectionBetween(workflow, "  docker_pr:", "  validate:");
     const uiP0 = sectionBetween(workflow, "  ui_p0:", "  playwright_visual:");
     const visual = sectionBetween(workflow, "  playwright_visual:", "  docker_pr:");
 
     expect(scopes).toContain('["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]');
-    expect(staticGate).toContain('["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]');
+    expect(runners).toContain("runs-on: ubuntu-24.04");
+    expect(runners).toContain("python3 .github/scripts/runners.py");
+    expect(staticGate).toContain("needs: [runners]");
+    expect(staticGate).toContain("needs.runners.outputs.contabo_control");
     expect(workspaceUnitTests).toContain("runs-on: ubuntu-24.04");
-    expect(webWorkspaceTests).toContain("vars.OD_CI_RUNNER_MODE == 'performance'");
-    expect(webWorkspaceTests).toContain('["ubuntu-24.04"]');
+    expect(webWorkspaceTests).toContain("needs.runners.outputs.blacksmith_default");
     expect(webWorkspaceTests).not.toContain('"od-persistent-ci"');
-    expect(e2eVitest).toContain("vars.OD_CI_RUNNER_MODE == 'performance'");
-    expect(e2eVitest).toContain('["ubuntu-24.04"]');
+    expect(e2eVitest).toContain("needs.runners.outputs.hosted_or_blacksmith");
     expect(e2eVitest).not.toContain('"od-persistent-ci"');
-    expect(nixValidation).toContain("vars.OD_CI_RUNNER_MODE == 'performance'");
-    expect(nixValidation).toContain('["ubuntu-24.04"]');
-    expect(dockerPr).toContain("vars.OD_CI_RUNNER_MODE == 'performance'");
-    expect(dockerPr).toContain('["ubuntu-24.04"]');
-    expect(uiP0).toContain("vars.OD_CI_RUNNER_MODE == 'economic'");
-    expect(uiP0).toContain('["blacksmith-4vcpu-ubuntu-2404"]');
+    expect(nixValidation).toContain("needs.runners.outputs.hosted_or_blacksmith");
+    expect(preflight).toContain("needs.runners.outputs.hosted_or_blacksmith");
+    expect(dockerPr).toContain("needs.runners.outputs.hosted_or_blacksmith");
+    expect(uiP0).toContain("needs.runners.outputs.blacksmith_default");
     expect(uiP0).toContain("include: ${{ fromJSON(needs.scopes.outputs.ui_p0_matrix) }}");
     expect(uiP0CiMatrix.map((entry) => entry.name)).toEqual([
       "entry-settings",
@@ -474,8 +502,33 @@ describe("packaged smoke workflow", () => {
       "ui/project-management-flows.test.ts",
       "ui/workspace-keyboard-flows.test.ts",
     ]);
-    expect(visual).toContain("vars.OD_CI_RUNNER_MODE == 'economic'");
-    expect(visual).toContain('["blacksmith-4vcpu-ubuntu-2404"]');
+    expect(visual).toContain("needs.runners.outputs.blacksmith_default");
+  });
+
+  it("[P2] resolves CI runner profiles by mode", async () => {
+    const defaultProfiles = await runRunners();
+    expect(defaultProfiles.mode).toBe("default");
+    expect(JSON.parse(defaultProfiles.contabo_control)).toEqual([
+      "self-hosted",
+      "Linux",
+      "X64",
+      "od-persistent-ci",
+      "od-ci-hot-poc",
+    ]);
+    expect(JSON.parse(defaultProfiles.hosted_or_blacksmith)).toEqual(["ubuntu-24.04"]);
+    expect(JSON.parse(defaultProfiles.blacksmith_default)).toEqual(["blacksmith-4vcpu-ubuntu-2404"]);
+
+    const performanceProfiles = await runRunners("performance");
+    expect(performanceProfiles.mode).toBe("performance");
+    expect(JSON.parse(performanceProfiles.contabo_control)).toEqual(["ubuntu-24.04"]);
+    expect(JSON.parse(performanceProfiles.hosted_or_blacksmith)).toEqual(["blacksmith-4vcpu-ubuntu-2404"]);
+    expect(JSON.parse(performanceProfiles.blacksmith_default)).toEqual(["blacksmith-4vcpu-ubuntu-2404"]);
+
+    const economicProfiles = await runRunners("economic");
+    expect(economicProfiles.mode).toBe("economic");
+    expect(JSON.parse(economicProfiles.contabo_control)).toEqual(["ubuntu-24.04"]);
+    expect(JSON.parse(economicProfiles.hosted_or_blacksmith)).toEqual(["ubuntu-24.04"]);
+    expect(JSON.parse(economicProfiles.blacksmith_default)).toEqual(["ubuntu-24.04"]);
   });
 
   it("[P2] routes CI follow-ons through generic handoff workflows", async () => {
