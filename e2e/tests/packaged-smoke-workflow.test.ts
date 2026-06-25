@@ -494,7 +494,7 @@ describe("packaged smoke workflow", () => {
     expect(workspaceUnitTests).toContain("runs-on: ubuntu-24.04");
     expect(webWorkspaceTests).toContain("needs.runners.outputs.blacksmith_default");
     expect(webWorkspaceTests).not.toContain('"od-persistent-ci"');
-    expect(e2eVitest).toContain("needs.runners.outputs.hosted_or_blacksmith");
+    expect(e2eVitest).toContain("needs.runners.outputs.blacksmith_default");
     expect(e2eVitest).not.toContain('"od-persistent-ci"');
     expect(nixValidation).toContain("needs.runners.outputs.hosted_or_blacksmith");
     expect(preflight).toContain("needs.runners.outputs.hosted_or_blacksmith");

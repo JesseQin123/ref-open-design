@@ -893,7 +893,7 @@ jobs:
     name: E2E Vitest
     needs: [scopes, runners]
     if: ${{ needs.scopes.outputs.run_e2e_vitest == 'true' }}
-    runs-on: ${{ fromJSON(needs.runners.outputs.hosted_or_blacksmith) }}
+    runs-on: ${{ fromJSON(needs.runners.outputs.blacksmith_default) }}
     timeout-minutes: 20
 
     steps:
@@ -906,14 +906,14 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
         with:
-          runner-labels: ${{ needs.runners.outputs.hosted_or_blacksmith }}
+          runner-labels: ${{ needs.runners.outputs.blacksmith_default }}
 
       - name: Setup Playwright
         uses: ./.github/actions/setup-playwright
         with:
           package-json-path: e2e/package.json
           install-command: pnpm -C e2e exec playwright install --with-deps chromium
-          runner-labels: ${{ needs.runners.outputs.hosted_or_blacksmith }}
+          runner-labels: ${{ needs.runners.outputs.blacksmith_default }}
 
       - name: Prebuild workspace type declarations
         run: |
