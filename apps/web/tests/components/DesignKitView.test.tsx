@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DesignKitView } from '../../src/components/DesignKitView';
@@ -272,6 +272,73 @@ describe('DesignKitView iframe sandboxing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Light' }));
     expect(container.querySelector('iframe[src="/raw/projects/preview/system/kit.html"]')).toBeTruthy();
+  });
+
+  it('lets users browse design-system images inside the preview modal', () => {
+    const kit: DesignKit = {
+      ...previewKit(),
+      imagery: {
+        style: '',
+        subjects: [],
+        treatment: '',
+        avoid: [],
+        samples: [
+          { url: '/raw/projects/preview/imagery/hero.png', caption: 'Hero image', kind: 'hero' },
+          { url: '/raw/projects/preview/imagery/detail.png', caption: 'Detail image', kind: 'detail' },
+          { url: '/raw/projects/preview/imagery/filler-3.png', caption: 'Filler image 3', kind: 'detail' },
+          { url: '/raw/projects/preview/imagery/filler-4.png', caption: 'Filler image 4', kind: 'detail' },
+          { url: '/raw/projects/preview/imagery/filler-5.png', caption: 'Filler image 5', kind: 'detail' },
+          { url: '/raw/projects/preview/imagery/filler-6.png', caption: 'Filler image 6', kind: 'detail' },
+          { url: '/raw/projects/preview/imagery/filler-7.png', caption: 'Filler image 7', kind: 'detail' },
+          { url: '/raw/projects/preview/imagery/filler-8.png', caption: 'Filler image 8', kind: 'detail' },
+          { url: '/raw/projects/preview/imagery/hidden.png', caption: 'Hidden image', kind: 'detail' },
+        ],
+      },
+    };
+
+    render(
+      <I18nProvider initial="en">
+        <DesignKitView kit={kit} />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hero image' }));
+
+    let dialog = screen.getByRole('dialog', { name: 'Hero image' });
+    expect(within(dialog).getByRole('img', { name: 'Hero image' }).getAttribute('src')).toBe(
+      '/raw/projects/preview/imagery/hero.png',
+    );
+    expect(within(dialog).getByText('1 / 9')).toBeTruthy();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Previous' }));
+
+    dialog = screen.getByRole('dialog', { name: 'Hidden image' });
+    expect(within(dialog).getByRole('img', { name: 'Hidden image' }).getAttribute('src')).toBe(
+      '/raw/projects/preview/imagery/hidden.png',
+    );
+    expect(within(dialog).getByText('9 / 9')).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+
+    dialog = screen.getByRole('dialog', { name: 'Hero image' });
+    expect(within(dialog).getByRole('img', { name: 'Hero image' }).getAttribute('src')).toBe(
+      '/raw/projects/preview/imagery/hero.png',
+    );
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
+
+    dialog = screen.getByRole('dialog', { name: 'Detail image' });
+    expect(within(dialog).getByRole('img', { name: 'Detail image' }).getAttribute('src')).toBe(
+      '/raw/projects/preview/imagery/detail.png',
+    );
+    expect(within(dialog).getByText('2 / 9')).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'ArrowLeft' });
+
+    dialog = screen.getByRole('dialog', { name: 'Hero image' });
+    expect(within(dialog).getByRole('img', { name: 'Hero image' }).getAttribute('src')).toBe(
+      '/raw/projects/preview/imagery/hero.png',
+    );
   });
 
   it('scrolls to Logo and reveals edit controls for edit focus requests', () => {
