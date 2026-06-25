@@ -41,6 +41,7 @@ type GitHubEvent = {
     ci_mode?: string;
     runner_poc?: boolean | string;
     runner_perf_probe?: boolean | string;
+    skip_blacksmith?: boolean | string;
   };
 };
 
@@ -74,6 +75,7 @@ function createScopePlan(): ScopePlan {
   const eventName = requiredEnv("GITHUB_EVENT_NAME");
   const ciMode = resolveCiMode(eventName);
   const manualProbeOnly = isRunnerPoc(eventName) || isRunnerPerfProbe(eventName);
+  const skipBlacksmith = isSkipBlacksmith(eventName);
 
   if (manualProbeOnly) {
     // Manual runner probes are workflow-routing experiments. Keep normal CI
@@ -112,7 +114,7 @@ function createScopePlan(): ScopePlan {
 
   return {
     ...outputs,
-    ...createRunPlan(outputs, ciMode, manualProbeOnly),
+    ...createRunPlan(outputs, ciMode, manualProbeOnly, skipBlacksmith),
     ui_p0_matrix: JSON.stringify(uiP0CiMatrix),
     visual_matrix: JSON.stringify(visualCiMatrix),
   };
@@ -133,6 +135,7 @@ function createRunPlan(
   outputs: ScopeOutputs,
   ciMode: CiMode,
   runnerPoc = false,
+  skipBlacksmith = false,
 ): Omit<ScopePlan, keyof ScopeOutputs | "ui_p0_matrix" | "visual_matrix"> {
   if (runnerPoc) {
     return {
@@ -157,10 +160,10 @@ function createRunPlan(
     run_docker_build: isFull || outputs.docker_validation_required,
     run_e2e_vitest: isFull || outputs.web_tests_required || outputs.ui_p0_validation_required,
     run_nix_validation: isFull || outputs.nix_validation_required,
-    run_playwright_critical: isFull || (outputs.workspace_validation_required && !outputs.ui_p0_validation_required),
-    run_playwright_visual: isFull || outputs.visual_validation_required,
+    run_playwright_critical: !skipBlacksmith && (isFull || (outputs.workspace_validation_required && !outputs.ui_p0_validation_required)),
+    run_playwright_visual: !skipBlacksmith && (isFull || outputs.visual_validation_required),
     run_preflight: true,
-    run_ui_p0: isFull || outputs.ui_p0_validation_required,
+    run_ui_p0: !skipBlacksmith && (isFull || outputs.ui_p0_validation_required),
     run_web_workspace_tests: isFull || outputs.web_tests_required,
     run_windows_tools_pack_payload_tests: isFull || outputs.tools_pack_tests_required,
     run_workspace_unit_tests: true,
@@ -177,6 +180,12 @@ function isRunnerPerfProbe(eventName: string): boolean {
   if (eventName !== "workflow_dispatch") return false;
   const event = JSON.parse(readFileSync(requiredEnv("GITHUB_EVENT_PATH"), "utf8")) as GitHubEvent;
   return event.inputs?.runner_perf_probe === true || event.inputs?.runner_perf_probe === "true";
+}
+
+function isSkipBlacksmith(eventName: string): boolean {
+  if (eventName !== "workflow_dispatch") return false;
+  const event = JSON.parse(readFileSync(requiredEnv("GITHUB_EVENT_PATH"), "utf8")) as GitHubEvent;
+  return event.inputs?.skip_blacksmith === true || event.inputs?.skip_blacksmith === "true";
 }
 
 function changedPullRequestFiles(): string[] {

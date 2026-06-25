@@ -268,6 +268,7 @@ describe("packaged smoke workflow", () => {
     const validate = sectionBetween(workflow, "  validate:", "  runtime_summary:");
 
     expect(workflow).toContain("ci_mode:");
+    expect(workflow).toContain("skip_blacksmith:");
     expect(scopes).toContain("ci_mode: ${{ steps.detect.outputs.ci_mode }}");
     expect(scopes).toContain("ui_p0_validation_required: ${{ steps.detect.outputs.ui_p0_validation_required }}");
     expect(scopes).toContain("run_ui_p0: ${{ steps.detect.outputs.run_ui_p0 }}");
@@ -278,6 +279,14 @@ describe("packaged smoke workflow", () => {
       ci_mode: "hot",
       run_ui_p0: true,
       run_nix_validation: false,
+    });
+    await expect(
+      runScopesPrint("workflow_dispatch", { inputs: { ci_mode: "hot", skip_blacksmith: "true" } }, ["apps/web/src/app/page.tsx"]),
+    ).resolves.toMatchObject({
+      ci_mode: "hot",
+      run_ui_p0: false,
+      run_playwright_visual: false,
+      run_web_workspace_tests: true,
     });
     await expect(runScopesPrint("workflow_dispatch", { inputs: {} })).resolves.toMatchObject({
       ci_mode: "full",
@@ -295,17 +304,27 @@ describe("packaged smoke workflow", () => {
     });
   });
 
-  it("[P2] keeps lightweight and web workspace checks off self-hosted runners", async () => {
+  it("[P2] routes default CI through cost-sensitive runner tiers", async () => {
     const workflow = await readFile(ciWorkflowPath, "utf8");
+    const scopes = sectionBetween(workflow, "  scopes:", "  static_gate:");
+    const staticGate = sectionBetween(workflow, "  static_gate:", "  persistent_runner_poc:");
     const workspaceUnitTests = sectionBetween(workflow, "  workspace_unit_tests:", "  windows_tools_pack_payload_tests:");
     const webWorkspaceTests = sectionBetween(workflow, "  web_workspace_tests:", "  e2e_vitest:");
+    const nixValidation = sectionBetween(workflow, "  nix_validation:", "  preflight:");
+    const dockerPr = sectionBetween(workflow, "  docker_pr:", "  validate:");
     const uiP0 = sectionBetween(workflow, "  ui_p0:", "  playwright_visual:");
     const visual = sectionBetween(workflow, "  playwright_visual:", "  docker_pr:");
 
+    expect(scopes).toContain('["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]');
+    expect(staticGate).toContain('["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]');
     expect(workspaceUnitTests).toContain("runs-on: ubuntu-24.04");
-    expect(webWorkspaceTests).toContain("vars.OD_CI_RUNNER_MODE == 'economic'");
-    expect(webWorkspaceTests).toContain('["blacksmith-4vcpu-ubuntu-2404"]');
+    expect(webWorkspaceTests).toContain("vars.OD_CI_RUNNER_MODE == 'performance'");
+    expect(webWorkspaceTests).toContain('["ubuntu-24.04"]');
     expect(webWorkspaceTests).not.toContain('"od-persistent-ci"');
+    expect(nixValidation).toContain("vars.OD_CI_RUNNER_MODE == 'performance'");
+    expect(nixValidation).toContain('["ubuntu-24.04"]');
+    expect(dockerPr).toContain("vars.OD_CI_RUNNER_MODE == 'performance'");
+    expect(dockerPr).toContain('["ubuntu-24.04"]');
     expect(uiP0).toContain("vars.OD_CI_RUNNER_MODE == 'economic'");
     expect(uiP0).toContain('["blacksmith-8vcpu-ubuntu-2404"]');
     expect(uiP0).toContain("include: ${{ fromJSON(needs.scopes.outputs.ui_p0_matrix) }}");

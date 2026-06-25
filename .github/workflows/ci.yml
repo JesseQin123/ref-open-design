@@ -20,6 +20,10 @@ on:
         description: Run runner CPU/V8 performance probe jobs
         type: boolean
         default: false
+      skip_blacksmith:
+        description: Skip Blacksmith-backed jobs during manual runner validation
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -39,7 +43,7 @@ concurrency:
 jobs:
   scopes:
     name: Detect validation scopes
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((vars.OD_CI_RUNNER_MODE == 'performance' || vars.OD_CI_RUNNER_MODE == 'economic') && '["ubuntu-24.04"]' || '["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]') }}
     outputs:
       ci_mode: ${{ steps.detect.outputs.ci_mode }}
       daemon_tests_required: ${{ steps.detect.outputs.daemon_tests_required }}
@@ -125,7 +129,7 @@ jobs:
 
   static_gate:
     name: Static gate
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((vars.OD_CI_RUNNER_MODE == 'performance' || vars.OD_CI_RUNNER_MODE == 'economic') && '["ubuntu-24.04"]' || '["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]') }}
     timeout-minutes: 10
     env:
       ACTIONLINT_VERSION: 1.7.12
@@ -515,7 +519,7 @@ jobs:
     name: Validate Nix flake
     needs: [scopes]
     if: ${{ needs.scopes.outputs.run_nix_validation == 'true' }}
-    runs-on: ${{ fromJSON(vars.OD_CI_RUNNER_MODE == 'economic' && '["ubuntu-24.04"]' || '["blacksmith-4vcpu-ubuntu-2404"]') }}
+    runs-on: ${{ fromJSON(vars.OD_CI_RUNNER_MODE == 'performance' && '["blacksmith-4vcpu-ubuntu-2404"]' || '["ubuntu-24.04"]') }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -842,7 +846,7 @@ jobs:
     name: Web workspace tests
     needs: [scopes]
     if: ${{ needs.scopes.outputs.run_web_workspace_tests == 'true' }}
-    runs-on: ${{ fromJSON(vars.OD_CI_RUNNER_MODE == 'economic' && '["ubuntu-24.04"]' || '["blacksmith-4vcpu-ubuntu-2404"]') }}
+    runs-on: ${{ fromJSON(vars.OD_CI_RUNNER_MODE == 'performance' && '["blacksmith-4vcpu-ubuntu-2404"]' || '["ubuntu-24.04"]') }}
     timeout-minutes: 20
 
     steps:
@@ -855,7 +859,7 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
         with:
-          runner-labels: ${{ vars.OD_CI_RUNNER_MODE == 'economic' && '["ubuntu-24.04"]' || '["blacksmith-4vcpu-ubuntu-2404"]' }}
+          runner-labels: ${{ vars.OD_CI_RUNNER_MODE == 'performance' && '["blacksmith-4vcpu-ubuntu-2404"]' || '["ubuntu-24.04"]' }}
 
       - name: Prebuild web sidecar declarations
         run: pnpm --filter @open-design/web build:sidecar
@@ -1145,7 +1149,7 @@ jobs:
     name: Docker image build
     needs: [scopes]
     if: ${{ needs.scopes.outputs.run_docker_build == 'true' }}
-    runs-on: ${{ fromJSON(vars.OD_CI_RUNNER_MODE == 'economic' && '["ubuntu-24.04"]' || '["blacksmith-4vcpu-ubuntu-2404"]') }}
+    runs-on: ${{ fromJSON(vars.OD_CI_RUNNER_MODE == 'performance' && '["blacksmith-4vcpu-ubuntu-2404"]' || '["ubuntu-24.04"]') }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -1199,7 +1203,7 @@ jobs:
       - playwright_visual
       - docker_pr
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((vars.OD_CI_RUNNER_MODE == 'performance' || vars.OD_CI_RUNNER_MODE == 'economic') && '["ubuntu-24.04"]' || '["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]') }}
     timeout-minutes: 5
 
     steps:
@@ -1293,7 +1297,7 @@ jobs:
     needs:
       - validate
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((vars.OD_CI_RUNNER_MODE == 'performance' || vars.OD_CI_RUNNER_MODE == 'economic') && '["ubuntu-24.04"]' || '["self-hosted","Linux","X64","od-persistent-ci","od-ci-hot-poc"]') }}
     timeout-minutes: 5
     continue-on-error: true
 
