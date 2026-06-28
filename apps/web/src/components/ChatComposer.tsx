@@ -549,13 +549,18 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           .filter((dir) => dir.length > 0),
       [selectedWorkspaceContexts],
     );
-    const workspaceContextLinkedDirList = useMemo(
+    const workspaceContextMetadataLinkedDirList = useMemo(
       () =>
         Array.from(new Set([
           ...Object.values(workspaceLinkedDirAdds).map((tracked) => tracked.dir),
-          ...selectedWorkspaceContextDirs.filter((dir) => dir !== promotedWorkspaceContextDir),
+          ...selectedWorkspaceContextDirs,
         ])),
-      [promotedWorkspaceContextDir, selectedWorkspaceContextDirs, workspaceLinkedDirAdds],
+      [selectedWorkspaceContextDirs, workspaceLinkedDirAdds],
+    );
+    const workspaceContextLinkedDirList = useMemo(
+      () =>
+        workspaceContextMetadataLinkedDirList.filter((dir) => dir !== promotedWorkspaceContextDir),
+      [promotedWorkspaceContextDir, workspaceContextMetadataLinkedDirList],
     );
     const workspaceContextLinkedDirs = useMemo(
       () => new Set(workspaceContextLinkedDirList),
@@ -1886,8 +1891,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     function linkedDirsWithWorkspaceContext(primaryDir: string | null): string[] {
       const primary = primaryDir?.trim();
       const contextDirs = primary
-        ? workspaceContextLinkedDirList.filter((dir) => dir !== primary)
-        : workspaceContextLinkedDirList;
+        ? workspaceContextMetadataLinkedDirList.filter((dir) => dir !== primary)
+        : workspaceContextMetadataLinkedDirList;
       return Array.from(new Set([
         ...(primary ? [primary] : []),
         ...contextDirs,

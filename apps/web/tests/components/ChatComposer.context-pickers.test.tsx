@@ -658,6 +658,57 @@ describe('ChatComposer context pickers', () => {
     );
   });
 
+  it('preserves a promoted context dir when clearing the working dir while its chip remains', async () => {
+    openFolderPaths = ['/Users/me/shared', '/Users/me/shared'];
+    const onProjectMetadataChange = vi.fn();
+
+    function ControlledComposer() {
+      const [metadata, setMetadata] = useState<ProjectMetadata>({ kind: 'prototype' });
+      return composerElement({
+        projectMetadata: metadata,
+        onProjectMetadataChange: (next) => {
+          onProjectMetadataChange(next);
+          setMetadata(next);
+        },
+      });
+    }
+
+    render(<ControlledComposer />);
+    await flushMounts();
+
+    fireEvent.click(screen.getByTestId('chat-plus-trigger'));
+    fireEvent.click(await screen.findByText('Link local code'));
+
+    await waitFor(() => {
+      expect(projectPatchBodies()).toHaveLength(1);
+    });
+    expect(projectPatchBodies()[0]?.metadata?.linkedDirs).toEqual(['/Users/me/shared']);
+
+    fireEvent.click(screen.getByTestId('working-dir-trigger'));
+    fireEvent.click(await screen.findByTestId('working-dir-pick'));
+
+    await waitFor(() => {
+      expect(projectPatchBodies()).toHaveLength(2);
+    });
+    expect(projectPatchBodies()[1]?.metadata?.linkedDirs).toEqual(['/Users/me/shared']);
+    await waitFor(() => {
+      expect(screen.getByTestId('working-dir-trigger').textContent).toContain('shared');
+    });
+
+    fireEvent.click(screen.getByTestId('working-dir-trigger'));
+    fireEvent.click(await screen.findByTestId('working-dir-clear'));
+
+    await waitFor(() => {
+      expect(projectPatchBodies()).toHaveLength(3);
+    });
+    expect(projectPatchBodies()[2]?.metadata?.linkedDirs).toEqual(['/Users/me/shared']);
+    expect(screen.getByTestId('staged-contexts').textContent).toContain('shared');
+    expect(screen.getByTestId('working-dir-trigger').textContent).not.toContain('shared');
+    expect(onProjectMetadataChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ linkedDirs: ['/Users/me/shared'] }),
+    );
+  });
+
   it('keeps a shared linked dir while another workspace item uses the same path', async () => {
     openFolderPaths = ['/Users/me/shared'];
     const onProjectMetadataChange = vi.fn();
