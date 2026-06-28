@@ -6,6 +6,35 @@
 
 import type { InstalledPluginRecord } from '@open-design/contracts';
 
+// The Community default tab is not a generic "all templates" dump. It leads
+// with work a business user immediately recognizes as valuable: investor decks,
+// SaaS/product surfaces, dashboards, reports, landing pages, and reusable
+// operating/brand materials. Category tabs still expose the full catalog.
+const FEATURED_COMMUNITY_PLUGIN_IDS = [
+  'example-ib-pitch-book',
+  'example-html-ppt-pitch-deck',
+  'example-replit-deck',
+  'example-html-ppt-product-launch',
+  'example-html-ppt-weekly-report',
+  'example-saas-landing',
+  'example-pricing-page',
+  'example-kanban-board',
+  'example-live-dashboard',
+  'example-social-media-dashboard',
+  'image-template-notion-team-dashboard-live-artifact',
+  'example-social-media-matrix-tracker-template',
+  'example-trading-analysis-dashboard-template',
+  'example-finance-report',
+  'example-data-report',
+  'example-dcf-valuation',
+  'example-design-brief',
+  'example-pm-spec',
+  'example-doc-kami-parchment',
+  'example-digital-eguide',
+  'example-open-design-landing',
+  'example-open-design-landing-deck',
+] as const;
+
 const CURATED_PROTOTYPE_PLUGIN_IDS = [
   'example-open-design-landing',
   'example-kanban-board',
@@ -125,6 +154,15 @@ const CURATED_HYPERFRAMES_PLUGIN_IDS = [
   'video-template-hyperframes-flight-map-route',
 ] as const;
 
+function uniqueIds(ids: readonly string[]): string[] {
+  const seen = new Set<string>();
+  return ids.filter((id) => {
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
 export const CURATED_PLUGIN_IDS_BY_CHIP = {
   prototype: CURATED_PROTOTYPE_PLUGIN_IDS,
   wireframe: CURATED_WIREFRAME_PLUGIN_IDS,
@@ -137,17 +175,22 @@ export const CURATED_PLUGIN_IDS_BY_CHIP = {
   hyperframes: CURATED_HYPERFRAMES_PLUGIN_IDS,
 };
 
-const CURATED_GLOBAL_IDS = [
+const CURATED_GLOBAL_IDS = uniqueIds([
+  ...FEATURED_COMMUNITY_PLUGIN_IDS,
+  ...CURATED_DECK_PLUGIN_IDS,
+  ...CURATED_LIVE_ARTIFACT_PLUGIN_IDS,
   ...CURATED_PROTOTYPE_PLUGIN_IDS,
   ...CURATED_WIREFRAME_PLUGIN_IDS,
   ...CURATED_MOBILE_PLUGIN_IDS,
   ...CURATED_DOCUMENT_PLUGIN_IDS,
-  ...CURATED_LIVE_ARTIFACT_PLUGIN_IDS,
-  ...CURATED_DECK_PLUGIN_IDS,
   ...CURATED_IMAGE_PLUGIN_IDS,
   ...CURATED_VIDEO_PLUGIN_IDS,
   ...CURATED_HYPERFRAMES_PLUGIN_IDS,
-];
+]);
+
+const FEATURED_COMMUNITY_RANK = new Map<string, number>(
+  FEATURED_COMMUNITY_PLUGIN_IDS.map((id, index) => [id, index]),
+);
 
 const CURATED_GLOBAL_RANK = new Map<string, number>(
   CURATED_GLOBAL_IDS.map((id, index) => [id, index]),
@@ -155,6 +198,17 @@ const CURATED_GLOBAL_RANK = new Map<string, number>(
 
 export function curatedPluginPriority(record: InstalledPluginRecord): number | null {
   return CURATED_GLOBAL_RANK.get(record.id) ?? null;
+}
+
+export function featuredCommunityPriority(record: InstalledPluginRecord): number | null {
+  const pinnedRank = FEATURED_COMMUNITY_RANK.get(record.id);
+  if (pinnedRank !== undefined) return pinnedRank;
+  const od = (record.manifest?.od ?? {}) as Record<string, unknown>;
+  if (od.featured === true) return FEATURED_COMMUNITY_PLUGIN_IDS.length;
+  if (typeof od.featured === 'number' && Number.isFinite(od.featured)) {
+    return FEATURED_COMMUNITY_PLUGIN_IDS.length + Math.max(0, od.featured);
+  }
+  return null;
 }
 
 export function curatedPluginPriorityForChip(

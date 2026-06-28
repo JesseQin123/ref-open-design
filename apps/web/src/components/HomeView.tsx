@@ -45,7 +45,7 @@ import {
 import { FigmaImportModal } from './FigmaImportModal';
 import { fetchMcpServers } from '../state/mcp';
 import { takeHomeComposerAssetSeed } from '../state/libraryHandoff';
-import { useI18n, useT } from '../i18n';
+import { useI18n } from '../i18n';
 import {
   localizeSkillName,
   localizeSkillPrompt,

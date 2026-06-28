@@ -140,6 +140,12 @@ function isLiveArtifactPlugin(record: InstalledPluginRecord): boolean {
 // intents and the app's artifact product types.
 const PRIMARY_CATEGORIES: readonly CategoryDef[] = [
   {
+    slug: 'deck',
+    label: 'Slides',
+    starterPrompt: 'Create an Open Design plugin that generates a polished slide deck from a narrative brief.',
+    test: byMode('deck'),
+  },
+  {
     slug: 'prototype',
     label: 'Prototype',
     starterPrompt: 'Create an Open Design plugin that generates an interactive prototype from a product brief.',
@@ -150,12 +156,6 @@ const PRIMARY_CATEGORIES: readonly CategoryDef[] = [
     label: 'Live Artifact',
     starterPrompt: 'Create an Open Design plugin that generates a live artifact with refreshable, data-aware UI.',
     test: isLiveArtifactPlugin,
-  },
-  {
-    slug: 'deck',
-    label: 'Slides',
-    starterPrompt: 'Create an Open Design plugin that generates a polished slide deck from a narrative brief.',
-    test: byMode('deck'),
   },
   {
     slug: 'image',
@@ -196,19 +196,19 @@ const PRIMARY_CATEGORIES: readonly CategoryDef[] = [
 const SUBCATEGORY_DISPLAY_ORDER: Record<string, readonly string[]> = {
   prototype: [
     'landing-marketing',
-    'brand-design',
-    'business-dashboards',
     'app-prototypes',
-    'developer-tools',
+    'business-dashboards',
+    'brand-design',
     'docs-reports',
+    'developer-tools',
   ],
   deck: [
-    'creative-decks',
-    'engineering-talks',
     'pitch-business',
-    'course-training',
-    'reports-briefings',
     'product-sales',
+    'reports-briefings',
+    'course-training',
+    'engineering-talks',
+    'creative-decks',
   ],
 };
 

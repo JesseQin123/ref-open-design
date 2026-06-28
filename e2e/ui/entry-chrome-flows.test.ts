@@ -180,9 +180,11 @@ test('[P1] entry top navigation matches the current home tab structure', async (
   await expect(page.getByTestId('home-hero-rail-prototype')).toHaveAttribute('aria-selected', 'false');
   await expect(page.getByTestId('home-hero-footer-options')).toHaveCount(0);
   await expect(page.getByTestId('home-hero-plugin-presets')).toHaveCount(0);
-  await expect(page.getByTestId('plugins-home-pill-category-all')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('plugins-home-pill-category-prototype')).toHaveAttribute('aria-selected', 'false');
-  await expect(page.getByTestId('plugins-home-row-subcategory-prototype')).toHaveCount(0);
+  const home = page.getByTestId('entry-view-home');
+  await expect(home.getByTestId('plugins-home-pill-featured')).toHaveAttribute('aria-selected', 'true');
+  await expect(home.getByTestId('plugins-home-pill-category-all')).toHaveCount(0);
+  await expect(home.getByTestId('plugins-home-pill-category-prototype')).toHaveAttribute('aria-selected', 'false');
+  await expect(home.getByTestId('plugins-home-row-subcategory-prototype')).toHaveCount(0);
 });
 
 test('[P1] home view exposes the redesigned hero, recent projects, and starters', async ({ page }) => {
@@ -587,7 +589,8 @@ test('[P2] home starters search and facet filters narrow the visible gallery', a
   await gotoEntryHome(page);
 
   const home = await revealHomeTemplates(page);
-  await expect(home.getByTestId('plugins-home-pill-category-all')).toContainText('4');
+  await expect(home.getByTestId('plugins-home-pill-featured')).toContainText('2');
+  await expect(home.getByTestId('plugins-home-pill-category-all')).toHaveCount(0);
 
   await home.getByTestId('plugins-home-pill-category-deck').click({ force: true });
   await expect(home.locator('[data-plugin-id="deck-writer"]')).toBeVisible();
@@ -595,19 +598,19 @@ test('[P2] home starters search and facet filters narrow the visible gallery', a
   await expect(home.locator('[data-plugin-id="localized-plugin"]')).toHaveCount(0);
   await expect(home.locator('[data-plugin-id="hyperframes-video"]')).toHaveCount(0);
 
-  await home.getByTestId('plugins-home-pill-category-all').click({ force: true });
-  await expect(home.locator('[data-plugin-id="figma-importer"]')).toBeVisible();
-  await expect(home.locator('[data-plugin-id="localized-plugin"]')).toBeVisible();
-  await expect(home.locator('[data-plugin-id="hyperframes-video"]')).toBeVisible();
-  await expect(home.locator('[data-plugin-id="deck-writer"]')).toBeVisible();
-
   const search = home.getByTestId('plugins-home-search');
   await search.fill('Deck Writer');
   await expect(home.locator('[data-plugin-id="deck-writer"]')).toBeVisible();
   await expect(home.locator('[data-plugin-id="localized-plugin"]')).toHaveCount(0);
   await expect(home.locator('[data-plugin-id="hyperframes-video"]')).toHaveCount(0);
   await home.getByTestId('plugins-home-search-clear').click({ force: true });
+  await expect(home.locator('[data-plugin-id="deck-writer"]')).toBeVisible();
+
+  await home.getByTestId('plugins-home-pill-featured').click({ force: true });
   await expect(home.locator('[data-plugin-id="localized-plugin"]')).toBeVisible();
+  await expect(home.locator('[data-plugin-id="hyperframes-video"]')).toBeVisible();
+  await expect(home.locator('[data-plugin-id="deck-writer"]')).toHaveCount(0);
+  await expect(home.locator('[data-plugin-id="figma-importer"]')).toHaveCount(0);
 });
 
 test('[P1] home starters can jump into plugin creation through the registry browse flow', async ({ page }) => {
@@ -643,7 +646,6 @@ test('[P2] home starters search can enter a no-results state and recover with cl
   // plugins views (both stay mounted), so scope to the home view to keep these
   // strict-mode locators unambiguous.
   const home = await revealHomeTemplates(page);
-  await home.getByTestId('plugins-home-pill-category-all').click({ force: true });
   const search = home.getByTestId('plugins-home-search');
   await search.click({ force: true });
   await search.fill('no-such-starter');
@@ -653,7 +655,8 @@ test('[P2] home starters search can enter a no-results state and recover with cl
   );
   await home.getByRole('button', { name: /Clear filters/i }).click();
   await expect(page.locator('[data-plugin-id="localized-plugin"]')).toBeVisible();
-  await expect(page.locator('[data-plugin-id="deck-writer"]')).toBeVisible();
+  await expect(page.locator('[data-plugin-id="hyperframes-video"]')).toBeVisible();
+  await expect(home.locator('[data-plugin-id="deck-writer"]')).toHaveCount(0);
 });
 
 test('[P2] home starters details modal opens from a gallery card and closes on Escape', async ({ page }) => {

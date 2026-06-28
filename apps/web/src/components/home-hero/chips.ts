@@ -325,23 +325,22 @@ export function chipsForGroup(group: ChipGroup): HomeHeroChip[] {
   return HOME_HERO_CHIPS.filter((c) => c.group === group);
 }
 
-// Display order for the inline `create` scenario rail. The composer leads with
-// the slide deck ("Slides") followed by the core build scenarios in
-// decreasing generality (Prototype → Wireframe → Mobile → Document →
-// Animation), then the media scenarios. Brand Kit is intentionally omitted
-// here so it trails the scenario set — it dispatches into the Brand Kit tab
-// rather than seeding a scenario plugin. Any create chip not listed keeps its
-// catalog order after the explicit entries (see `orderedCreateChips`).
+// Display order for the inline `create` scenario rail. High-intent business
+// deliverables lead first: investor decks, premium SaaS/app prototypes,
+// refreshable dashboards, reusable design systems, and polished client
+// documents. Lower-intent exploration chips trail those core jobs so the first
+// row reads like valuable work, not a generic media picker.
 export const CREATE_RAIL_ORDER = [
   'deck',
   'prototype',
+  'live-artifact',
+  'create-brand-kit',
+  'document',
   'wireframe',
   'mobile',
-  'document',
-  'hyperframes',
-  'live-artifact',
   'image',
   'video',
+  'hyperframes',
   'audio',
 ] as const;
 

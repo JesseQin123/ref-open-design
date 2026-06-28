@@ -1435,14 +1435,17 @@ function OnboardingView({
     { value: 'enterprise', label: t('settings.onboardingOrgEnterprise') },
   ];
   const useCaseOptions = [
-    { value: 'product', label: t('settings.onboardingUseProduct') },
+    { value: 'deck', label: t('settings.onboardingUseDeck') },
+    { value: 'fundraising', label: t('settings.onboardingUseFundraising') },
+    { value: 'sales', label: t('settings.onboardingUseSales') },
+    { value: 'consulting', label: t('settings.onboardingUseConsulting') },
     { value: 'design-system', label: t('settings.onboardingUseDesignSystem') },
+    { value: 'product', label: t('settings.onboardingUseProduct') },
     { value: 'prototype', label: t('settings.onboardingUsePrototype') },
+    { value: 'dashboard', label: t('settings.onboardingUseDashboard') },
     { value: 'landing', label: t('settings.onboardingUseLanding') },
     { value: 'marketing', label: t('settings.onboardingUseMarketing') },
     { value: 'ads', label: t('settings.onboardingUseAds') },
-    { value: 'dashboard', label: t('settings.onboardingUseDashboard') },
-    { value: 'deck', label: t('settings.onboardingUseDeck') },
     { value: 'engineering', label: t('settings.onboardingUseEngineering') },
     { value: 'agency', label: t('settings.onboardingUseAgency') },
   ];

@@ -194,9 +194,9 @@ describe('buildFacetCatalog', () => {
     ]);
 
     expect(catalog.category.map((o) => [o.slug, o.count])).toEqual([
+      ['deck', 1],
       ['prototype', 1],
       ['live-artifact', 1],
-      ['deck', 1],
       ['image', 1],
       ['video', 1],
       ['hyperframes', 1],
@@ -206,19 +206,19 @@ describe('buildFacetCatalog', () => {
     // precedence encoded by the SUBCATEGORIES array order.
     expect((catalog.subcategory.prototype ?? []).map((o) => o.slug)).toEqual([
       'landing-marketing',
-      'brand-design',
-      'business-dashboards',
       'app-prototypes',
-      'developer-tools',
+      'business-dashboards',
+      'brand-design',
       'docs-reports',
+      'developer-tools',
     ]);
     expect((catalog.subcategory.deck ?? []).map((o) => o.slug)).toEqual([
-      'creative-decks',
-      'engineering-talks',
       'pitch-business',
-      'course-training',
-      'reports-briefings',
       'product-sales',
+      'reports-briefings',
+      'course-training',
+      'engineering-talks',
+      'creative-decks',
     ]);
     expect((catalog.subcategory.image ?? []).map((o) => o.slug)).toEqual([
       'ui-product-mockups',

@@ -729,10 +729,10 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Create once, build everywhere' })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Make every deliverable look intentional' })).toBeTruthy();
     });
     expect(screen.getByRole('button', { name: /^Back$/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Build a design system' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Build the design system first' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Skip for now/i })).toBeNull();
   });
 
@@ -762,9 +762,9 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Create once, build everywhere' })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Make every deliverable look intentional' })).toBeTruthy();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Build a design system' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Build the design system first' }));
 
     await waitFor(() => {
       expect(props.onCompleteOnboarding).toHaveBeenCalledTimes(1);
@@ -818,7 +818,7 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
       area: 'onboarding',
       result: 'completed',
       exit_step_name: 'design_system',
-      // This flow clicks "Build a design system" at the final step, so the
+      // This flow clicks "Build the design system first" at the final step, so the
       // completion records the with-DS fork (C2 — tracking spec §3.1).
       completion_type: 'completed_with_design_system',
       runtime_type: 'amr_cloud',
@@ -870,9 +870,9 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Create once, build everywhere' })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Make every deliverable look intentional' })).toBeTruthy();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Build a design system' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Build the design system first' }));
 
     const subscribeCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/subscribe'));
     expect(subscribeCall).toBeTruthy();
@@ -912,9 +912,9 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Create once, build everywhere' })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Make every deliverable look intentional' })).toBeTruthy();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Build a design system' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Build the design system first' }));
 
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/subscribe'))).toBe(false);
   });
@@ -998,9 +998,9 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Create once, build everywhere' })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Make every deliverable look intentional' })).toBeTruthy();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Build a design system' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Build the design system first' }));
 
     const aboutYouSubmits = trackedEvents('ui_click')
       .map(([, payload]) => payload as Record<string, unknown>)
@@ -1040,9 +1040,9 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Create once, build everywhere' })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Make every deliverable look intentional' })).toBeTruthy();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Build a design system' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Build the design system first' }));
 
     // The detour crosses the About-you step twice, but the snapshot must
     // not double-fire.
@@ -1105,9 +1105,9 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /^Continue$/i }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Create once, build everywhere' })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Make every deliverable look intentional' })).toBeTruthy();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Build a design system' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Build the design system first' }));
 
     expect(props.onModeChange).toHaveBeenCalledWith('api');
     expect(props.onApiModelChange).toHaveBeenCalledWith('claude-opus-4-8');

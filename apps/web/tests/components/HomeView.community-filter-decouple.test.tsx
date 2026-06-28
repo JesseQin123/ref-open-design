@@ -76,11 +76,12 @@ describe('HomeView community filter decoupling', () => {
     );
 
     // Home boots with a default active type chip; the Community grid must
-    // still come up unfiltered ("All"), not pre-snapped to that chip.
+    // still come up on its own Featured shelf, not pre-snapped to that chip.
     await waitFor(() => {
       expect(screen.getByTestId('plugins-home-pill-category-deck')).toBeTruthy();
     });
-    expect(ariaSelected('plugins-home-pill-category-all')).toBe('true');
+    expect(screen.queryByTestId('plugins-home-pill-category-all')).toBeNull();
+    expect(ariaSelected('plugins-home-pill-featured')).toBe('true');
     expect(ariaSelected('plugins-home-pill-category-prototype')).toBe('false');
 
     // Picking another chip drives the composer, not the gallery filter.
@@ -88,7 +89,7 @@ describe('HomeView community filter decoupling', () => {
     await waitFor(() => {
       expect(screen.getByTestId('home-hero-template-trigger').textContent).toContain('Slide deck');
     });
-    expect(ariaSelected('plugins-home-pill-category-all')).toBe('true');
+    expect(ariaSelected('plugins-home-pill-featured')).toBe('true');
     expect(ariaSelected('plugins-home-pill-category-deck')).toBe('false');
 
     // And the gallery's own pills still work locally.

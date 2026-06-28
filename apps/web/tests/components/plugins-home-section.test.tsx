@@ -137,6 +137,8 @@ describe('PluginsHomeSection (community gallery)', () => {
   it('keeps gallery tiles free of inline Use actions — Use lives in the detail modal', () => {
     renderSection(sample, { cardLayout: 'gallery' });
 
+    fireEvent.click(screen.getByTestId('plugins-home-pill-category-prototype'));
+
     // The tile itself stays a pure preview: name button opens details,
     // ↗ opens the example page. Use / Use with query are detail-modal
     // affordances only.
@@ -144,6 +146,24 @@ describe('PluginsHomeSection (community gallery)', () => {
     expect(screen.queryByTestId('plugins-home-use-prototype-dashboard')).toBeNull();
     expect(screen.queryByTestId('plugins-home-use-menu-prototype-dashboard')).toBeNull();
     expect(screen.queryByTestId('plugins-home-use-with-query-prototype-dashboard')).toBeNull();
+  });
+
+  it('defaults the Community gallery to Featured and hides the noisy All tab', () => {
+    renderSection(sample, { cardLayout: 'gallery' });
+
+    expect(screen.getByTestId('plugins-home-pill-featured').getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByTestId('plugins-home-pill-category-all')).toBeNull();
+    expect(pluginIds()).toEqual([
+      'example-live-dashboard',
+      'image-template-notion-team-dashboard-live-artifact',
+      'example-social-media-matrix-tracker-template',
+      'example-trading-analysis-dashboard-template',
+      'deck-pitch',
+    ]);
+
+    fireEvent.click(screen.getByTestId('plugins-home-pill-category-deck'));
+    expect(screen.getByTestId('plugins-home-pill-featured').getAttribute('aria-selected')).toBe('false');
+    expect(pluginIds()).toEqual(['deck-pitch']);
   });
 
   it('keeps the inline Use menu on the rich management layout (PluginsView)', () => {

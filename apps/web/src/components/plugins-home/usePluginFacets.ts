@@ -5,11 +5,9 @@
 // Slides, Image, and Video expose scene buckets from the prompt-taxonomy
 // analysis; HyperFrames and Audio stay flat.
 //
-// A small "Saved" toggle sits orthogonally to the category row —
-// when active it overrides the category selection and just shows
-// the plugins saved by the user. We intentionally make Saved
-// override rather than AND-compose so a saved pick is never
-// accidentally hidden behind a still-selected category pill.
+// Featured and Saved are orthogonal category-row modes: each overrides
+// category selection rather than AND-composing with it, so a curated or saved
+// pick is never accidentally hidden behind a still-selected category pill.
 
 import { useEffect, useMemo, useState } from 'react';
 import type { InstalledPluginRecord } from '@open-design/contracts';
@@ -22,24 +20,28 @@ import {
   type FacetSelection,
 } from './facets';
 import { sortByVisualAppeal } from './visualScore';
+import { featuredCommunityPriority } from './curatedPriority';
 
-export type FilterMode = 'all' | 'saved';
+export type FilterMode = 'featured' | 'all' | 'saved';
 
 interface UsePluginFacetsArgs {
   plugins: InstalledPluginRecord[];
   savedPluginIds?: ReadonlySet<string>;
   preferDefaultFacet?: boolean;
+  preferFeaturedMode?: boolean;
   locale?: string;
 }
 
 export interface UsePluginFacetsResult {
   visiblePlugins: InstalledPluginRecord[];
+  featuredList: InstalledPluginRecord[];
   savedList: InstalledPluginRecord[];
   filtered: InstalledPluginRecord[];
   catalog: FacetCatalog;
   selection: FacetSelection;
   pickCategory: (slug: string | null) => void;
   pickSubcategory: (slug: string | null) => void;
+  pickFeatured: () => void;
   clearFacets: () => void;
   hasActiveFacet: boolean;
   mode: FilterMode;
@@ -58,9 +60,11 @@ export function usePluginFacets({
   plugins,
   savedPluginIds,
   preferDefaultFacet = true,
+  preferFeaturedMode = false,
   locale,
 }: UsePluginFacetsArgs): UsePluginFacetsResult {
-  const [mode, setMode] = useState<FilterMode>('all');
+  const defaultMode: FilterMode = preferFeaturedMode ? 'featured' : 'all';
+  const [mode, setMode] = useState<FilterMode>(defaultMode);
   const [selection, setSelection] = useState<FacetSelection>(EMPTY_SELECTION);
   const [query, setQuery] = useState('');
   // Apply the preferred default selection once, on the first render that
@@ -89,12 +93,18 @@ export function usePluginFacets({
     [savedPluginIds, visiblePlugins],
   );
 
+  const featuredList = useMemo(
+    () =>
+      visiblePlugins.filter((plugin) => featuredCommunityPriority(plugin) !== null),
+    [visiblePlugins],
+  );
+
   const catalog = useMemo(() => buildFacetCatalog(visiblePlugins), [visiblePlugins]);
 
   useEffect(() => {
     if (bootstrapped) return;
     if (visiblePlugins.length === 0) return;
-    if (!preferDefaultFacet) {
+    if (!preferDefaultFacet || preferFeaturedMode) {
       setBootstrapped(true);
       return;
     }
@@ -103,7 +113,7 @@ export function usePluginFacets({
       setSelection(next);
     }
     setBootstrapped(true);
-  }, [bootstrapped, preferDefaultFacet, visiblePlugins.length, catalog]);
+  }, [bootstrapped, preferDefaultFacet, preferFeaturedMode, visiblePlugins.length, catalog]);
 
   // The visual-appeal sort is applied at `visiblePlugins` derivation
   // (above), so any downstream `applyFacetSelection` slice preserves
@@ -111,37 +121,45 @@ export function usePluginFacets({
   // override should both remain stable across selections.
   const filtered = useMemo(() => {
     const base =
-      mode === 'saved'
+      mode === 'featured'
+        ? featuredList.length > 0
+          ? featuredList
+          : visiblePlugins
+        : mode === 'saved'
         ? savedList
         : applyFacetSelection(visiblePlugins, selection);
     return filterByQuery(base, query, locale);
-  }, [mode, savedList, visiblePlugins, selection, query, locale]);
+  }, [mode, featuredList, savedList, visiblePlugins, selection, query, locale]);
 
   function pickCategory(slug: string | null): void {
-    if (mode === 'saved') setMode('all');
-    setSelection((prev) => ({
-      category: prev.category === slug ? null : slug,
+    const clearsActiveCategory = selection.category === slug;
+    setMode(clearsActiveCategory ? defaultMode : 'all');
+    setSelection(clearsActiveCategory ? EMPTY_SELECTION : {
+      category: slug,
       subcategory: null,
-    }));
+    });
   }
 
   function pickSubcategory(slug: string | null): void {
-    if (mode === 'saved') setMode('all');
+    if (mode !== 'all') setMode('all');
     setSelection((prev) => ({
       ...prev,
       subcategory: prev.subcategory === slug ? null : slug,
     }));
   }
 
+  function pickFeatured(): void {
+    setMode('featured');
+    setSelection(EMPTY_SELECTION);
+  }
+
   function clearFacets(): void {
     setSelection(EMPTY_SELECTION);
     setQuery('');
-    // Saved overrides the facet slice, so the empty-state "Clear
-    // filters" CTA also has to leave Saved mode — otherwise clicking
-    // it from a Saved + zero-match view just re-renders the same
-    // empty state and the user has no one-click escape back to the
-    // full catalog.
-    setMode('all');
+    // Featured/Saved override the facet slice, so the empty-state "Clear
+    // filters" CTA also has to leave override mode — otherwise clicking it
+    // from an override + zero-match view just re-renders the same empty state.
+    setMode(defaultMode);
   }
 
   const hasActiveFacet =
@@ -149,12 +167,14 @@ export function usePluginFacets({
 
   return {
     visiblePlugins,
+    featuredList,
     savedList,
     filtered,
     catalog,
     selection,
     pickCategory,
     pickSubcategory,
+    pickFeatured,
     clearFacets,
     hasActiveFacet,
     mode,

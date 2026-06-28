@@ -218,6 +218,9 @@ export interface Dict {
   'settings.onboardingUseAds': string;
   'settings.onboardingUseDashboard': string;
   'settings.onboardingUseDeck': string;
+  'settings.onboardingUseFundraising': string;
+  'settings.onboardingUseSales': string;
+  'settings.onboardingUseConsulting': string;
   'settings.onboardingUseEngineering': string;
   'settings.onboardingUseAgency': string;
   'settings.onboardingSourceGithub': string;
