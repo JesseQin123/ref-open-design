@@ -16,6 +16,7 @@ import { projectSplitClassName, projectSplitStyle } from '../../src/components/P
 import {
   fetchProjectFileText,
   uploadProjectFiles,
+  writeProjectBase64File,
   writeProjectTextFile,
   fetchProjectFolders,
 } from '../../src/providers/registry';
@@ -29,6 +30,7 @@ vi.mock('../../src/providers/registry', async () => {
     ...actual,
     fetchProjectFileText: vi.fn(),
     uploadProjectFiles: vi.fn(),
+    writeProjectBase64File: vi.fn(),
     writeProjectTextFile: vi.fn(),
     fetchProjectFolders: vi.fn().mockResolvedValue([]),
   };
@@ -121,6 +123,7 @@ vi.mock('../../src/components/DesignFilesPanel', async () => {
 
 const mockedFetchProjectFileText = vi.mocked(fetchProjectFileText);
 const mockedUploadProjectFiles = vi.mocked(uploadProjectFiles);
+const mockedWriteProjectBase64File = vi.mocked(writeProjectBase64File);
 const mockedWriteProjectTextFile = vi.mocked(writeProjectTextFile);
 
 let root: Root | null = null;
@@ -305,6 +308,53 @@ describe('FileWorkspace upload input', () => {
 
     expect(markup).toContain('data-testid="design-files-upload-input"');
     expect(markup).not.toContain('accept=');
+  });
+
+  it('auto-saves a newly created sketch into project files', async () => {
+    const onRefreshFiles = vi.fn();
+    const onTabsStateChange = vi.fn();
+    mockedWriteProjectTextFile.mockImplementation(async (_projectId, name) => ({
+      name,
+      path: name,
+      type: 'file',
+      size: 128,
+      mtime: 1710000000,
+      kind: 'sketch',
+      mime: 'application/json',
+    }));
+
+    render(
+      <FileWorkspace
+        projectId="project-1"
+        projectKind="prototype"
+        files={[]}
+        liveArtifacts={[]}
+        onRefreshFiles={onRefreshFiles}
+        isDeck={false}
+        tabsState={{ tabs: [], active: null }}
+        onTabsStateChange={onTabsStateChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('design-files-empty-new-sketch'));
+
+    await waitFor(() => expect(mockedWriteProjectTextFile).toHaveBeenCalledTimes(1));
+    const [projectId, name, content] = mockedWriteProjectTextFile.mock.calls[0]!;
+    expect(projectId).toBe('project-1');
+    expect(name).toMatch(/^sketch-.*\.sketch\.json$/);
+    expect(JSON.parse(content as string)).toMatchObject({
+      type: 'excalidraw',
+      version: 2,
+    });
+    await waitFor(() => expect(onRefreshFiles).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(onTabsStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabs: [name],
+          active: name,
+        }),
+      ),
+    );
   });
 
   it('hides upload failure details during in-panel preview and restores them after closing preview', async () => {

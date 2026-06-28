@@ -316,4 +316,31 @@ describe('QuestionFormView', () => {
     );
     expect(onSubmit.mock.calls[0]?.[1]).toEqual({ platform: 'mobile' });
   });
+
+  it('submits native defaults for required color and defaultless range controls', () => {
+    const nativeDefaultsForm = {
+      id: 'native-defaults',
+      title: 'Native defaults',
+      questions: [
+        { id: 'accent', label: 'Accent color', type: 'color', required: true },
+        { id: 'weight', label: 'Weight', type: 'range', required: true, max: 10 },
+      ],
+    } as QuestionForm;
+    const onSubmit = vi.fn();
+    render(<QuestionFormView form={nativeDefaultsForm} interactive onSubmit={onSubmit} />);
+
+    const submit = screen.getByRole('button', { name: 'Send answers' }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+
+    fireEvent.click(submit);
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      [
+        '[form answers — native-defaults]',
+        '- Accent color: #000000',
+        '- Weight: 0',
+      ].join('\n'),
+      { accent: '#000000', weight: '0' },
+    );
+  });
 });

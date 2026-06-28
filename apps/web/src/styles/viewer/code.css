@@ -362,19 +362,27 @@
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  max-width: min(520px, 48vw);
+  width: min(440px, 32vw);
+  max-width: calc(100vw - 960px);
   min-width: 0;
   pointer-events: auto;
 }
 .sketch-name {
-  min-width: 0;
-  max-width: min(220px, 24vw);
+  flex: 1 1 0;
+  min-width: 48px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.2;
+}
+
+@media (max-width: 1280px) {
+  .sketch-excalidraw-actions {
+    width: auto;
+    max-width: 240px;
+  }
 }
 
 /* ===========================================================

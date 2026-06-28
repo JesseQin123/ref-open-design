@@ -481,6 +481,20 @@ export function DesignFilesPanel({
     };
   }, [menuPos]);
 
+  useEffect(() => {
+    const onClipboardPaste = (event: ClipboardEvent) => {
+      if (shouldIgnoreClipboardFilePaste(event.target)) return;
+      const pastedFiles = filesFromClipboardData(event.clipboardData);
+      if (pastedFiles.length === 0) return;
+      event.preventDefault();
+      setDropReadError(null);
+      onClearUploadError?.();
+      onUploadFiles(pastedFiles);
+    };
+    window.addEventListener('paste', onClipboardPaste);
+    return () => window.removeEventListener('paste', onClipboardPaste);
+  }, [onClearUploadError, onUploadFiles]);
+
 
   function toggleSelect(name: string) {
     setSelected((prev) => {
@@ -1452,6 +1466,46 @@ function categoryLabel(category: FileCategory, t: TranslateFn): string {
 function categoryGlyph(category: FileCategory): string {
   if (category === 'stylesheet') return '#';
   return kindGlyph(category);
+}
+
+function filesFromClipboardData(clipboardData: DataTransfer | null): File[] {
+  const files = Array.from(clipboardData?.files ?? []);
+  if (files.length > 0) return files.map(normalizePastedFile);
+  const items = Array.from(clipboardData?.items ?? []);
+  return items
+    .filter((item) => item.kind === 'file')
+    .flatMap((item) => {
+      const file = item.getAsFile();
+      return file ? [normalizePastedFile(file)] : [];
+    });
+}
+
+function normalizePastedFile(file: File): File {
+  if (file.name.trim()) return file;
+  const extension = extensionForMimeType(file.type);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  return new File([file], `pasted-${stamp}${extension}`, {
+    type: file.type,
+    lastModified: file.lastModified,
+  });
+}
+
+function extensionForMimeType(mimeType: string): string {
+  if (mimeType === 'image/png') return '.png';
+  if (mimeType === 'image/jpeg') return '.jpg';
+  if (mimeType === 'image/gif') return '.gif';
+  if (mimeType === 'image/webp') return '.webp';
+  if (mimeType === 'image/svg+xml') return '.svg';
+  if (mimeType === 'text/html') return '.html';
+  if (mimeType === 'text/plain') return '.txt';
+  return '';
+}
+
+function shouldIgnoreClipboardFilePaste(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.closest('[contenteditable="true"]')) return true;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === 'input' || tagName === 'textarea' || tagName === 'select';
 }
 
 async function filesFromDataTransfer(dataTransfer: DataTransfer): Promise<File[]> {

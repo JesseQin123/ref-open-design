@@ -547,7 +547,8 @@ function buildInitialState(
 function emptyQuestionValue(q: QuestionForm['questions'][number]): string | string[] {
   if (q.type === 'checkbox') return [];
   if (q.type === 'switch') return 'false';
-  if (q.type === 'range' && q.min !== undefined) return String(q.min);
+  if (q.type === 'range') return String(q.min ?? 0);
+  if (q.type === 'color') return normalizeColorInputValue('');
   return '';
 }
 

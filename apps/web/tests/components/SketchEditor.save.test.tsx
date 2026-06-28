@@ -72,6 +72,11 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   mockData.lastProps = null;
+  mockData.excalidrawScene = {
+    elements: [{ id: 'api-element', type: 'rectangle', isDeleted: false }],
+    appState: { viewBackgroundColor: '#ffffff' },
+    files: {},
+  };
   vi.clearAllMocks();
   vi.useRealTimers();
 });
@@ -106,6 +111,27 @@ describe('SketchEditor save', () => {
   it('renders Excalidraw with the current Open Design locale', () => {
     renderEditor({ dirty: true });
     expect(document.querySelector('[data-testid="excalidraw"]')?.getAttribute('data-lang')).toBe('zh-CN');
+  });
+
+  it('strips Excalidraw runtime app state before passing initial data back to Excalidraw', () => {
+    renderEditor({
+      scene: {
+        elements: [],
+        appState: {
+          viewBackgroundColor: '#ffffff',
+          collaborators: { stale: true },
+          openMenu: 'canvas',
+          editingElement: { id: 'editing' },
+        },
+        files: {},
+      },
+    });
+
+    const appState = mockData.lastProps?.initialData?.appState;
+    expect(appState?.viewBackgroundColor).toBe('#ffffff');
+    expect(appState?.collaborators).toBeUndefined();
+    expect(appState?.openMenu).toBeUndefined();
+    expect(appState?.editingElement).toBeUndefined();
   });
 
   it('shows the Save label by default', () => {
@@ -156,6 +182,24 @@ describe('SketchEditor save', () => {
     fireEvent.click(saveButton());
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onSave.mock.calls[0]?.[0]).toMatchObject(mockData.excalidrawScene);
+  });
+
+  it('strips Excalidraw runtime app state before saving the latest scene', () => {
+    mockData.excalidrawScene.appState = {
+      viewBackgroundColor: '#ffffff',
+      collaborators: new Map([['socket-1', { username: 'stale' }]]),
+      openMenu: 'canvas',
+      pendingImageElementId: 'image-1',
+    };
+    const onSave = vi.fn();
+    renderEditor({ dirty: true, onSave });
+    fireEvent.click(saveButton());
+
+    const savedScene = onSave.mock.calls[0]?.[0] as ExcalidrawSketchScene;
+    expect(savedScene.appState?.viewBackgroundColor).toBe('#ffffff');
+    expect(savedScene.appState?.collaborators).toBeUndefined();
+    expect(savedScene.appState?.openMenu).toBeUndefined();
+    expect(savedScene.appState?.pendingImageElementId).toBeUndefined();
   });
 
   it('does not echo Excalidraw hydration changes back to the parent scene', () => {

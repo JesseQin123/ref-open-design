@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileViewer } from '../../src/components/FileViewer';
 import type { ProjectFile } from '../../src/types';
-import { fetchProjectFileText } from '../../src/providers/registry';
+import { fetchProjectFileText, writeProjectTextFile } from '../../src/providers/registry';
 
 vi.mock('../../src/providers/registry', async () => {
   const actual = await vi.importActual<typeof import('../../src/providers/registry')>(
@@ -14,10 +14,12 @@ vi.mock('../../src/providers/registry', async () => {
   return {
     ...actual,
     fetchProjectFileText: vi.fn(),
+    writeProjectTextFile: vi.fn(),
   };
 });
 
 const mockedFetchProjectFileText = vi.mocked(fetchProjectFileText);
+const mockedWriteProjectTextFile = vi.mocked(writeProjectTextFile);
 let writeTextMock: ReturnType<typeof vi.fn>;
 let originalClipboard: PropertyDescriptor | undefined;
 let originalExecCommand: PropertyDescriptor | undefined;
@@ -48,6 +50,7 @@ describe('FileViewer markdown code block copy', () => {
     originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     originalExecCommand = Object.getOwnPropertyDescriptor(document, 'execCommand');
     mockedFetchProjectFileText.mockResolvedValue('```ts\nconsole.log("copied")\n```');
+    mockedWriteProjectTextFile.mockResolvedValue(baseFile({ size: 12 }));
     writeTextMock = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -144,5 +147,43 @@ describe('FileViewer markdown code block copy', () => {
     expect(editor.value).toBe('@landing');
     expect(container.querySelector('[data-testid="markdown-file-mention-popover"]')).toBeNull();
     expect(container.querySelector('.mention-popover')).toBeNull();
+  });
+
+  it('flushes a pending markdown autosave when the viewer unmounts before debounce', async () => {
+    mockedFetchProjectFileText.mockResolvedValue('initial');
+    const { unmount } = render(<FileViewer projectId="project-1" projectKind="prototype" file={baseFile()} />);
+
+    const editor = await screen.findByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: 'changed before close' } });
+    unmount();
+
+    await waitFor(() => {
+      expect(mockedWriteProjectTextFile).toHaveBeenCalledWith(
+        'project-1',
+        'notes.md',
+        'changed before close',
+      );
+    });
+  });
+
+  it('keeps dirty markdown text when a file refresh arrives before autosave', async () => {
+    mockedFetchProjectFileText
+      .mockResolvedValueOnce('initial')
+      .mockResolvedValueOnce('stale disk text');
+    const { rerender } = render(
+      <FileViewer projectId="project-1" projectKind="prototype" file={baseFile({ mtime: 1 })} />,
+    );
+
+    const editor = await screen.findByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: 'dirty draft' } });
+    rerender(
+      <FileViewer projectId="project-1" projectKind="prototype" file={baseFile({ mtime: 2 })} />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockedFetchProjectFileText).toHaveBeenCalledTimes(1);
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('dirty draft');
   });
 });

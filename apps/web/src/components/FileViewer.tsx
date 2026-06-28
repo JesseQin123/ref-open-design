@@ -10707,12 +10707,22 @@ function MarkdownViewer({
   const pendingSaveAfterFlightRef = useRef(false);
   const textRef = useRef('');
   const lastSavedTextRef = useRef<string | null>(null);
+  const loadedFileKeyRef = useRef<string | null>(null);
+  const markdownFileKey = `${projectId}::${file.name}`;
   const status = file.artifactManifest?.status ?? 'complete';
   const isStreaming = status === 'streaming';
   const isError = status === 'error';
   const exportTitle = file.name.replace(/\.mdx?$/i, '') || file.name;
 
   useEffect(() => {
+    const sameLoadedFile = loadedFileKeyRef.current === markdownFileKey;
+    if (
+      sameLoadedFile &&
+      lastSavedTextRef.current !== null &&
+      textRef.current !== lastSavedTextRef.current
+    ) {
+      return undefined;
+    }
     setText(null);
     copiedMarkdownBlockRef.current = null;
     if (copyBlockTimerRef.current) {
@@ -10722,9 +10732,17 @@ function MarkdownViewer({
     let cancelled = false;
     void fetchProjectFileText(projectId, file.name).then((next) => {
       if (cancelled) return;
+      if (
+        loadedFileKeyRef.current === markdownFileKey &&
+        lastSavedTextRef.current !== null &&
+        textRef.current !== lastSavedTextRef.current
+      ) {
+        return;
+      }
       const loaded = next ?? '';
       textRef.current = loaded;
       lastSavedTextRef.current = loaded;
+      loadedFileKeyRef.current = markdownFileKey;
       pendingSaveAfterFlightRef.current = false;
       setSaveState('idle');
       setText(loaded);
@@ -10732,7 +10750,7 @@ function MarkdownViewer({
     return () => {
       cancelled = true;
     };
-  }, [projectId, file.name, file.mtime, reloadKey]);
+  }, [projectId, file.name, file.mtime, markdownFileKey, reloadKey]);
 
   useEffect(() => {
     return () => {
@@ -10788,6 +10806,23 @@ function MarkdownViewer({
     },
     [file.name, onFileSaved, projectId],
   );
+
+  const flushPendingMarkdownSave = useCallback(() => {
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const latest = textRef.current;
+    if (lastSavedTextRef.current !== null && latest !== lastSavedTextRef.current) {
+      saveMarkdownText(latest);
+    }
+  }, [saveMarkdownText]);
+
+  useEffect(() => {
+    return () => {
+      flushPendingMarkdownSave();
+    };
+  }, [flushPendingMarkdownSave]);
 
   useEffect(() => {
     if (text === null) return undefined;
