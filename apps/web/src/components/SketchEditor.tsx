@@ -117,8 +117,6 @@ export function SketchEditor({
   const sceneRef = useLatestRef(scene);
   const fileNameRef = useLatestRef(fileName);
   const canvasWrapRef = useRef<HTMLDivElement | null>(null);
-  const latestLibraryItemsRef = useRef<readonly unknown[]>(scene.libraryItems ?? []);
-  const lastLibrarySignatureRef = useRef<string | null>(stableJsonStringify(scene.libraryItems ?? []));
   const skipHydrationChangeRef = useRef(true);
   const lastContentSignatureRef = useRef<string | null>(null);
   const editorInstanceKey = `${fileName}:${resetNonce}`;
@@ -132,8 +130,6 @@ export function SketchEditor({
     previousEditorInstanceKeyRef.current = editorInstanceKey;
     skipHydrationChangeRef.current = true;
     lastContentSignatureRef.current = null;
-    latestLibraryItemsRef.current = scene.libraryItems ?? [];
-    lastLibrarySignatureRef.current = stableJsonStringify(scene.libraryItems ?? []);
   }
 
   let initialDataEntry = initialDataRef.current;
@@ -176,11 +172,6 @@ export function SketchEditor({
     clearTimeout(savedTimerRef.current);
     savedTimerRef.current = setTimeout(() => setShowSaved(false), SAVED_VISIBLE_MS);
   }, [dirty, savedAt, saving]);
-
-  useEffect(() => {
-    latestLibraryItemsRef.current = scene.libraryItems ?? [];
-    lastLibrarySignatureRef.current = stableJsonStringify(scene.libraryItems ?? []);
-  }, [scene.libraryItems]);
 
   const sketchTooltipLabels = useMemo<SketchTooltipLabels>(() => ({
     mainMenu: t('sketch.tooltipMainMenu'),
@@ -263,42 +254,13 @@ export function SketchEditor({
 
   const currentScene = useCallback((): ExcalidrawSketchScene => {
     const api = apiRef.current;
-    if (!api) return {
-      ...sceneRef.current,
-      libraryItems: cloneJson<unknown[]>(latestLibraryItemsRef.current, []),
-    };
+    if (!api) return sceneWithoutLibraryItems(sceneRef.current);
     return sceneFromExcalidraw(
       api.getSceneElementsIncludingDeleted(),
       api.getAppState(),
       api.getFiles(),
-      latestLibraryItemsRef.current,
     );
   }, [sceneRef]);
-
-  const handleLibraryChange = useCallback<NonNullable<ExcalidrawProps['onLibraryChange']>>((libraryItems) => {
-    const nextLibraryItems = cloneJson<unknown[]>(libraryItems, []);
-    const nextSignature = stableJsonStringify(nextLibraryItems);
-    if (lastLibrarySignatureRef.current === nextSignature) return;
-    latestLibraryItemsRef.current = nextLibraryItems;
-    lastLibrarySignatureRef.current = nextSignature;
-
-    const api = apiRef.current;
-    const nextScene = api
-      ? sceneFromExcalidraw(
-        api.getSceneElementsIncludingDeleted(),
-        api.getAppState(),
-        api.getFiles(),
-        nextLibraryItems,
-      )
-      : {
-        ...sceneRef.current,
-        libraryItems: nextLibraryItems,
-      };
-    onSceneChangeRef.current(nextScene, {
-      markDirty: true,
-      discardLegacyItems: true,
-    });
-  }, [onSceneChangeRef, sceneRef]);
 
   const handleClear = useCallback(() => {
     if (onClearRef.current) {
@@ -476,7 +438,6 @@ export function SketchEditor({
           UIOptions={excalidrawUIOptions}
           renderTopRightUI={renderTopRightUI}
           validateEmbeddable={validateSketchEmbeddableUrl}
-          onLibraryChange={handleLibraryChange}
         >
           {renderMainMenu()}
         </Excalidraw>
@@ -521,7 +482,6 @@ function buildInitialData(
         : '#ffffff',
     } as ExcalidrawInitialDataState['appState'],
     files: scene.files as ExcalidrawInitialDataState['files'],
-    libraryItems: cloneJson<unknown[]>(scene.libraryItems ?? [], []) as ExcalidrawInitialDataState['libraryItems'],
     scrollToContent: initialElements.length > 0,
   };
 }
@@ -530,14 +490,17 @@ function sceneFromExcalidraw(
   elements: readonly OrderedExcalidrawElement[],
   appState: AppState,
   files: BinaryFiles,
-  libraryItems: readonly unknown[] = [],
 ): ExcalidrawSketchScene {
   return {
     elements: cloneJson<unknown[]>(elements, []),
     appState: sanitizeExcalidrawAppState(cloneJson<Record<string, unknown> | null>(appState as unknown, null)),
     files: cloneJson<Record<string, unknown>>(files, {}),
-    libraryItems: cloneJson<unknown[]>(libraryItems, []),
   };
+}
+
+function sceneWithoutLibraryItems(scene: ExcalidrawSketchScene): ExcalidrawSketchScene {
+  const { libraryItems: _libraryItems, ...rest } = scene as ExcalidrawSketchScene & { libraryItems?: unknown };
+  return rest;
 }
 
 function isNonDeletedExcalidrawElement(element: unknown): boolean {
@@ -786,6 +749,23 @@ function setTooltipAttribute(target: HTMLElement, name: string, value: string): 
 }
 
 const SKETCH_CONTEXT_MENU_ACTION_ORDER = ['copy', 'paste', 'copyAsPng', 'copyAsSvg'] as const;
+const SKETCH_CONTEXT_MENU_KNOWN_ACTIONS = new Set<string>([
+  ...SKETCH_CONTEXT_MENU_ACTION_ORDER,
+  'addToLibrary',
+  'bringForward',
+  'bringToFront',
+  'copyStyles',
+  'cut',
+  'delete',
+  'duplicate',
+  'flipHorizontal',
+  'flipVertical',
+  'lock',
+  'pasteStyles',
+  'sendBackward',
+  'sendToBack',
+  'toggleGrid',
+]);
 const SKETCH_CONTEXT_MENU_ALLOWED_ACTIONS = new Set<string>(SKETCH_CONTEXT_MENU_ACTION_ORDER);
 const SKETCH_CONTEXT_MENU_MARGIN = 8;
 
@@ -793,6 +773,10 @@ export function applySketchContextMenuSimplification(root: HTMLElement, viewport
   for (const menu of Array.from(root.querySelectorAll<HTMLUListElement>('ul.context-menu'))) {
     const popover = menu.closest<HTMLElement>('.popover') ?? menu.parentElement;
     if (!popover) continue;
+    const hasSketchAction = Array.from(menu.querySelectorAll<HTMLLIElement>('li[data-testid]')).some((item) => (
+      SKETCH_CONTEXT_MENU_KNOWN_ACTIONS.has(item.getAttribute('data-testid') ?? '')
+    ));
+    if (!hasSketchAction) continue;
 
     menu.classList.add('od-sketch-context-menu');
     popover.classList.add('od-sketch-context-popover');

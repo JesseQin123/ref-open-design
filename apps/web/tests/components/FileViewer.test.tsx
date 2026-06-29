@@ -3004,6 +3004,24 @@ describe('FileViewer SVG artifacts', () => {
 
     expect(previewTop).toBe(3000);
     expect(previewSetCount).toBe(1);
+
+    previewTop = 2800;
+    fireEvent.scroll(preview);
+    await act(async () => {
+      flushFrames();
+      flushFrames();
+    });
+
+    expect(editorTop).toBe(1500);
+
+    previewTop = 3600;
+    fireEvent.wheel(preview);
+    fireEvent.scroll(preview);
+    await act(async () => {
+      flushFrames();
+    });
+
+    expect(editorTop).toBe(1800);
   });
 
   it('shows failed copy feedback when deployed link copying is blocked', async () => {

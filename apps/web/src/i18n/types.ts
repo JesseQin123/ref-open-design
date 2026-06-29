@@ -2956,7 +2956,6 @@ export interface Dict {
   'sketch.tooltipEmbeddable': string;
   'sketch.tooltipLaser': string;
   'sketch.tooltipMoreTools': string;
-  'sketch.tooltipLibrary': string;
   'sketch.tooltipDirty': string;
   'sketch.tooltipClean': string;
   'fileViewer.empty': string;

@@ -2191,7 +2191,6 @@ export const tr: Dict = {
   'sketch.tooltipEmbeddable': "Web Embed only supports valid https:// or http:// links",
   'sketch.tooltipLaser': "Point at canvas content temporarily without changing it",
   'sketch.tooltipMoreTools': "Open additional tools such as frame, web embed, and laser pointer",
-  'sketch.tooltipLibrary': "Open reusable components and saved sketch assets",
   'sketch.tooltipDirty': 'Kaydedilmemiş değişiklikler',
   'sketch.tooltipClean': 'Kaydedildi',
   'fileViewer.empty': 'Görüntülemek için bir dosya seçin.',

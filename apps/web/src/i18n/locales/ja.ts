@@ -2191,7 +2191,6 @@ export const ja: Dict = {
   'sketch.tooltipEmbeddable': "Web Embed only supports valid https:// or http:// links",
   'sketch.tooltipLaser': "Point at canvas content temporarily without changing it",
   'sketch.tooltipMoreTools': "Open additional tools such as frame, web embed, and laser pointer",
-  'sketch.tooltipLibrary': "Open reusable components and saved sketch assets",
   'sketch.tooltipDirty': '未保存の変更があります',
   'sketch.tooltipClean': '保存済み',
   'fileViewer.empty': 'ファイルを選択して表示します。',

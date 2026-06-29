@@ -2191,7 +2191,6 @@ export const ptBR: Dict = {
   'sketch.tooltipEmbeddable': "Web Embed only supports valid https:// or http:// links",
   'sketch.tooltipLaser': "Point at canvas content temporarily without changing it",
   'sketch.tooltipMoreTools': "Open additional tools such as frame, web embed, and laser pointer",
-  'sketch.tooltipLibrary': "Open reusable components and saved sketch assets",
   'sketch.tooltipDirty': 'Alterações não salvas',
   'sketch.tooltipClean': 'Salvo',
   'fileViewer.empty': 'Selecione um arquivo para visualizar.',

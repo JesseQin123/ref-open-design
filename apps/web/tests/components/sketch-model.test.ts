@@ -111,14 +111,7 @@ describe('sketch-model', () => {
     expect(parsed.rawItems).toEqual([]);
     expect(parsed.scene.elements).toHaveLength(1);
     expect(parsed.scene.appState).toEqual({ viewBackgroundColor: '#ffffff' });
-    expect(parsed.scene.libraryItems).toEqual([
-      {
-        id: 'lib-box',
-        status: 'unpublished',
-        created: 1710000000000,
-        elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
-      },
-    ]);
+    expect(parsed.scene).not.toHaveProperty('libraryItems');
   });
 
   it('serializes Excalidraw scenes without transient app state', () => {
@@ -131,14 +124,6 @@ describe('sketch-model', () => {
         collaborators: new Map(),
       },
       files: {},
-      libraryItems: [
-        {
-          id: 'lib-box',
-          status: 'unpublished',
-          created: 1710000000000,
-          elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
-        },
-      ],
     }, 'scratch.sketch.json');
 
     expect(document).toMatchObject({
@@ -151,15 +136,8 @@ describe('sketch-model', () => {
         viewBackgroundColor: '#ffffff',
       },
       files: {},
-      libraryItems: [
-        {
-          id: 'lib-box',
-          status: 'unpublished',
-          created: 1710000000000,
-          elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
-        },
-      ],
     });
+    expect(document).not.toHaveProperty('libraryItems');
     expect(document.appState).not.toHaveProperty('openMenu');
     expect(document.appState).not.toHaveProperty('collaborators');
   });

@@ -44,6 +44,19 @@ describe('DISCOVERY_AND_PHILOSOPHY (contracts copy) — TodoWrite plan item coun
       prompt.indexOf(DISCOVERY_AND_PHILOSOPHY),
     );
   });
+
+  it('uses a top-level Plan mode override that suppresses artifact discovery forms', () => {
+    const prompt = composeSystemPrompt({ sessionMode: 'plan', metadata: { kind: 'prototype' } as any });
+
+    expect(prompt).toContain('# Plan mode — editable document first');
+    expect(prompt).toContain('do NOT emit `<question-form id="discovery">`');
+    expect(prompt).toContain('`<question-form id="task-type">`');
+    expect(prompt).toContain('Quick brief — 30 seconds');
+    expect(prompt).toContain('<question-form id="plan-brief">');
+    expect(prompt.indexOf('# Plan mode — editable document first')).toBeLessThan(
+      prompt.indexOf(DISCOVERY_AND_PHILOSOPHY),
+    );
+  });
 });
 
 describe('DISCOVERY_AND_PHILOSOPHY (contracts copy) — prompt routing parity', () => {

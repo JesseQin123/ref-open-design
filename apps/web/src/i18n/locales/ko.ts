@@ -2191,7 +2191,6 @@ export const ko: Dict = {
   'sketch.tooltipEmbeddable': "Web Embed only supports valid https:// or http:// links",
   'sketch.tooltipLaser': "Point at canvas content temporarily without changing it",
   'sketch.tooltipMoreTools': "Open additional tools such as frame, web embed, and laser pointer",
-  'sketch.tooltipLibrary': "Open reusable components and saved sketch assets",
   'sketch.tooltipDirty': '저장되지 않은 변경 사항',
   'sketch.tooltipClean': '저장됨',
   'fileViewer.empty': '보려는 파일을 선택하세요.',

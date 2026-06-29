@@ -3,23 +3,24 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { SketchEditor } from '../../src/components/SketchEditor';
+import { SketchEditor, applySketchContextMenuSimplification } from '../../src/components/SketchEditor';
 import { emptySketchScene, type ExcalidrawSketchScene } from '../../src/components/sketch-model';
 
 const mockData = vi.hoisted<{
   excalidrawScene: ExcalidrawSketchScene;
   excalidrawToast: string | null;
   updateScene: ReturnType<typeof vi.fn>;
+  setOpenDialog: ReturnType<typeof vi.fn>;
   lastProps: Record<string, any> | null;
 }>(() => ({
   excalidrawScene: {
     elements: [{ id: 'api-element', type: 'rectangle', isDeleted: false }],
     appState: { viewBackgroundColor: '#ffffff' },
     files: {},
-    libraryItems: [],
   },
   excalidrawToast: null,
   updateScene: vi.fn(),
+  setOpenDialog: vi.fn(),
   lastProps: null,
 }));
 
@@ -47,6 +48,7 @@ vi.mock('@excalidraw/excalidraw', async () => {
           getAppState: () => mockData.excalidrawScene.appState,
           getFiles: () => mockData.excalidrawScene.files,
           updateScene: mockData.updateScene,
+          setOpenDialog: mockData.setOpenDialog,
         });
       }, [props.excalidrawAPI]);
       return React.createElement(
@@ -130,7 +132,6 @@ afterEach(() => {
     elements: [{ id: 'api-element', type: 'rectangle', isDeleted: false }],
     appState: { viewBackgroundColor: '#ffffff' },
     files: {},
-    libraryItems: [],
   };
   mockData.excalidrawToast = null;
   mockData.updateScene.mockClear();
@@ -235,6 +236,7 @@ describe('SketchEditor save', () => {
     expect(portal.querySelector('button[aria-label="生成"]')).toBeTruthy();
     expect(portal.querySelector('textarea')?.getAttribute('placeholder')).toBe('在这里输入 Mermaid 图表定义...');
     expect(close.getAttribute('aria-label')).toBe('关闭');
+    expect(portal.classList.contains('od-sketch-help-modal')).toBe(true);
 
     fireEvent.click(close);
     expect(mockData.updateScene).toHaveBeenCalledWith({ appState: { openDialog: null } });
@@ -244,7 +246,7 @@ describe('SketchEditor save', () => {
     expect(mockData.updateScene).toHaveBeenCalledWith({ appState: { openDialog: null } });
   });
 
-  it('passes saved library items into Excalidraw initial data', () => {
+  it('does not wire Excalidraw library state into sketch editing', () => {
     renderEditor({
       scene: {
         ...emptySketchScene('test.sketch.json'),
@@ -256,50 +258,69 @@ describe('SketchEditor save', () => {
             elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
           },
         ],
-      },
+      } as ExcalidrawSketchScene & { libraryItems: readonly unknown[] },
     });
 
-    expect(mockData.lastProps?.initialData?.libraryItems).toEqual([
-      {
-        id: 'lib-box',
-        status: 'unpublished',
-        created: 1710000000000,
-        elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
-      },
-    ]);
+    expect(mockData.lastProps?.initialData?.libraryItems).toBeUndefined();
+    expect(mockData.lastProps?.onLibraryChange).toBeUndefined();
   });
 
-  it('reports library changes as dirty scene changes for autosave', () => {
-    const onSceneChange = vi.fn();
-    renderEditor({ onSceneChange });
+  it('keeps sketch context menus minimal and clamps them inside the canvas', () => {
+    const root = document.createElement('div');
+    const popover = document.createElement('div');
+    const menu = document.createElement('ul');
+    root.appendChild(popover);
+    popover.appendChild(menu);
+    popover.className = 'popover';
+    popover.style.left = '260px';
+    popover.style.top = '20px';
+    menu.className = 'context-menu';
+    for (const actionName of ['paste', 'copyAsPng', 'addToLibrary', 'sendBackward', 'copy', 'copyAsSvg']) {
+      const item = document.createElement('li');
+      item.setAttribute('data-testid', actionName);
+      item.textContent = actionName;
+      menu.appendChild(item);
+      const separator = document.createElement('hr');
+      menu.appendChild(separator);
+    }
+    document.body.appendChild(root);
 
-    act(() => {
-      mockData.lastProps?.onLibraryChange?.([
-        {
-          id: 'lib-box',
-          status: 'unpublished',
-          created: 1710000000000,
-          elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
-        },
-      ]);
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 300,
+      bottom: 300,
+      width: 300,
+      height: 300,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(popover, 'getBoundingClientRect').mockReturnValue({
+      x: 260,
+      y: 20,
+      left: 260,
+      top: 20,
+      right: 460,
+      bottom: 220,
+      width: 200,
+      height: 200,
+      toJSON: () => ({}),
     });
 
-    expect(onSceneChange).toHaveBeenCalledTimes(1);
-    expect(onSceneChange.mock.calls[0]?.[0]).toMatchObject({
-      elements: mockData.excalidrawScene.elements,
-      libraryItems: [
-        {
-          id: 'lib-box',
-          status: 'unpublished',
-          created: 1710000000000,
-          elements: [{ id: 'box-template', type: 'rectangle', isDeleted: false }],
-        },
-      ],
-    });
-    expect(onSceneChange.mock.calls[0]?.[1]).toEqual({
-      markDirty: true,
-      discardLegacyItems: true,
-    });
+    applySketchContextMenuSimplification(root, root);
+
+    expect(Array.from(menu.querySelectorAll('li')).map((item) => item.getAttribute('data-testid'))).toEqual([
+      'copy',
+      'paste',
+      'copyAsPng',
+      'copyAsSvg',
+    ]);
+    expect(menu.querySelector('[data-testid="addToLibrary"]')).toBeNull();
+    expect(menu.querySelector('hr')).toBeNull();
+    expect(menu.classList.contains('od-sketch-context-menu')).toBe(true);
+    expect(popover.classList.contains('od-sketch-context-popover')).toBe(true);
+    expect(popover.style.left).toBe('92px');
   });
 
   it('allows explicit http and https web embeds while rejecting missing or unsafe protocols', () => {
@@ -405,7 +426,12 @@ describe('SketchEditor save', () => {
     renderEditor({ dirty: true, onSave });
     fireEvent.click(saveButton());
     expect(onSave).toHaveBeenCalledTimes(1);
-    expect(onSave.mock.calls[0]?.[0]).toMatchObject(mockData.excalidrawScene);
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({
+      elements: mockData.excalidrawScene.elements,
+      appState: mockData.excalidrawScene.appState,
+      files: mockData.excalidrawScene.files,
+    });
+    expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty('libraryItems');
   });
 
   it('strips Excalidraw runtime app state before saving the latest scene', () => {

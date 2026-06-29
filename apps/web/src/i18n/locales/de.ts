@@ -2191,7 +2191,6 @@ export const de: Dict = {
   'sketch.tooltipEmbeddable': "Web Embed only supports valid https:// or http:// links",
   'sketch.tooltipLaser': "Point at canvas content temporarily without changing it",
   'sketch.tooltipMoreTools': "Open additional tools such as frame, web embed, and laser pointer",
-  'sketch.tooltipLibrary': "Open reusable components and saved sketch assets",
   'sketch.tooltipDirty': 'Ungespeicherte Änderungen',
   'sketch.tooltipClean': 'Gespeichert',
   'fileViewer.empty': 'Wählen Sie eine Datei zur Ansicht aus.',

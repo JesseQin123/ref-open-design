@@ -11002,6 +11002,7 @@ function MarkdownViewer({
   const programmaticScrollClearFrameRef = useRef<number | null>(null);
   const pendingScrollSyncRef = useRef<{ sourcePane: MarkdownScrollPane; targetPane: MarkdownScrollPane } | null>(null);
   const programmaticScrollRef = useRef<{ pane: MarkdownScrollPane; top: number } | null>(null);
+  const activeMarkdownScrollPaneRef = useRef<MarkdownScrollPane>('editor');
   const previousModeRef = useRef<MarkdownViewerMode>('split');
   const saveInFlightRef = useRef(false);
   const pendingSaveAfterFlightRef = useRef<MarkdownSaveOptions | null>(null);
@@ -11089,6 +11090,7 @@ function MarkdownViewer({
       }
       pendingScrollSyncRef.current = null;
       programmaticScrollRef.current = null;
+      activeMarkdownScrollPaneRef.current = 'editor';
     };
   }, []);
 
@@ -11343,7 +11345,9 @@ function MarkdownViewer({
   const shouldIgnoreMarkdownScroll = useCallback((pane: MarkdownScrollPane, element: HTMLElement): boolean => {
     const programmatic = programmaticScrollRef.current;
     if (programmatic?.pane !== pane) return false;
-    if (Math.abs(element.scrollTop - programmatic.top) > 1) return false;
+    if (Math.abs(element.scrollTop - programmatic.top) > 1 && activeMarkdownScrollPaneRef.current === pane) {
+      return false;
+    }
     programmaticScrollRef.current = null;
     return true;
   }, []);
@@ -11351,14 +11355,20 @@ function MarkdownViewer({
   const handleMarkdownEditorScroll = useCallback(() => {
     const editor = editorRef.current;
     if (!editor || shouldIgnoreMarkdownScroll('editor', editor)) return;
+    activeMarkdownScrollPaneRef.current = 'editor';
     scheduleMarkdownScrollSync('editor', 'preview');
   }, [scheduleMarkdownScrollSync, shouldIgnoreMarkdownScroll]);
 
   const handleMarkdownPreviewScroll = useCallback(() => {
     const previewPane = markdownPreviewPaneRef.current;
     if (!previewPane || shouldIgnoreMarkdownScroll('preview', previewPane)) return;
+    if (activeMarkdownScrollPaneRef.current !== 'preview') return;
     scheduleMarkdownScrollSync('preview', 'editor');
   }, [scheduleMarkdownScrollSync, shouldIgnoreMarkdownScroll]);
+
+  const activateMarkdownScrollPane = useCallback((pane: MarkdownScrollPane) => {
+    activeMarkdownScrollPaneRef.current = pane;
+  }, []);
 
   useEffect(() => {
     const article = markdownArticleRef.current;
@@ -11381,10 +11391,11 @@ function MarkdownViewer({
       }
       pendingScrollSyncRef.current = null;
       programmaticScrollRef.current = null;
+      activeMarkdownScrollPaneRef.current = 'editor';
       previousModeRef.current = mode;
       return;
     }
-    const sourcePane = previousModeRef.current === 'preview' ? 'preview' : 'editor';
+    const sourcePane = activeMarkdownScrollPaneRef.current ?? (previousModeRef.current === 'preview' ? 'preview' : 'editor');
     const targetPane = sourcePane === 'preview' ? 'editor' : 'preview';
     scheduleMarkdownScrollSync(sourcePane, targetPane);
     previousModeRef.current = mode;
@@ -11519,7 +11530,11 @@ function MarkdownViewer({
                   className="markdown-editor"
                   value={text}
                   spellCheck
-                  onChange={(event) => setText(event.currentTarget.value)}
+                  onFocus={() => activateMarkdownScrollPane('editor')}
+                  onChange={(event) => {
+                    activateMarkdownScrollPane('editor');
+                    setText(event.currentTarget.value);
+                  }}
                   onScroll={handleMarkdownEditorScroll}
                   onPaste={handleEditorPaste}
                   onDrop={handleEditorDrop}
@@ -11531,6 +11546,11 @@ function MarkdownViewer({
                 ref={markdownPreviewPaneRef}
                 className="markdown-preview-pane"
                 aria-label={t('fileViewer.markdownPreview')}
+                onPointerDown={() => activateMarkdownScrollPane('preview')}
+                onWheel={() => activateMarkdownScrollPane('preview')}
+                onTouchStart={() => activateMarkdownScrollPane('preview')}
+                onKeyDown={() => activateMarkdownScrollPane('preview')}
+                onFocus={() => activateMarkdownScrollPane('preview')}
                 onScroll={handleMarkdownPreviewScroll}
               >
                 {isStreaming ? <div className="markdown-status">{t('fileViewer.markdownStreamingStatus')}</div> : null}

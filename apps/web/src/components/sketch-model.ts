@@ -50,7 +50,6 @@ export interface ExcalidrawSketchScene {
   elements: readonly unknown[];
   appState: Record<string, unknown> | null;
   files: Record<string, unknown>;
-  libraryItems?: readonly unknown[];
 }
 
 export interface ParsedSketchWorkspaceDocument {
@@ -168,12 +167,11 @@ export function emptySketchScene(name?: string): ExcalidrawSketchScene {
       gridSize: null,
     },
     files: {},
-    libraryItems: [],
   };
 }
 
 export function sketchSceneHasContent(scene: ExcalidrawSketchScene | null | undefined): boolean {
-  return Boolean(scene?.libraryItems?.length) || Boolean(scene?.elements.some((element) => {
+  return Boolean(scene?.elements.some((element) => {
     if (!isSketchRecord(element)) return false;
     return element.isDeleted !== true;
   }));
@@ -199,7 +197,6 @@ export function buildExcalidrawSketchDocument(
     elements: cloneJsonArray(scene.elements),
     appState,
     files: cloneJsonRecord(scene.files),
-    libraryItems: cloneJsonArray(scene.libraryItems ?? []),
   };
 }
 
@@ -271,7 +268,6 @@ function normalizeExcalidrawSketchScene(value: unknown): ExcalidrawSketchScene |
     elements: cloneJsonArray(value.elements),
     appState: isSketchRecord(value.appState) ? sanitizeExcalidrawAppState(value.appState) : null,
     files: isSketchRecord(value.files) ? cloneJsonRecord(value.files) : {},
-    libraryItems: Array.isArray(value.libraryItems) ? cloneJsonArray(value.libraryItems) : [],
   };
 }
 

@@ -2191,7 +2191,6 @@ export const zhCN: Dict = {
   'sketch.tooltipEmbeddable': "Web 嵌入仅支持有效的 https:// 或 http:// 链接",
   'sketch.tooltipLaser': "激光笔：临时指示画布内容，不修改元素",
   'sketch.tooltipMoreTools': "更多工具：打开框架、Web 嵌入、激光笔等工具",
-  'sketch.tooltipLibrary': "素材库：打开可复用组件和已保存素材",
   'sketch.tooltipDirty': '尚未保存',
   'sketch.tooltipClean': '已保存',
   'fileViewer.empty': '请选择一个文件查看。',

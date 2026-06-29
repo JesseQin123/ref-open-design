@@ -2191,7 +2191,6 @@ export const zhTW: Dict = {
   'sketch.tooltipEmbeddable': "Web 嵌入僅支援有效的 https:// 或 http:// 連結",
   'sketch.tooltipLaser': "雷射筆：暫時指示畫布內容，不修改元素",
   'sketch.tooltipMoreTools': "更多工具：開啟框架、Web 嵌入、雷射筆等工具",
-  'sketch.tooltipLibrary': "素材庫：開啟可重用元件和已保存素材",
   'sketch.tooltipDirty': '尚未儲存',
   'sketch.tooltipClean': '已儲存',
   'fileViewer.empty': '請選擇一個檔案檢視。',
