@@ -284,9 +284,10 @@ interface Stage {
 }
 
 // Measures the deck's authored slide box so the capture/PPTX follow the real
-// aspect ratio instead of assuming 16:9. Reads the rendered (post-transform)
-// rect of the first slide that has layout, so a fit-to-viewport deck reports the
-// stage it actually paints. Clamps to a sane range and falls back to 1920x1080.
+// aspect ratio instead of assuming 16:9. Prefers untransformed deck-stage and
+// declared element dimensions, falling back to a rendered rect only when the
+// authored box cannot be inferred. Clamps to a sane range and falls back to
+// 1920x1080.
 async function measureSlideStage(window: BrowserWindow): Promise<Stage> {
   try {
     const measured = (await window.webContents.executeJavaScript(
@@ -1071,7 +1072,7 @@ function pinDeckStage(w: number, h: number): void {
 // Serialized into the page: measures the authored slide box. Prefers a slide
 // that already has a non-zero layout rect (covers decks that hide inactive
 // slides via opacity/visibility); if every slide is display:none, force-measures
-// the first one off-screen. Returns the rendered DIP size or null.
+// the first one off-screen. Returns the authored DIP size or null.
 function measureSlide(slideSelector: string): { w: number; h: number } | null {
   function positiveCssNumber(value: unknown): number | null {
     if (typeof value === "number") return Number.isFinite(value) && value > 1 ? value : null;
