@@ -17,6 +17,7 @@ import { resolveDaemonUrl } from './daemon-url.js';
 import { requestJsonIpc } from '@open-design/sidecar';
 import { SIDECAR_ENV, SIDECAR_MESSAGES } from '@open-design/sidecar-proto';
 import { EXPORT_FORMATS, EXPORT_IMAGE_FORMATS } from '@open-design/contracts';
+import { buildExportCliRequestBody } from './export-cli-request.js';
 import { exportRoutePath } from './export-cli-routing.js';
 import {
   AGENT_SLUGS,
@@ -408,16 +409,17 @@ async function runExport(args) {
   // `/export` vector `printToPDF` path, which drops CJK glyphs in the packaged
   // runtime and is the bug this feature exists to avoid.
   const exportPath = exportRoutePath(format);
+  const requestBody = buildExportCliRequestBody({
+    fileName: file,
+    format,
+    deck: flags.deck === true,
+    ...(format === 'image' && flags['image-format'] ? { imageFormat: flags['image-format'] } : {}),
+    ...(flags.title ? { title: flags.title } : {}),
+  });
   const resp = await fetch(`${base}/api/projects/${encodeURIComponent(projectId)}/${exportPath}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      fileName: file,
-      // PPTX is deck-only; pdf/image honor the caller's --deck flag.
-      deck: format === 'pptx' ? true : flags.deck === true,
-      ...(format === 'image' && flags['image-format'] ? { imageFormat: flags['image-format'] } : {}),
-      ...(flags.title ? { title: flags.title } : {}),
-    }),
+    body: JSON.stringify(requestBody),
   });
   if (!resp.ok) return structuredHttpFailure(resp);
   const buffer = Buffer.from(await resp.arrayBuffer());
