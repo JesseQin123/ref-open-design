@@ -7,6 +7,7 @@ import {
   buildScrollAnchors,
   extractMarkdownBlockLines,
   mapScrollPosition,
+  measurePreviewBlockOffsets,
 } from '../../src/components/markdown-scroll-sync';
 
 function topLevelElementCount(markdown: string): number {
@@ -88,6 +89,14 @@ describe('buildScrollAnchors', () => {
 
   it('clamps to the scroll range and enforces monotonicity', () => {
     expect(buildScrollAnchors([120, 80, 9999], 500)).toEqual([0, 120, 120, 500, 500]);
+  });
+});
+
+describe('measurePreviewBlockOffsets', () => {
+  it('returns null when the browser cannot report distinct block geometry', () => {
+    const pane = document.createElement('div');
+    pane.innerHTML = '<article class="markdown-rendered"><p>one</p><p>two</p></article>';
+    expect(measurePreviewBlockOffsets(pane, 2)).toBeNull();
   });
 });
 

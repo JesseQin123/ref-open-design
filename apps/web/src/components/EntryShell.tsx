@@ -582,19 +582,6 @@ export function EntryShell({
     setNewProjectOpen(true);
   }
 
-  async function startBlankProjectFromRail() {
-    setNewProjectOpen(false);
-    try {
-      await onCreateProject({
-        name: t('common.untitled'),
-        skillId: null,
-        designSystemId: null,
-      });
-    } catch (err) {
-      console.warn('Could not create blank project from entry rail', err);
-    }
-  }
-
   function handleCreate(input: CreateInput) {
     // The NewProjectModal no longer asks the user to pick a plugin.
     // Each project kind is silently bound to its default scenario
@@ -776,7 +763,7 @@ export function EntryShell({
         <EntryNavRail
           view={view}
           onViewChange={changeView}
-          onNewProject={() => void startBlankProjectFromRail()}
+          onNewProject={() => openNewProject()}
           open={railOpen}
           onClose={() => setRailOpen(false)}
         />

@@ -2437,6 +2437,13 @@ export interface Dict {
   'chat.mode.design.query3': string;
   'chat.mode.cardBestFor': string;
   'chat.mode.cardTry': string;
+  'chat.mode.cardCost': string;
+  'chat.mode.chat.cost': string;
+  'chat.mode.chat.costNote': string;
+  'chat.mode.plan.cost': string;
+  'chat.mode.plan.costNote': string;
+  'chat.mode.design.cost': string;
+  'chat.mode.design.costNote': string;
   'chat.composerHint': string;
   'chat.cliSettingsTitle': string;
   'chat.cliSettingsAria': string;

@@ -47,6 +47,12 @@ const MIRROR_COPIED_STYLES = [
   'padding-left',
 ];
 
+function hasVerticalProgression(offsets: number[]): boolean {
+  if (offsets.length <= 1) return true;
+  const first = offsets[0] ?? 0;
+  return offsets.some((offset, index) => index > 0 && offset > first + 0.5);
+}
+
 /**
  * 1-based source start line of every top-level markdown block, in document
  * order. Nested blocks (list items, blockquote contents) collapse into their
@@ -156,6 +162,7 @@ export function measureEditorBlockOffsets(
   } finally {
     document.body.removeChild(mirror);
   }
+  if (!hasVerticalProgression(offsets)) return null;
   return offsets;
 }
 
@@ -175,7 +182,9 @@ export function measurePreviewBlockOffsets(pane: HTMLElement, blockCount: number
   if (children.length !== blockCount) return null;
   const paneRect = pane.getBoundingClientRect();
   const contentTop = paneRect.top - pane.scrollTop;
-  return children.map((child) => child.getBoundingClientRect().top - contentTop);
+  const offsets = children.map((child) => child.getBoundingClientRect().top - contentTop);
+  if (!hasVerticalProgression(offsets)) return null;
+  return offsets;
 }
 
 /**
