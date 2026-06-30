@@ -4472,4 +4472,78 @@ describe('SettingsDialog about interactions', () => {
       expect(quit).toHaveBeenCalledWith({ payload: { source: 'settings-about' } });
     });
   });
+
+  it('keeps a quit retry action when update install succeeds but quit fails', async () => {
+    const payloadReady = updateStatus({
+      artifact: {
+        name: 'open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+        platformKey: 'mac',
+        type: 'payload',
+        url: 'https://fixture.test/open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+      },
+      availableVersion: '1.2.3-beta.4',
+      capabilities: {
+        canApplyInPlace: true,
+        canDownload: true,
+        canOpenInstaller: false,
+        requiresManualInstall: false,
+      },
+      downloadPath: '/tmp/open-design-updater/open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+      state: 'downloaded',
+    });
+    const installed = updateStatus({
+      ...payloadReady,
+      installResult: {
+        dryRun: true,
+        openedAt: '2026-05-19T00:00:00.000Z',
+        path: '/tmp/open-design-updater/open-design-1.2.3-beta.4-mac-arm64-payload.zip',
+      },
+    });
+    const install = vi.fn(async () => installed);
+    const quit = vi.fn(async () => ({
+      ok: false as const,
+      reason: 'desktop quit is not available',
+    }));
+    restoreOpenDesignHost = installMockOpenDesignHost({
+      host: {
+        updater: {
+          install,
+          quit,
+          status: vi.fn(async () => payloadReady),
+        },
+      },
+    });
+
+    renderSettingsDialog(
+      { mode: 'daemon', agentId: 'codex' },
+      {
+        initialSection: 'about',
+        appVersionInfo: {
+          version: '1.2.3-beta.3',
+          channel: 'beta',
+          packaged: true,
+          platform: 'darwin',
+          arch: 'arm64',
+        },
+      },
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: en['updater.installRestart'] }));
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalledWith({ payload: { source: 'settings-about' } });
+    });
+    await waitFor(() => {
+      expect(quit).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByRole('button', { name: en['updater.quitButton'] })).toBeTruthy();
+    expect(screen.getAllByText(en['settings.updateQuitFailed']).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: en['updater.quitButton'] }));
+
+    await waitFor(() => {
+      expect(quit).toHaveBeenCalledTimes(2);
+    });
+    expect(install).toHaveBeenCalledTimes(1);
+  });
 });

@@ -218,6 +218,39 @@ describe('SettingsDialog about update control', () => {
     });
   });
 
+  it('offers a quit retry after the installer has opened', () => {
+    const control = deriveAboutUpdateControl(
+      deriveUpdaterModel(
+        updateStatus({
+          artifact: {
+            name: 'Open Design Beta.dmg',
+            platformKey: 'macAppleSilicon',
+            type: 'dmg',
+            url: 'https://fixture.test/Open Design Beta.dmg',
+          },
+          availableVersion: '1.2.3-beta.4',
+          downloadPath: '/tmp/Open Design Beta.dmg',
+          installResult: {
+            dryRun: true,
+            openedAt: '2026-05-19T00:00:00.000Z',
+            path: '/tmp/Open Design Beta.dmg',
+          },
+          state: 'downloaded',
+        }),
+        { hostAvailable: true },
+      ),
+      packagedVersion,
+    );
+
+    expect(control).toMatchObject({
+      primaryAction: 'quit',
+      primaryLabelKey: 'updater.quitButton',
+      showReleaseLink: false,
+      statusKey: 'settings.updateQuitFailed',
+      statusTone: 'warning',
+    });
+  });
+
   it('turns update errors into a retry action', () => {
     const control = deriveAboutUpdateControl(
       deriveUpdaterModel(updateStatus({ state: 'error' }), { hostAvailable: true }),

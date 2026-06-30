@@ -220,7 +220,7 @@ export type SettingsHighlight = 'amr' | null;
 
 const OPEN_DESIGN_RELEASES_URL = 'https://github.com/nexu-io/open-design/releases';
 
-type AboutUpdatePrimaryAction = 'check' | 'download' | 'install';
+type AboutUpdatePrimaryAction = 'check' | 'download' | 'install' | 'quit';
 type AboutUpdateTone = 'neutral' | 'success' | 'warning' | 'error';
 
 export interface AboutUpdateControl {
@@ -298,6 +298,15 @@ export function deriveAboutUpdateControl(
       };
     }
     case 'downloaded': {
+      if (model.installerOpened && model.canQuitAfterInstallerOpen) {
+        return {
+          primaryAction: 'quit',
+          primaryLabelKey: 'updater.quitButton',
+          showReleaseLink: false,
+          statusKey: 'settings.updateQuitFailed',
+          statusTone: 'warning',
+        };
+      }
       const canInstallUpdate = model.canOpenInstaller || model.canApplyInPlace;
       return {
         primaryAction: canInstallUpdate ? 'install' : null,
@@ -1626,6 +1635,9 @@ export function SettingsDialog({
         applyAboutUpdaterResult(await checkForUpdaterUpdate(options));
       } else if (aboutUpdateControl.primaryAction === 'download') {
         applyAboutUpdaterResult(await downloadUpdaterUpdate(options));
+      } else if (aboutUpdateControl.primaryAction === 'quit') {
+        const quitResult = await quitAfterUpdaterInstallerOpen(options);
+        if (!quitResult.ok) setAboutToast(t('settings.updateQuitFailed'));
       } else {
         const installed = applyAboutUpdaterResult(await openUpdaterInstaller(options));
         if (installed) {
@@ -5107,6 +5119,7 @@ export function SettingsDialog({
                           className={`settings-about-update-button${
                             aboutUpdateControl.primaryAction === 'download'
                               || aboutUpdateControl.primaryAction === 'install'
+                              || aboutUpdateControl.primaryAction === 'quit'
                               ? ' settings-about-update-button--primary'
                               : ''
                           }`}
