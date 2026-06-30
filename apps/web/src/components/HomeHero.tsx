@@ -1160,7 +1160,8 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
     Boolean(activeSkillTitle) ||
     contextOnlyPlugins.length > 0 ||
     contextOnlyMcpServers.length > 0 ||
-    contextOnlyConnectors.length > 0;
+    contextOnlyConnectors.length > 0 ||
+    contextWorkspaceItems.length > 0;
 
   let optionRenderIndex = 0;
 
