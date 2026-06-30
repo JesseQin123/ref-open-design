@@ -237,7 +237,7 @@ test('[P0] @critical BYOK quick fill provider updates fields and saved settings 
 
   await openSettingsDialogFromEntry(page);
   const reopenedDialog = page.getByRole('dialog');
-  await expect(reopenedDialog.getByRole('tab', { name: 'OpenAI', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(reopenedDialog.getByRole('tab', { name: 'DeepSeek', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(providerPresetCombobox(reopenedDialog)).toContainText(/DeepSeek — OpenAI/i);
   await expectModelComboboxText(reopenedDialog, /deepseek-chat/i);
   await expect(reopenedDialog.getByLabel('Base URL')).toHaveValue('https://api.deepseek.com');

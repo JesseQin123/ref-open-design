@@ -184,7 +184,6 @@ export const API_PROTOCOL_TABS: ReadonlyArray<{
   { id: 'ollama', title: 'Ollama Cloud' },
   { id: 'senseaudio', title: 'SenseAudio' },
   { id: 'aihubmix', title: 'AIHubMix' },
-  { id: 'bedrock', title: 'AWS Bedrock' },
 ];
 
 export const API_PROTOCOL_LABELS: Record<ApiProtocol, string> = {
