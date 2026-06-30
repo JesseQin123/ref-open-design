@@ -366,9 +366,7 @@ test.describe('Settings media providers flows', () => {
     await dialog.getByRole('button', { name: /Close/i }).click();
     await expect(dialog).toHaveCount(0);
 
-    await ensureRailOpen(page);
-    await page.getByTestId('entry-nav-new-project').click();
-    await expect(page.getByTestId('new-project-modal')).toBeVisible();
+    await openNewProjectModal(page);
     await page.getByTestId('new-project-tab-media').click();
     await page.getByTestId('new-project-media-surface-image').click();
     await page.getByTestId('new-project-name').fill('Configured image generation');
@@ -441,9 +439,7 @@ test.describe('Settings media providers flows', () => {
     await dialog.getByRole('button', { name: /Close/i }).click();
     await expect(dialog).toHaveCount(0);
 
-    await ensureRailOpen(page);
-    await page.getByTestId('entry-nav-new-project').click();
-    await expect(page.getByTestId('new-project-modal')).toBeVisible();
+    await openNewProjectModal(page);
     await page.getByTestId('new-project-tab-media').click();
     await page.getByTestId('new-project-media-surface-image').click();
     await page.getByTestId('new-project-name').fill('Configured image run');
@@ -518,9 +514,7 @@ test.describe('Settings media providers flows', () => {
     await dialog.getByRole('button', { name: /Close/i }).click();
     await expect(dialog).toHaveCount(0);
 
-    await ensureRailOpen(page);
-    await page.getByTestId('entry-nav-new-project').click();
-    await expect(page.getByTestId('new-project-modal')).toBeVisible();
+    await openNewProjectModal(page);
     await page.getByTestId('new-project-tab-media').click();
     await page.getByTestId('new-project-media-surface-video').click();
     await page.getByTestId('new-project-name').fill('Configured video run');
@@ -596,9 +590,7 @@ test.describe('Settings media providers flows', () => {
     await dialog.getByRole('button', { name: /Close/i }).click();
     await expect(dialog).toHaveCount(0);
 
-    await ensureRailOpen(page);
-    await page.getByTestId('entry-nav-new-project').click();
-    await expect(page.getByTestId('new-project-modal')).toBeVisible();
+    await openNewProjectModal(page);
     await page.getByTestId('new-project-tab-media').click();
     await page.getByTestId('new-project-media-surface-audio').click();
     await page.getByTestId('new-project-name').fill('Configured audio run');
