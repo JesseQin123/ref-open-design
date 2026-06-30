@@ -3,7 +3,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Project } from '../../src/types';
-import { ProjectReferenceModal } from '../../src/components/ProjectReferenceModal';
+import {
+  ProjectReferenceModal,
+  type ProjectReferenceSelection,
+} from '../../src/components/ProjectReferenceModal';
 import { I18nProvider } from '../../src/i18n';
 import type { Locale } from '../../src/i18n/types';
 import { getProjectDetail, listProjects } from '../../src/state/projects';
@@ -30,7 +33,7 @@ const importedProject: Project = {
   metadata: { kind: 'prototype', baseDir: '/Users/me/imported' },
 };
 
-type ProjectSelectHandler = (project: Project, resolvedDir: string) => void;
+type ProjectSelectHandler = (items: ProjectReferenceSelection[]) => void;
 
 function renderModal(options: {
   onSelect?: ProjectSelectHandler;
@@ -107,7 +110,9 @@ describe('ProjectReferenceModal', () => {
     await confirmSelection();
 
     await waitFor(() => {
-      expect(onSelect).toHaveBeenCalledWith(project, '/tmp/open-design/project-ref');
+      expect(onSelect).toHaveBeenCalledWith([
+        { project, resolvedDir: '/tmp/open-design/project-ref' },
+      ]);
     });
   });
 
@@ -121,7 +126,38 @@ describe('ProjectReferenceModal', () => {
     await confirmSelection('Imported Project');
 
     await waitFor(() => {
-      expect(onSelect).toHaveBeenCalledWith(importedProject, '/Users/me/imported');
+      expect(onSelect).toHaveBeenCalledWith([
+        { project: importedProject, resolvedDir: '/Users/me/imported' },
+      ]);
+    });
+  });
+
+  it('selects multiple referenced projects in one confirmation', async () => {
+    const secondProject: Project = {
+      ...project,
+      id: 'second-project',
+      name: 'Second Project',
+    };
+    const { onSelect } = renderModal({ projects: [project, secondProject] });
+    vi.mocked(getProjectDetail).mockImplementation(async (id: string) => {
+      if (id === project.id) {
+        return { project, resolvedDir: '/tmp/open-design/project-ref' };
+      }
+      if (id === secondProject.id) {
+        return { project: secondProject, resolvedDir: '/tmp/open-design/second-project' };
+      }
+      return null;
+    });
+
+    await screen.findByText('Reference Project');
+    fireEvent.click(screen.getByText('Second Project'));
+    fireEvent.click(screen.getByRole('button', { name: 'Reference project' }));
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledWith([
+        { project, resolvedDir: '/tmp/open-design/project-ref' },
+        { project: secondProject, resolvedDir: '/tmp/open-design/second-project' },
+      ]);
     });
   });
 });

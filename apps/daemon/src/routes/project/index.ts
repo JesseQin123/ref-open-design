@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { Express, Response } from 'express';
@@ -10,7 +11,12 @@ import { readMeta as readBrandMeta } from '../../brands/store.js';
 import { createProjectArtifactFile } from '../../artifacts/create.js';
 import { ArtifactPublicationBlockedError } from '../../artifacts/publication-guard.js';
 import { ArtifactRegressionError } from '../../artifacts/stub-guard.js';
-import { listDesignSystems } from '../../design-systems/index.js';
+import {
+  createUserDesignSystem,
+  deleteUserDesignSystem,
+  linkUserDesignSystemProject,
+  listDesignSystems,
+} from '../../design-systems/index.js';
 import {
   FIRST_PARTY_ATOMS,
   buildConnectorProbe,
@@ -907,10 +913,179 @@ function normalizeChatSessionMode(value: unknown): ChatSessionMode {
   return value === 'chat' ? 'chat' : 'design';
 }
 
+function isDesignSystemLikeProject(project: any): boolean {
+  const metadata = project?.metadata;
+  if (!metadata || typeof metadata !== 'object') return false;
+  return (
+    metadata.kind === 'brand' ||
+    metadata.importedFrom === 'design-system' ||
+    metadata.importedFrom === 'brand-extraction' ||
+    (typeof metadata.brandDesignSystemId === 'string' && metadata.brandDesignSystemId.trim().length > 0)
+  );
+}
+
+function normalizeDesignSystemCopyName(value: unknown, sourceProject: any): string {
+  const explicit = typeof value === 'string' ? value.trim() : '';
+  if (explicit) return explicit.slice(0, 160);
+  const sourceName = typeof sourceProject?.name === 'string' && sourceProject.name.trim()
+    ? sourceProject.name.trim()
+    : 'Untitled';
+  return /\bdesign system\b/i.test(sourceName)
+    ? sourceName.slice(0, 160)
+    : `${sourceName} Design System`.slice(0, 160);
+}
+
+function normalizeProjectDuplicateName(value: unknown, sourceProject: any): string {
+  const explicit = typeof value === 'string' ? value.trim() : '';
+  if (explicit) return explicit.slice(0, 160);
+  const sourceName = typeof sourceProject?.name === 'string' && sourceProject.name.trim()
+    ? sourceProject.name.trim()
+    : 'Untitled';
+  return `${sourceName} Copy`.slice(0, 160);
+}
+
+function normalizePendingPrompt(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function cloneProjectMetadataForDuplicate(sourceProject: any): Record<string, unknown> {
+  const sourceMetadata =
+    sourceProject?.metadata && typeof sourceProject.metadata === 'object'
+      ? { ...sourceProject.metadata }
+      : {};
+  delete sourceMetadata.baseDir;
+  delete sourceMetadata.projectLocationId;
+  delete sourceMetadata.fromTrustedPicker;
+  delete sourceMetadata.orchestratorWorkspace;
+  return {
+    ...sourceMetadata,
+    sourceProjectId: sourceProject.id,
+    sourceProjectName: sourceProject.name,
+  };
+}
+
+function buildDesignSystemCopySourceContext(input: {
+  sourceProject: any;
+  targetProjectId: string;
+  designSystemId: string;
+  copiedFiles: string[];
+  skippedFiles: Array<{ name: string; reason: string }>;
+}): string {
+  const metadata =
+    input.sourceProject?.metadata && typeof input.sourceProject.metadata === 'object'
+      ? JSON.stringify(input.sourceProject.metadata, null, 2)
+      : '{}';
+  const copied = input.copiedFiles.length > 0
+    ? input.copiedFiles.map((name) => `- ${name}`).join('\n')
+    : '- (none)';
+  const skipped = input.skippedFiles.length > 0
+    ? input.skippedFiles.map((entry) => `- ${entry.name}: ${entry.reason}`).join('\n')
+    : '- (none)';
+  return [
+    '# Source Project Context',
+    '',
+    'This design-system workspace was created from an existing Open Design project. Treat the copied project files as the primary source evidence for the generated design system.',
+    '',
+    '## Source project',
+    '',
+    `- Source project id: ${input.sourceProject.id}`,
+    `- Source project name: ${input.sourceProject.name}`,
+    `- New design-system project id: ${input.targetProjectId}`,
+    `- New design-system id: ${input.designSystemId}`,
+    `- Source skill id: ${input.sourceProject.skillId ?? '(none)'}`,
+    `- Source design system id: ${input.sourceProject.designSystemId ?? '(none)'}`,
+    '',
+    '## Source metadata',
+    '',
+    '```json',
+    metadata,
+    '```',
+    '',
+    '## Copied files',
+    '',
+    copied,
+    '',
+    '## Skipped files',
+    '',
+    skipped,
+    '',
+    '## Generation contract',
+    '',
+    '- Read this file before editing design-system outputs.',
+    '- Read the copied files directly from the project workspace; they are source evidence, not generated design-system output.',
+    '- Preserve high-signal assets, source examples, UI surfaces, copy, tokens, typography, and interaction patterns from the copied project.',
+    '- Generate a reusable Open Design design-system package in this same project: DESIGN.md, README.md, SKILL.md, colors_and_type.css, context/provenance, focused preview cards, preserved assets/build/fonts when available, and ui_kits/app/.',
+    '- Before final response, run `"$OD_NODE_BIN" "$OD_BIN" tools connectors design-system-package-audit --path . --fail-on-warnings` and fix every actionable issue.',
+    '',
+  ].join('\n');
+}
+
+function buildDesignSystemCopyPendingPrompt(input: {
+  sourceProject: any;
+  targetProjectId: string;
+  designSystemId: string;
+  copiedFiles: string[];
+}): string {
+  const metadata =
+    input.sourceProject?.metadata && typeof input.sourceProject.metadata === 'object'
+      ? JSON.stringify(input.sourceProject.metadata, null, 2)
+      : '{}';
+  const visibleFiles = input.copiedFiles
+    .slice(0, 140)
+    .map((name) => `  - ${name}`);
+  return [
+    'Create this project as a complete Open Design design system workspace.',
+    '',
+    'Autonomy requirement:',
+    '- Do not ask setup or clarification questions during design-system generation.',
+    '- Do not emit `<question-form>`, "Quick brief — 30 seconds", direction cards, choice cards, or any UI that waits for user input.',
+    '- The source project already contains the evidence. Choose sensible defaults where details are missing and begin generating the design-system artifacts immediately.',
+    '',
+    'Source project handoff:',
+    `- Source project id: ${input.sourceProject.id}`,
+    `- Source project name: ${input.sourceProject.name}`,
+    `- New design-system project id: ${input.targetProjectId}`,
+    `- New design-system id: ${input.designSystemId}`,
+    '- Read `context/source-context.md` first. It lists the copied project files and original project metadata.',
+    '- Treat every copied file, uploaded asset, reference image, browser snapshot, sketch, generated artifact, and context note in this workspace as design-system evidence.',
+    '- Use the copied project outputs to infer real visual language, components, layout, interaction patterns, copy tone, tokens, typography, spacing, assets, and anti-patterns.',
+    '- Do not create another project or another design-system id. Update this new design-system project in place.',
+    '',
+    'Source project metadata:',
+    '```json',
+    metadata,
+    '```',
+    '',
+    'Copied files to inspect:',
+    ...(visibleFiles.length > 0 ? visibleFiles : ['  - (none copied; rely on context/source-context.md and project metadata)']),
+    input.copiedFiles.length > visibleFiles.length
+      ? `  - ...and ${input.copiedFiles.length - visibleFiles.length} more files listed in context/source-context.md`
+      : '',
+    '',
+    'Expected output:',
+    '- A clear `DESIGN.md` with product context, visual foundations, color, type, spacing, layout, components, motion, voice, and anti-patterns.',
+    '- A reusable package: `README.md`, `SKILL.md`, `colors_and_type.css`, provenance notes, `assets/`, `build/` when runtime icons exist, optional `fonts/`, focused `preview/` cards, preserved source examples, and `ui_kits/app/`.',
+    '- Preserve real source assets when evidence provides them: logos, app icons, tray icons, avatars, wordmarks, imagery, and font files belong in `assets/`, `build/`, or `fonts/`, not only in prose.',
+    '- Preserve high-signal source/component examples outside `context/` when copied files include substantial implementation or artifact code. Do not replace them with tiny stubs.',
+    '- Split review previews into focused cards for colors, typography, spacing, radius/shadows, components, brand assets, and applied UI surfaces. Preview cards must visibly load preserved files when available.',
+    '- Build `ui_kits/app/` as an applied interface kit that reflects the source project, with an index page and component files when the evidence supports them. Do not leave it as a generic static mock.',
+    '- Keep `README.md`, `SKILL.md`, `DESIGN.md`, preview manifest text, and `ui_kits/app/README.md` synchronized with the final file structure.',
+    '',
+    'Completion gate:',
+    '- Finish only after the project contains reviewable design-system artifacts and the right-side Design System tab can inspect them.',
+    '- Before your final response, run `"$OD_NODE_BIN" "$OD_BIN" tools connectors design-system-package-audit --path . --fail-on-warnings`.',
+    '- Fix every audit error and design-quality warning. If an issue cannot be fixed because source evidence is missing, explain that blocker instead of claiming the design system is ready.',
+    '',
+    'When finished, summarize the generated files and name the first previews reviewers should inspect.',
+  ].filter(Boolean).join('\n');
+}
+
 export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDeps) {
   const { db, design } = ctx;
   const { sendApiError, createSseResponse } = ctx.http;
-  const { DESIGN_SYSTEMS_DIR, PROJECTS_DIR, SKILLS_DIR, BRANDS_DIR } = ctx.paths;
+  const { DESIGN_SYSTEMS_DIR, PROJECTS_DIR, SKILLS_DIR, BRANDS_DIR, USER_DESIGN_SYSTEMS_DIR } = ctx.paths;
   const { readAppConfig, writeAppConfig } = ctx.appConfig;
   const { insertProject, validateLinkedDirs, getProject, updateProject, dbDeleteProject, removeProjectDir } = ctx.projectStore;
   const { writeProjectFile, readProjectFile, ensureProject, listFiles, listTabs, setTabs, resolveProjectDir } = ctx.projectFiles;
@@ -1501,6 +1676,243 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     }
   });
 
+  app.post('/api/projects/:id/duplicate', async (req, res) => {
+    const sourceProject = getProject(db, req.params.id);
+    try {
+      const locations = await configuredProjectLocations();
+      if (!sourceProject || !projectVisibleForLocations(sourceProject, locations)) {
+        return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
+      }
+      if (isDesignSystemLikeProject(sourceProject)) {
+        return sendApiError(
+          res,
+          400,
+          'PROJECT_ALREADY_DESIGN_SYSTEM',
+          'project is already a design-system workspace',
+        );
+      }
+
+      const targetProjectId = randomId();
+      const targetName = normalizeProjectDuplicateName(req.body?.name, sourceProject);
+      const metadata = cloneProjectMetadataForDuplicate(sourceProject);
+      let insertedProject = false;
+      try {
+        await ensureProject(PROJECTS_DIR, targetProjectId, metadata);
+        const sourceFiles = await listFiles(PROJECTS_DIR, sourceProject.id, {
+          metadata: sourceProject.metadata,
+        });
+        const copiedFiles: string[] = [];
+        for (const file of sourceFiles) {
+          if (!file?.name || typeof file.name !== 'string') continue;
+          const sourceFile = await readProjectFile(
+            PROJECTS_DIR,
+            sourceProject.id,
+            file.name,
+            sourceProject.metadata,
+          );
+          await writeProjectFile(
+            PROJECTS_DIR,
+            targetProjectId,
+            sourceFile.name,
+            sourceFile.buffer,
+            {
+              overwrite: true,
+              ...(sourceFile.artifactManifest ? { artifactManifest: sourceFile.artifactManifest } : {}),
+            },
+            metadata,
+          );
+          copiedFiles.push(sourceFile.name);
+        }
+
+        const now = Date.now();
+        const project = insertProject(db, {
+          id: targetProjectId,
+          name: targetName,
+          skillId: sourceProject.skillId ?? null,
+          designSystemId: sourceProject.designSystemId ?? null,
+          pendingPrompt: null,
+          metadata,
+          customInstructions: sourceProject.customInstructions ?? null,
+          createdAt: now,
+          updatedAt: now,
+        });
+        insertedProject = true;
+        const conversationId = randomId();
+        insertConversation(db, {
+          id: conversationId,
+          projectId: targetProjectId,
+          title: null,
+          sessionMode: 'design',
+          createdAt: now,
+          updatedAt: now,
+        });
+        try {
+          const tabs = listTabs(db, sourceProject.id);
+          setTabs(db, targetProjectId, tabs);
+        } catch {
+          // Open-tabs state is convenience metadata; file duplication succeeds
+          // without it.
+        }
+        /** @type {import('@open-design/contracts').DuplicateProjectResponse} */
+        const body = {
+          project,
+          conversationId,
+          copiedFiles,
+        };
+        res.json(body);
+      } catch (err) {
+        if (insertedProject) dbDeleteProject(db, targetProjectId);
+        await removeProjectDir(PROJECTS_DIR, targetProjectId).catch(() => {});
+        throw err;
+      }
+    } catch (err: any) {
+      sendApiError(res, 400, 'BAD_REQUEST', String(err));
+    }
+  });
+
+  app.post('/api/projects/:id/design-system-copy', async (req, res) => {
+    const sourceProject = getProject(db, req.params.id);
+    try {
+      const locations = await configuredProjectLocations();
+      if (!sourceProject || !projectVisibleForLocations(sourceProject, locations)) {
+        return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
+      }
+      if (isDesignSystemLikeProject(sourceProject)) {
+        return sendApiError(
+          res,
+          400,
+          'PROJECT_ALREADY_DESIGN_SYSTEM',
+          'project is already a design-system workspace',
+        );
+      }
+
+      const targetProjectId = randomId();
+      const targetName = normalizeDesignSystemCopyName(req.body?.name, sourceProject);
+      const requestedPendingPrompt = normalizePendingPrompt(req.body?.pendingPrompt);
+      const sourceNotes = `Created from Open Design project "${sourceProject.name}" (${sourceProject.id}).`;
+      let createdDesignSystemId: string | null = null;
+      let insertedProject = false;
+      try {
+        const designSystem = await createUserDesignSystem(USER_DESIGN_SYSTEMS_DIR, {
+          title: targetName,
+          summary: sourceNotes,
+          category: 'Project Design System',
+          surface: 'web',
+          status: 'draft',
+          artifactMode: 'agent-managed',
+          sourceNotes,
+          provenance: {
+            notes: sourceNotes,
+            sourceNotes,
+          },
+        });
+        createdDesignSystemId = designSystem.id;
+
+        const metadata = {
+          kind: 'other',
+          importedFrom: 'design-system',
+          entryFile: 'DESIGN.md',
+          sourceFileName: designSystem.id,
+          nameSource: 'generated',
+          sourceProjectId: sourceProject.id,
+          sourceProjectName: sourceProject.name,
+        };
+        await ensureProject(PROJECTS_DIR, targetProjectId, metadata);
+
+        const sourceFiles = await listFiles(PROJECTS_DIR, sourceProject.id, {
+          metadata: sourceProject.metadata,
+        });
+        const copiedFiles: string[] = [];
+        for (const file of sourceFiles) {
+          if (!file?.name || typeof file.name !== 'string') continue;
+          const sourceFile = await readProjectFile(
+            PROJECTS_DIR,
+            sourceProject.id,
+            file.name,
+            sourceProject.metadata,
+          );
+          await writeProjectFile(
+            PROJECTS_DIR,
+            targetProjectId,
+            sourceFile.name,
+            sourceFile.buffer,
+            {
+              overwrite: true,
+              ...(sourceFile.artifactManifest ? { artifactManifest: sourceFile.artifactManifest } : {}),
+            },
+            metadata,
+          );
+          copiedFiles.push(sourceFile.name);
+        }
+
+        const pendingPrompt = requestedPendingPrompt ?? buildDesignSystemCopyPendingPrompt({
+          sourceProject,
+          targetProjectId,
+          designSystemId: designSystem.id,
+          copiedFiles,
+        });
+        const now = Date.now();
+        const project = insertProject(db, {
+          id: targetProjectId,
+          name: targetName,
+          skillId: null,
+          designSystemId: designSystem.id,
+          pendingPrompt,
+          metadata,
+          customInstructions: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+        insertedProject = true;
+        const conversationId = randomId();
+        insertConversation(db, {
+          id: conversationId,
+          projectId: targetProjectId,
+          title: null,
+          sessionMode: 'design',
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        await writeProjectFile(
+          PROJECTS_DIR,
+          targetProjectId,
+          'context/source-context.md',
+          Buffer.from(
+            buildDesignSystemCopySourceContext({
+              sourceProject,
+              targetProjectId,
+              designSystemId: designSystem.id,
+              copiedFiles,
+              skippedFiles: [],
+            }),
+            'utf8',
+          ),
+          { overwrite: true },
+          metadata,
+        );
+        await linkUserDesignSystemProject(USER_DESIGN_SYSTEMS_DIR, designSystem.id, targetProjectId);
+        /** @type {import('@open-design/contracts').CreateDesignSystemProjectFromProjectResponse} */
+        const body = {
+          project,
+          conversationId,
+          designSystemId: designSystem.id,
+          copiedFiles,
+        };
+        res.json(body);
+      } catch (err) {
+        if (insertedProject) dbDeleteProject(db, targetProjectId);
+        await removeProjectDir(PROJECTS_DIR, targetProjectId).catch(() => {});
+        if (createdDesignSystemId) {
+          await deleteUserDesignSystem(USER_DESIGN_SYSTEMS_DIR, createdDesignSystemId).catch(() => false);
+        }
+        throw err;
+      }
+    } catch (err: any) {
+      sendApiError(res, 400, 'BAD_REQUEST', String(err));
+    }
+  });
+
   app.get('/api/projects/:id', async (req, res) => {
     const project = getProject(db, req.params.id);
     const locations = await configuredProjectLocations();
@@ -1945,6 +2357,67 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     res.setHeader('Content-Security-Policy', projectPreviewCsp);
   }
 
+  // Lets a browser (or the desktop export window, which shares the same Chromium
+  // session/cache as the web UI) reuse already-downloaded fonts/CSS/images
+  // across loads instead of re-fetching them every time — covers, live preview,
+  // and screenshot export all hit /raw/. The ETag/Last-Modified are derived from
+  // the file's size+mtime, so any agent rewrite changes them and busts the cache
+  // immediately; `no-cache` means "always revalidate" (never serve stale without
+  // asking), so a 304 only happens when the bytes are genuinely unchanged.
+  function setRawRevalidationHeaders(res: Response, meta: { size: number; mtime: number }): string {
+    const mtime = Math.floor(meta.mtime);
+    const etag = `W/"${meta.size.toString(16)}-${mtime.toString(16)}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Last-Modified', new Date(mtime).toUTCString());
+    res.setHeader('Cache-Control', 'no-cache');
+    return etag;
+  }
+
+  function rawRequestIsFresh(req: any, etag: string, mtimeMs: number): boolean {
+    // If-None-Match is authoritative when present (RFC 9110 §13.1.3): freshness
+    // is decided solely by whether the ETag matches — do NOT fall through to
+    // If-Modified-Since. Otherwise a same-second rewrite (ETag changes
+    // immediately, but Last-Modified is identical at HTTP-date second
+    // granularity) would 304 stale-but-changed bytes when a client sends both a
+    // non-matching ETag and the current If-Modified-Since.
+    const ifNoneMatch = req.headers['if-none-match'];
+    if (typeof ifNoneMatch === 'string') {
+      return ifNoneMatch.split(',').some((tag) => tag.trim() === etag);
+    }
+    const ifModifiedSince = req.headers['if-modified-since'];
+    if (typeof ifModifiedSince === 'string') {
+      const since = Date.parse(ifModifiedSince);
+      // Last-Modified is second-resolution, so compare at second granularity.
+      if (Number.isFinite(since) && Math.floor(mtimeMs / 1000) * 1000 <= since) return true;
+    }
+    return false;
+  }
+
+  // RFC 9110 §13.1.5: a Range request with If-Range may only be served as 206
+  // when the If-Range validator still matches the current representation; if it
+  // doesn't (the file changed), the range must be ignored and the full current
+  // file returned, so a resumed download can't splice stale + fresh bytes.
+  //
+  // §13.1.5 also requires the entity-tag form to use a STRONG validator. Our
+  // ETag is weak (`W/"size-mtime"` — size+mtime is not byte-exact), so an
+  // entity-tag If-Range can never authorize partial content: a same-size rewrite
+  // or mtime-granularity collision could otherwise splice stale + fresh bytes
+  // under a matching weak tag. We therefore reject ALL entity-tag If-Range values
+  // (weak ones explicitly; a strong `"…"` never equals our weak ETag anyway) and
+  // honor only the date form.
+  function ifRangeAllowsPartial(req: any, _etag: string, mtimeMs: number): boolean {
+    const ifRange = req.headers['if-range'];
+    if (typeof ifRange !== 'string' || ifRange.length === 0) return true; // no If-Range → honor Range
+    const value = ifRange.trim();
+    // Any entity-tag (weak `W/"…"` or strong `"…"`) → not a strong match against
+    // our weak validator → fall back to the full 200.
+    if (value.startsWith('"') || value.startsWith('W/')) return false;
+    // Date form: honor the range only if the file has NOT changed since (its
+    // current Last-Modified is at/before the If-Range date).
+    const since = Date.parse(value);
+    return Number.isFinite(since) && Math.floor(mtimeMs / 1000) * 1000 <= since;
+  }
+
   async function sendProjectFile(
     req: any,
     res: Response,
@@ -1953,6 +2426,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     metadata?: unknown,
     beforeSend?: (mime: string) => void,
     transformFile?: (file: { mime: string; buffer: Buffer }) => Buffer | string | Promise<Buffer | string>,
+    revalidate = false,
   ) {
     const meta = await resolveProjectFilePath(
       PROJECTS_DIR,
@@ -1962,7 +2436,25 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     );
     beforeSend?.(meta.mime);
 
-    if (meta.mime.startsWith('video/') || meta.mime.startsWith('audio/')) {
+    const isStreamed = meta.mime.startsWith('video/') || meta.mime.startsWith('audio/');
+    // A transform (the Vite dev-entry -> dist/index.html substitution, or preview
+    // bridge injection) can replace the response bytes — but only for HTML. For
+    // HTML the source file's mtime/size is NOT a valid validator, so its ETag is
+    // computed from the actual sent bytes after the transform. Everything else
+    // (assets, fonts, images, streamed media — where the transform is a no-op)
+    // keeps the fast mtime ETag with an early 304.
+    const willSubstitute =
+      !isStreamed && !!transformFile && /^text\/html(?:;|$)/i.test(meta.mime);
+
+    let currentEtag: string | null = null;
+    if (revalidate && !willSubstitute) {
+      currentEtag = setRawRevalidationHeaders(res, meta);
+      if (rawRequestIsFresh(req, currentEtag, meta.mtime)) {
+        return res.status(304).end();
+      }
+    }
+
+    if (isStreamed) {
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Content-Type', meta.mime);
 
@@ -1971,7 +2463,12 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         return res.status(200).end();
       }
 
-      const range = parseByteRange(req.headers.range, meta.size);
+      // Honor Range only when If-Range still matches the current file — otherwise
+      // a resumed download after a rewrite would splice stale + fresh bytes.
+      const range =
+        currentEtag === null || ifRangeAllowsPartial(req, currentEtag, meta.mtime)
+          ? parseByteRange(req.headers.range, meta.size)
+          : null;
 
       if (range === 'unsatisfiable') {
         res.setHeader('Content-Range', `bytes */${meta.size}`);
@@ -2007,7 +2504,23 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
     }
 
     const file = await readProjectFile(PROJECTS_DIR, projectId, relPath, metadata);
-    res.type(file.mime).send(transformFile ? await transformFile(file) : file.buffer);
+    const body = transformFile ? await transformFile(file) : file.buffer;
+    if (revalidate && willSubstitute) {
+      // Validator from the ACTUAL response bytes, so a change to the substituted
+      // content (e.g. dist/index.html) busts the cache even when the source
+      // file's mtime is unchanged.
+      const buf = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
+      const etag = `W/"${createHash('sha1').update(buf).digest('hex').slice(0, 16)}"`;
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Last-Modified', new Date(Math.floor(meta.mtime)).toUTCString());
+      const ifNoneMatch = req.headers['if-none-match'];
+      if (typeof ifNoneMatch === 'string' && ifNoneMatch.split(',').some((tag) => tag.trim() === etag)) {
+        return res.status(304).end();
+      }
+      return res.type(file.mime).send(buf);
+    }
+    res.type(file.mime).send(body);
   }
 
   function previewFilePathForProject(project: any, queryFile: unknown): string {
@@ -2338,6 +2851,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
           }
           return transformed;
         },
+        true, // revalidate: emit ETag/Last-Modified so covers/preview/export reuse cached assets
       );
     } catch (err: any) {
       const status = err && err.code === 'ENOENT' ? 404 : 400;

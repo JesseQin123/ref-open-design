@@ -383,6 +383,68 @@ describe('ComposerPlusMenu pick-row caret protection', () => {
     }
   });
 
+  it('keeps low MCP flyouts fixed and bounded while the main popup scrolls', () => {
+    const originalInnerWidth = window.innerWidth;
+    const originalInnerHeight = window.innerHeight;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 360 });
+
+    try {
+      renderMenu({ placementPreference: 'down', onAddMcp: vi.fn() });
+      const trigger = screen.getByTestId('plus-trigger') as HTMLButtonElement;
+      trigger.getBoundingClientRect = () =>
+        ({
+          x: 240,
+          y: 100,
+          top: 100,
+          left: 240,
+          right: 268,
+          bottom: 128,
+          width: 28,
+          height: 28,
+          toJSON: () => ({}),
+        }) as DOMRect;
+
+      fireEvent.click(trigger);
+
+      const mcpParent = screen.getByRole('menuitem', { name: /^MCP/i });
+      const mcpRow = mcpParent.closest('.plus-menu__submenu-row') as HTMLDivElement;
+      mcpRow.getBoundingClientRect = () =>
+        ({
+          x: 244,
+          y: 300,
+          top: 300,
+          left: 244,
+          right: 444,
+          bottom: 328,
+          width: 200,
+          height: 28,
+          toJSON: () => ({}),
+        }) as DOMRect;
+
+      fireEvent.click(mcpParent);
+
+      const menu = screen.getAllByRole('menu')[0];
+      expect(menu).toBeDefined();
+      expect(menu?.style.maxHeight).toBe('212px');
+      expect(menu?.className).toContain('plus-menu__popup--flyout-y-up');
+
+      const flyout = document.querySelector<HTMLElement>('.plus-menu__flyout');
+      expect(flyout).not.toBeNull();
+      expect(flyout?.style.width).toBe('260px');
+      expect(flyout?.style.maxHeight).toBe('320px');
+      expect(flyout?.style.top).toBe('auto');
+      expect(flyout?.style.bottom).toBe('37px');
+
+      const css = readFileSync(join(process.cwd(), 'src/styles/home/plus-menu.css'), 'utf8');
+      expect(css).toContain('overflow-y: auto;');
+      expect(css).toContain('position: fixed;');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalInnerHeight });
+    }
+  });
+
   it('keeps contained design toolbox flyouts within the popup width', () => {
     const originalInnerWidth = window.innerWidth;
     const originalInnerHeight = window.innerHeight;

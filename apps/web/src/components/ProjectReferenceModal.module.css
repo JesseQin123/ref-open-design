@@ -91,6 +91,13 @@
   font-size: 14px;
 }
 
+.search input:focus,
+.search input:focus-visible {
+  outline: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .list {
   min-height: 220px;
   max-height: 380px;

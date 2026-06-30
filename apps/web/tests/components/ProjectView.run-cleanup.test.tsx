@@ -168,6 +168,7 @@ vi.mock('../../src/components/ChatPane', () => ({
 
 const fileWorkspaceSpy = vi.fn();
 vi.mock('../../src/components/FileWorkspace', () => ({
+  DESIGN_SYSTEM_TAB: '__design_system__',
   FileWorkspace: (props: Record<string, unknown>) => {
     fileWorkspaceSpy(props);
     return null;
@@ -975,14 +976,25 @@ describe('ProjectView daemon cleanup', () => {
     }
   });
 
-  it('passes Home-staged workspace context into the project composer during auto-send', async () => {
-    const workspaceItem = {
-      id: 'local-code:/Users/me/reference-dir',
-      kind: 'local-code',
-      label: 'reference-dir',
-      title: 'reference-dir',
-      absolutePath: '/Users/me/reference-dir',
-    };
+  it('passes Home-staged workspace contexts into the project composer during auto-send', async () => {
+    const workspaceItems = [
+      {
+        id: 'project:reference-a',
+        kind: 'project',
+        label: 'Reference A',
+        title: 'Reference A',
+        path: 'reference-a',
+        absolutePath: '/Users/me/reference-a',
+      },
+      {
+        id: 'project:reference-b',
+        kind: 'project',
+        label: 'Reference B',
+        title: 'Reference B',
+        path: 'reference-b',
+        absolutePath: '/Users/me/reference-b',
+      },
+    ];
     listConversations.mockResolvedValue([{ id: 'conv-1', title: 'Conversation' }]);
     listMessages.mockResolvedValue([]);
     fetchPreviewComments.mockResolvedValue([]);
@@ -999,7 +1011,7 @@ describe('ProjectView daemon cleanup', () => {
     window.sessionStorage.setItem('od:auto-send-first:project-context', '1');
     window.sessionStorage.setItem(
       'od:auto-send-context:project-context',
-      JSON.stringify({ workspaceItems: [workspaceItem] }),
+      JSON.stringify({ workspaceItems }),
     );
 
     try {
@@ -1011,7 +1023,7 @@ describe('ProjectView daemon cleanup', () => {
             skillId: null,
             designSystemId: null,
             pendingPrompt: 'Inspect the reference dir.',
-            metadata: { kind: 'prototype', linkedDirs: ['/Users/me/reference-dir'] },
+            metadata: { kind: 'prototype', linkedDirs: ['/Users/me/reference-a', '/Users/me/reference-b'] },
           } as never}
           routeFileName={null}
           config={{ mode: 'daemon', agentId: 'agent-1', notifications: undefined, agentModels: {} } as never}
@@ -1036,14 +1048,14 @@ describe('ProjectView daemon cleanup', () => {
       const chatProps = await waitForReadyChatPaneProps() as {
         initialWorkspaceContexts?: unknown[];
       };
-      expect(chatProps.initialWorkspaceContexts).toEqual([workspaceItem]);
+      expect(chatProps.initialWorkspaceContexts).toEqual(workspaceItems);
 
       await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
       expect(streamViaDaemon.mock.calls[0]?.[0]).toMatchObject({
         history: [
           expect.objectContaining({
             content: 'Inspect the reference dir.',
-            runContext: { workspaceItems: [workspaceItem] },
+            runContext: { workspaceItems },
           }),
         ],
       });

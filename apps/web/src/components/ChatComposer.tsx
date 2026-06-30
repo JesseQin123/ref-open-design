@@ -12,7 +12,7 @@ import {
 } from "react";
 import { createPortal } from 'react-dom';
 import { Button } from '@open-design/components';
-import { useI18n, useT } from '../i18n';
+import { useI18n } from '../i18n';
 import { localizePluginDescription, localizePluginTitle } from './plugins-home/localization';
 import type { Dict, Locale } from '../i18n/types';
 import {
@@ -33,7 +33,8 @@ import type {
 import { deriveUploadCohort } from '../analytics/upload-tracking';
 import { projectRawUrl, uploadProjectFiles, openFolderDialog, fetchRecentLinkedDirs, pushRecentLinkedDir, dirExists, applyLibraryAsset, fetchLibraryAssetElementHtml } from "../providers/registry";
 import { WorkingDirPicker } from './WorkingDirPicker';
-import { patchProject } from "../state/projects";
+import { duplicatePluginAsProject, patchProject } from "../state/projects";
+import { navigate } from '../router';
 import { fetchMcpServers } from "../state/mcp";
 import type { McpServerConfig, McpTemplate } from "../state/mcp";
 import { listPlugins } from "../state/projects";
@@ -56,7 +57,10 @@ import { ComposerPlusMenu } from './ComposerPlusMenu';
 import { LibraryPicker } from './LibraryPicker';
 import { FigmaImportModal } from './FigmaImportModal';
 import { FigmaHelpModal } from './FigmaHelpModal';
-import { ProjectReferenceModal } from './ProjectReferenceModal';
+import {
+  ProjectReferenceModal,
+  type ProjectReferenceSelection,
+} from './ProjectReferenceModal';
 import { assetTitle, elementMetaOf } from './LibraryAssetMeta';
 import type { LibraryAsset, LibraryElementMeta } from '@open-design/contracts';
 import {
@@ -74,6 +78,7 @@ import {
 import { ComposerPluginPreview } from './ComposerPluginPreview';
 import { computeToolboxDetailPosition } from './composer-detail-position';
 import { PluginDetailsModal } from "./PluginDetailsModal";
+import { SkillDetailsModal } from './SkillDetailsModal';
 import { PluginsSection, type PluginsSectionHandle } from "./PluginsSection";
 import { BUILT_IN_PETS, CUSTOM_PET_ID } from "./pet/pets";
 import {
@@ -413,13 +418,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       footerAccessory,
       leadingAccessory,
       designSystemPicker,
-      currentDesignSystemId = null,
-      onActiveDesignSystemChange,
       onShowToast,
     },
     ref
   ) {
-    const t = useT();
+    const { locale, t } = useI18n();
     const analytics = useAnalytics();
     const activeFileContext =
       projectMetadata?.importedFrom === 'folder' && activeProjectFileName
@@ -447,7 +450,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const [figmaModalOpen, setFigmaModalOpen] = useState(false);
     const [figmaHelpOpen, setFigmaHelpOpen] = useState(false);
     const [projectReferenceOpen, setProjectReferenceOpen] = useState(false);
-    const [designSystemSwitchOpen, setDesignSystemSwitchOpen] = useState(false);
     const [stagedVisualComments, setStagedVisualComments] = useState<ChatCommentAttachment[]>([]);
     const streamingAnnotationSendPendingRef = useRef(false);
     // Remembers the entry_from that the deferred streaming send must carry once
@@ -509,10 +511,30 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // Detail modal — opened from a context chip click (kind === 'plugin')
     // or from the tools-menu "Details" affordance.
     const [detailsRecord, setDetailsRecord] = useState<InstalledPluginRecord | null>(null);
+    const [detailsSkill, setDetailsSkill] = useState<{
+      id: string;
+      summary?: SkillSummary | null;
+    } | null>(null);
     const [activeAppliedPlugin, setActiveAppliedPlugin] =
       useState<AppliedPluginSnapshot | null>(null);
     const pluginsSectionRef = useRef<PluginsSectionHandle | null>(null);
     const inlineBackedPluginRef = useRef<{ id: string; label: string } | null>(null);
+    async function duplicateDetailsPlugin(record: InstalledPluginRecord) {
+      try {
+        const result = await duplicatePluginAsProject(record.id, {
+          name: localizePluginTitle(locale, record),
+        });
+        setDetailsRecord(null);
+        navigate({
+          kind: 'project',
+          projectId: result.projectId,
+          conversationId: result.conversationId,
+          fileName: result.relPath,
+        });
+      } catch {
+        onShowToast?.(t('pluginCard.duplicateFailed'));
+      }
+    }
     // Consolidated "tools" popover — a single dropdown anchored to the
     // leading sliders icon that hosts project context, MCP, Import actions,
     // and a shortcut to open the full Settings dialog. Replaces the previous
@@ -1203,13 +1225,20 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       editorRef.current?.setText(text);
     }
 
+    function insertInlineMentionSeparator() {
+      const current = editorRef.current?.getText() ?? draftRef.current;
+      if (current.trim() && !/\s$/.test(current)) {
+        editorRef.current?.insertText(' ');
+      }
+    }
+
     function appendWorkspacePrompt(item: WorkspaceContextItem) {
       setStagedWorkspaceContexts((current) =>
         current.some((candidate) => candidate.id === item.id)
           ? current
           : [...current, item],
       );
-      if (draftRef.current.trim()) editorRef.current?.insertText('\n\n');
+      insertInlineMentionSeparator();
       editorRef.current?.insertMention({
         token: inlineMentionToken(item.label),
         entity: { id: item.id, kind: 'workspace', label: item.label },
@@ -1219,44 +1248,66 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       setComposerEngaged(true);
     }
 
-    async function addLinkedDir(dir: string): Promise<TrackedWorkspaceLinkedDir | null | false> {
+    async function addLinkedDirs(dirs: string[]): Promise<Map<string, TrackedWorkspaceLinkedDir | null> | false> {
       if (!projectId) return false;
-      const trimmed = dir.trim();
-      if (!trimmed) return false;
+      const trimmedDirs = Array.from(new Set(dirs.map((dir) => dir.trim()).filter(Boolean)));
+      if (trimmedDirs.length === 0) return new Map();
       const base = projectMetadata ?? { kind: 'prototype' as const };
       const existing = base.linkedDirs ?? [];
-      if (existing.includes(trimmed)) {
-        const ownedByWorkspaceContext = Object.values(workspaceLinkedDirAdds).some(
-          (tracked) => tracked.dir === trimmed,
-        );
-        return ownedByWorkspaceContext ? { dir: trimmed, previousLinkedDirs: existing } : null;
+      const nextLinkedDirs = [...existing];
+      const trackedByDir = new Map<string, TrackedWorkspaceLinkedDir | null>();
+      let changed = false;
+      for (const trimmed of trimmedDirs) {
+        if (nextLinkedDirs.includes(trimmed)) {
+          const ownedByWorkspaceContext = Object.values(workspaceLinkedDirAdds).some(
+            (tracked) => tracked.dir === trimmed,
+          );
+          trackedByDir.set(trimmed, ownedByWorkspaceContext ? { dir: trimmed, previousLinkedDirs: existing } : null);
+          continue;
+        }
+        nextLinkedDirs.push(trimmed);
+        trackedByDir.set(trimmed, { dir: trimmed, previousLinkedDirs: existing });
+        changed = true;
       }
-      const metadata: ProjectMetadata = { ...base, linkedDirs: [...existing, trimmed] };
-      const result = await patchProject(projectId, { metadata });
-      if (!result?.metadata) {
-        onShowToast?.(t('homeWorkingDir.applyFailed'));
-        return false;
+      if (changed) {
+        const metadata: ProjectMetadata = { ...base, linkedDirs: nextLinkedDirs };
+        const result = await patchProject(projectId, { metadata });
+        if (!result?.metadata) {
+          onShowToast?.(t('homeWorkingDir.applyFailed'));
+          return false;
+        }
+        onProjectMetadataChange?.(result.metadata);
+        for (const trimmed of trimmedDirs) void rememberRecentDir(trimmed);
       }
-      onProjectMetadataChange?.(result.metadata);
-      void rememberRecentDir(trimmed);
-      return { dir: trimmed, previousLinkedDirs: existing };
+      return trackedByDir;
     }
 
-    async function handleReferenceProject(project: Project, resolvedDir: string) {
-      const path = resolvedDir.trim();
-      const trackedLinkedDir = path ? await addLinkedDir(path) : false;
-      if (trackedLinkedDir === false) return;
-      const item: WorkspaceContextItem = {
-        id: `project:${project.id}`,
-        kind: 'project',
-        label: project.name || project.id,
-        title: project.name || project.id,
-        path: project.id,
-        ...(path ? { absolutePath: path } : {}),
-      };
-      appendWorkspacePrompt(item);
-      if (trackedLinkedDir) {
-        setWorkspaceLinkedDirAdds((current) => ({ ...current, [item.id]: trackedLinkedDir }));
+    async function addLinkedDir(dir: string): Promise<TrackedWorkspaceLinkedDir | null | false> {
+      const trackedByDir = await addLinkedDirs([dir]);
+      if (trackedByDir === false) return false;
+      return trackedByDir.get(dir.trim()) ?? null;
+    }
+
+    async function handleReferenceProjects(selections: ProjectReferenceSelection[]) {
+      const trackedByDir = await addLinkedDirs(selections.map(({ resolvedDir }) => resolvedDir));
+      if (trackedByDir === false) return;
+      const trackedAdds: Record<string, TrackedWorkspaceLinkedDir> = {};
+      for (const { project, resolvedDir } of selections) {
+        const path = resolvedDir.trim();
+        const item: WorkspaceContextItem = {
+          id: `project:${project.id}`,
+          kind: 'project',
+          label: project.name || project.id,
+          title: project.name || project.id,
+          path: project.id,
+          ...(path ? { absolutePath: path } : {}),
+        };
+        appendWorkspacePrompt(item);
+        const trackedLinkedDir = path ? trackedByDir.get(path) ?? null : null;
+        if (trackedLinkedDir) trackedAdds[item.id] = trackedLinkedDir;
+      }
+      if (Object.keys(trackedAdds).length > 0) {
+        setWorkspaceLinkedDirAdds((current) => ({ ...current, ...trackedAdds }));
       }
       setProjectReferenceOpen(false);
     }
@@ -1976,30 +2027,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       }
     }
 
-    async function handleSwitchDesignSystem(
-      designSystemId: string | null,
-      title: string | null,
-    ): Promise<boolean> {
-      if (!projectId) return false;
-      if (designSystemId === currentDesignSystemId) return true;
-      const result = await patchProject(projectId, { designSystemId });
-      if (!result) {
-        onShowToast?.(t('chat.importDesignSystemFailed'));
-        return false;
-      }
-      trackComposerBar({
-        element: 'design_system_switch',
-        ...(designSystemId ? { design_system_id: designSystemId } : {}),
-      });
-      onActiveDesignSystemChange?.(result);
-      const switchedTitle = designSystemId === null
-        ? t('chat.importDesignSystemNone')
-        : title ?? designSystemId;
-      onShowToast?.(t('chat.importDesignSystemSwitched', { title: switchedTitle }));
-      return true;
-    }
-
-
     // Lexical drives every text change through this callback. `present` is the
     // entity list the editor's text currently references (MentionNodes plus
     // plain `@token`s matched against composerMentionEntities, deduped by
@@ -2435,6 +2462,17 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const showStopButton = streaming && !hasComposerPayload;
     const showSendButton = !streaming || hasComposerPayload;
 
+    const openDesignSystemPicker = () => {
+      const trigger = composerRootRef.current?.querySelector<HTMLButtonElement>(
+        '[data-testid="project-ds-picker-trigger"]',
+      );
+      if (!trigger || trigger.disabled) return;
+      window.requestAnimationFrame(() => {
+        if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
+        trigger.focus({ preventScroll: true });
+      });
+    };
+
     return (
       <div
         className={[
@@ -2481,9 +2519,17 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 setActiveAppliedPlugin(null);
               }}
               onChipDetails={(item: ContextItem) => {
-                if (item.kind !== 'plugin') return;
-                const record = installedPlugins.find((p) => p.id === item.id);
-                if (record) setDetailsRecord(record);
+                if (item.kind === 'plugin') {
+                  const record = installedPlugins.find((p) => p.id === item.id);
+                  if (record) setDetailsRecord(record);
+                  return;
+                }
+                if (item.kind === 'skill') {
+                  setDetailsSkill({
+                    id: item.id,
+                    summary: skills.find((skill) => skill.id === item.id) ?? null,
+                  });
+                }
               }}
             />
           ) : null}
@@ -2517,6 +2563,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               onPluginDetails={(id) => {
                 const record = installedPlugins.find((plugin) => plugin.id === id);
                 if (record) setDetailsRecord(record);
+              }}
+              onSkillDetails={(id) => {
+                setDetailsSkill({
+                  id,
+                  summary: stagedSkills.find((skill) => skill.id === id)
+                    ?? skills.find((skill) => skill.id === id)
+                    ?? null,
+                });
               }}
               t={t}
             />
@@ -2667,6 +2721,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 trackComposerBar({ element: 'plus_add', resource_kind: 'plugin' });
                 onBrowsePlugins?.();
               }}
+              skills={skills}
+              onPickSkill={(skill) => {
+                trackComposerBar({
+                  element: 'plus_pick',
+                  resource_kind: 'skill',
+                  resource_id: skill.id,
+                });
+                void insertSkillMention(skill);
+              }}
               mcpServers={enabledMcpServers}
               onPickMcp={(server) => {
                 trackComposerBar({
@@ -2679,15 +2742,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               onAddMcp={() => {
                 trackComposerBar({ element: 'plus_add', resource_kind: 'mcp' });
                 onOpenMcpSettings?.();
-              }}
-              skills={skills}
-              onPickSkill={(skill) => {
-                trackComposerBar({
-                  element: 'plus_pick',
-                  resource_kind: 'skill',
-                  resource_id: skill.id,
-                });
-                void insertSkillMention(skill);
               }}
               onAttachFiles={() => {
                 trackChatPanelClick(analytics.track, {
@@ -2723,7 +2777,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 setFigmaModalOpen(true);
               } : undefined}
               onShowFigmaHelp={() => setFigmaHelpOpen(true)}
-              onOpenDesignSystems={projectId ? () => setDesignSystemSwitchOpen(true) : undefined}
+              onOpenDesignSystems={projectId && designSystemPicker ? openDesignSystemPicker : undefined}
               toolboxLabel={t('chat.designToolbox.title')}
               renderToolbox={(close) => (
                 <DesignToolboxPanel
@@ -2837,7 +2891,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 data-tooltip={t('chat.stop')}
                 aria-label={t('chat.stop')}
               >
-                <Icon name="stop" size={13} />
+                <Icon name="stop" size={16} />
                 <span>{t('chat.stop')}</span>
               </button>
             ) : null}
@@ -2859,7 +2913,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 title={t('chat.send')}
                 data-tooltip={t('chat.send')}
               >
-                <Icon name="send" size={13} />
+                <Icon name="send" size={16} />
                 <span>{t('chat.send')}</span>
               </button>
             ) : null}
@@ -2901,7 +2955,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               await pluginsSectionRef.current?.applyById(record.id, record);
               setDetailsRecord(null);
             }}
+            onDuplicate={(record) => void duplicateDetailsPlugin(record)}
             hideUseAction
+          />
+        ) : null}
+        {detailsSkill ? (
+          <SkillDetailsModal
+            skillId={detailsSkill.id}
+            summary={detailsSkill.summary}
+            onClose={() => setDetailsSkill(null)}
           />
         ) : null}
         {libraryPickerOpen ? (
@@ -2937,32 +2999,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           <ProjectReferenceModal
             currentProjectId={projectId}
             onClose={() => setProjectReferenceOpen(false)}
-            onSelect={(project, resolvedDir) => void handleReferenceProject(project, resolvedDir)}
+            onSelect={(items) => void handleReferenceProjects(items)}
           />
-        ) : null}
-        {designSystemSwitchOpen && projectId ? (
-          <div className="composer-toolbox-standalone">
-            <div
-              className="composer-toolbox-standalone-backdrop"
-              aria-hidden="true"
-              onClick={() => setDesignSystemSwitchOpen(false)}
-            />
-            <div
-              className="plus-menu__popup composer-toolbox-standalone-popup"
-              role="menu"
-            >
-              <DesignSystemSwitchPicker
-                t={t}
-                currentDesignSystemId={currentDesignSystemId}
-                onBack={() => setDesignSystemSwitchOpen(false)}
-                onSelect={async (designSystemId, title) => {
-                  const ok = await handleSwitchDesignSystem(designSystemId, title);
-                  if (ok) setDesignSystemSwitchOpen(false);
-                  return ok;
-                }}
-              />
-            </div>
-          </div>
         ) : null}
       </div>
     );
@@ -3276,6 +3314,7 @@ function StagedRunContexts({
   onRemoveAttachment,
   onRemovePlugin,
   onPluginDetails,
+  onSkillDetails,
   t,
 }: {
   designSystemPicker?: ReactNode;
@@ -3294,6 +3333,7 @@ function StagedRunContexts({
   onRemoveAttachment: (path: string) => void;
   onRemovePlugin?: () => void;
   onPluginDetails?: (id: string) => void;
+  onSkillDetails?: (id: string) => void;
   t: TranslateFn;
 }) {
   // Attachment thumbnails preview in a portal modal; keep that state here so the
@@ -3386,12 +3426,18 @@ function StagedRunContexts({
           key={s.id}
           className={`staged-chip staged-context staged-context--skill staged-skill-${s.source ?? 'built-in'}`}
         >
-          <span className="staged-icon" aria-hidden>
-            <Icon name="sparkles" size={12} />
-          </span>
-          <span className="staged-name" title={s.description || s.name}>
-            @{s.name}
-          </span>
+          <button
+            type="button"
+            className="staged-context-open"
+            onClick={() => onSkillDetails?.(s.id)}
+            title={s.description || s.name}
+            aria-label={s.name}
+          >
+            <span className="staged-icon" aria-hidden>
+              <Icon name="sparkles" size={12} />
+            </span>
+            <span className="staged-name">@{s.name}</span>
+          </button>
           <button
             type="button"
             className="staged-remove od-tooltip"

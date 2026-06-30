@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createRef, useState, type ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -131,6 +131,16 @@ let servers = [MCP_SERVER];
 let openFolderPaths: string[];
 let deferNextProjectPatch = false;
 let resolveDeferredProjectPatch: (() => void) | null = null;
+let referenceProjects: Array<{
+  id: string;
+  name: string;
+  skillId: null;
+  designSystemId: null;
+  createdAt: number;
+  updatedAt: number;
+  metadata: { kind: 'prototype' };
+}>;
+let referenceProjectDetails: Record<string, { project: (typeof referenceProjects)[number]; resolvedDir: string | null }>;
 
 function composerElement(
   overrides: Partial<ComponentProps<typeof ChatComposer>> = {},
@@ -193,6 +203,8 @@ beforeEach(() => {
   openFolderPaths = ['/Users/me/reference-dir'];
   deferNextProjectPatch = false;
   resolveDeferredProjectPatch = null;
+  referenceProjects = [];
+  referenceProjectDetails = {};
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === '/api/mcp/servers') {
       return new Response(JSON.stringify({ servers, templates: [] }), {
@@ -218,6 +230,12 @@ beforeEach(() => {
         headers: { 'content-type': 'application/json' },
       });
     }
+    if (url === '/api/projects') {
+      return new Response(JSON.stringify({ projects: referenceProjects }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
     if (url === '/api/dialog/open-folder' && init?.method === 'POST') {
       return new Response(
         JSON.stringify({ path: openFolderPaths.shift() ?? '/Users/me/reference-dir' }),
@@ -226,6 +244,14 @@ beforeEach(() => {
           headers: { 'content-type': 'application/json' },
         },
       );
+    }
+    if (url.startsWith('/api/skills/')) {
+      const id = decodeURIComponent(url.split('/').pop() ?? '');
+      const skill = skills.find((candidate) => candidate.id === id) ?? makeSkill({ id, name: id });
+      return new Response(JSON.stringify({ ...skill, body: `skill body for ${id}` }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     }
     if (url === '/api/projects/project-1' && init?.method === 'PATCH') {
       const body = JSON.parse(String(init.body ?? '{}')) as { metadata?: unknown };
@@ -248,6 +274,15 @@ beforeEach(() => {
         },
       }), {
         status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    const projectDetailMatch = /^\/api\/projects\/([^/]+)$/.exec(url);
+    if (projectDetailMatch && init?.method !== 'PATCH') {
+      const projectId = decodeURIComponent(projectDetailMatch[1]!);
+      const detail = referenceProjectDetails[projectId] ?? null;
+      return new Response(JSON.stringify(detail ?? {}), {
+        status: detail ? 200 : 404,
         headers: { 'content-type': 'application/json' },
       });
     }
@@ -472,6 +507,69 @@ describe('ChatComposer context pickers', () => {
     });
     expect(onProjectMetadataChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ linkedDirs: [] }),
+    );
+  });
+
+  it('stages multiple referenced projects and links all resolved dirs together', async () => {
+    const referenceA = {
+      id: 'reference-a',
+      name: 'Reference A',
+      skillId: null,
+      designSystemId: null,
+      createdAt: 1,
+      updatedAt: 1,
+      metadata: { kind: 'prototype' as const },
+    };
+    const referenceB = {
+      ...referenceA,
+      id: 'reference-b',
+      name: 'Reference B',
+    };
+    referenceProjects = [referenceA, referenceB];
+    referenceProjectDetails = {
+      'reference-a': {
+        project: referenceA,
+        resolvedDir: '/tmp/open-design/reference-a',
+      },
+      'reference-b': {
+        project: referenceB,
+        resolvedDir: '/tmp/open-design/reference-b',
+      },
+    };
+    const onProjectMetadataChange = vi.fn();
+    renderComposer({
+      projectMetadata: { kind: 'prototype', linkedDirs: ['/Users/me/work-dir'] },
+      onProjectMetadataChange,
+    });
+    await flushMounts();
+
+    fireEvent.click(screen.getByTestId('chat-plus-trigger'));
+    fireEvent.click(await screen.findByTestId('composer-plus-reference-project'));
+    await screen.findByText('Reference A');
+    fireEvent.click(screen.getByText('Reference B'));
+    fireEvent.click(screen.getByRole('button', { name: 'Reference project' }));
+
+    await waitFor(() => {
+      expect(projectPatchBodies()).toHaveLength(1);
+    });
+    expect(projectPatchBodies()[0]?.metadata?.linkedDirs).toEqual([
+      '/Users/me/work-dir',
+      '/tmp/open-design/reference-a',
+      '/tmp/open-design/reference-b',
+    ]);
+    await waitFor(() => {
+      const stagedText = screen.getByTestId('staged-contexts').textContent ?? '';
+      expect(stagedText).toContain('ProjectReference A');
+      expect(stagedText).toContain('ProjectReference B');
+    });
+    expect(onProjectMetadataChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        linkedDirs: [
+          '/Users/me/work-dir',
+          '/tmp/open-design/reference-a',
+          '/tmp/open-design/reference-b',
+        ],
+      }),
     );
   });
 
@@ -868,6 +966,15 @@ describe('ChatComposer context pickers', () => {
     expect(pill?.textContent).toBe('@Deck Builder');
     expect(pill?.getAttribute('data-mention-kind')).toBe('skill');
     expect(screen.getByTestId('staged-contexts').textContent).toContain('@Deck Builder');
+
+    fireEvent.click(
+      within(screen.getByTestId('staged-contexts')).getByRole('button', {
+        name: 'Deck Builder',
+      }),
+    );
+    await waitFor(() => expect(screen.getByTestId('skill-details-modal')).toBeTruthy());
+    expect(screen.getByText('skill body for deck-builder')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close' }).at(-1)!);
 
     fireEvent.click(screen.getByLabelText('Remove Deck Builder'));
     await waitFor(() => expect(composerText().trim()).toBe(''));

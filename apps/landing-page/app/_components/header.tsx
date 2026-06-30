@@ -19,7 +19,7 @@ import {
 
 const REPO = 'https://github.com/nexu-io/open-design';
 const REPO_DISCUSSIONS = `${REPO}/discussions`;
-const DISCORD = 'https://discord.gg/9ptkbbqRu';
+const DISCORD = 'https://discord.gg/mHAjSMV6gz';
 const X_PROFILE = 'https://x.com/OpenDesignHQ';
 // AMR product page on the production site (this repo has no /amr/ route).
 // Single destination for every AMR surface: the nav logo, the Agent
@@ -87,6 +87,7 @@ export interface HeaderProps {
     | 'solution'
     | 'agent'
     | 'plugins'
+    | 'pricing'
     | 'library'
     | 'skills'
     | 'systems'
@@ -97,7 +98,10 @@ export interface HeaderProps {
     | 'stories'
     | 'tutorials'
     | 'download'
-    | 'community';
+    | 'community'
+    // Standalone landing pages (e.g. /enterprise/) that intentionally do not
+    // belong under any top-nav tab — pass this so no tab renders as active.
+    | 'enterprise';
   /**
    * Live counts from the Markdown catalogs. Required so we can never
    * silently render stale fallback numbers when a caller forgets to
@@ -340,6 +344,19 @@ export function Header({
                   </a>
                 </li>
               </ul>
+            </li>
+
+            {/* Pricing — localized page. The plan numbers it renders stay in
+                sync with the vela commerce app at runtime (see
+                app/_lib/pricing.ts); the card copy mirrors vela's subscription
+                modal (see app/_lib/pricing-content.ts). */}
+            <li>
+              <a
+                href={href('/pricing/')}
+                className={active === 'pricing' ? 'is-active' : undefined}
+              >
+                {productMenuCopy.pricing}
+              </a>
             </li>
 
             {/* Resources — a category label (Blog / Tutorials / Compare), not

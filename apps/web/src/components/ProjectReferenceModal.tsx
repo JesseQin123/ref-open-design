@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Project } from '../types';
-import { useT } from '../i18n';
+import { useI18n } from '../i18n';
 import { getProjectDetail, listProjects } from '../state/projects';
 import { Icon } from './Icon';
 import styles from './ProjectReferenceModal.module.css';
 
+export interface ProjectReferenceSelection {
+  project: Project;
+  resolvedDir: string;
+}
+
 interface Props {
   currentProjectId?: string | null;
   onClose: () => void;
-  onSelect: (project: Project, resolvedDir: string) => void;
+  onSelect: (items: ProjectReferenceSelection[]) => void;
 }
 
 function projectSearchText(project: Project): string {
@@ -28,10 +33,11 @@ function projectMeta(project: Project): string {
 }
 
 export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: Props) {
-  const t = useT();
+  const { t } = useI18n();
+  const loadFailedMessage = t('chat.referenceProject.loadFailed');
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,24 +45,24 @@ export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: P
   useEffect(() => {
     let cancelled = false;
     setProjects(null);
-    setSelectedId(null);
+    setSelectedIds([]);
     setLoadError(null);
     void listProjects({ throwOnError: true })
       .then((rows) => {
         if (cancelled) return;
         const filtered = rows.filter((project) => project.id !== currentProjectId);
         setProjects(filtered);
-        setSelectedId((current) => current ?? filtered[0]?.id ?? null);
+        setSelectedIds((current) => current.length > 0 ? current : filtered[0] ? [filtered[0].id] : []);
       })
       .catch(() => {
         if (cancelled) return;
         setProjects([]);
-        setLoadError(t('chat.referenceProject.loadFailed'));
+        setLoadError(loadFailedMessage);
       });
     return () => {
       cancelled = true;
     };
-  }, [currentProjectId, t]);
+  }, [currentProjectId, loadFailedMessage]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -73,27 +79,40 @@ export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: P
     return projects.filter((project) => projectSearchText(project).toLowerCase().includes(needle));
   }, [projects, query]);
 
-  const selectedProject =
-    visibleProjects.find((project) => project.id === selectedId) ??
-    visibleProjects[0] ??
-    null;
+  const selectedProjects = useMemo(() => {
+    if (!projects) return [];
+    const selected = new Set(selectedIds);
+    return projects.filter((project) => selected.has(project.id));
+  }, [projects, selectedIds]);
 
   async function confirm() {
-    if (!selectedProject || pending) return;
+    if (selectedProjects.length === 0 || pending) return;
     setPending(true);
     setError(null);
     try {
-      const detail = await getProjectDetail(selectedProject.id);
-      const resolvedDir =
-        detail?.resolvedDir?.trim() || detail?.project.metadata?.baseDir?.trim() || '';
-      if (!detail || !resolvedDir) {
-        setError(t('homeWorkingDir.applyFailed'));
-        return;
+      const selections: ProjectReferenceSelection[] = [];
+      for (const project of selectedProjects) {
+        const detail = await getProjectDetail(project.id);
+        const resolvedDir =
+          detail?.resolvedDir?.trim() || detail?.project.metadata?.baseDir?.trim() || '';
+        if (!detail || !resolvedDir) {
+          setError(t('homeWorkingDir.applyFailed'));
+          return;
+        }
+        selections.push({ project: detail.project, resolvedDir });
       }
-      onSelect(detail.project, resolvedDir);
+      onSelect(selections);
     } finally {
       setPending(false);
     }
+  }
+
+  function toggleSelected(projectId: string) {
+    setSelectedIds((current) => (
+      current.includes(projectId)
+        ? current.filter((id) => id !== projectId)
+        : [...current, projectId]
+    ));
   }
 
   if (typeof document === 'undefined') return null;
@@ -128,7 +147,12 @@ export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: P
               placeholder={t('chat.referenceProject.search')}
             />
           </label>
-          <div className={styles.list} role="listbox" aria-label={t('chat.referenceProject.title')}>
+          <div
+            className={styles.list}
+            role="listbox"
+            aria-label={t('chat.referenceProject.title')}
+            aria-multiselectable="true"
+          >
             {projects === null ? (
               <div className={styles.empty}>{t('common.loading')}</div>
             ) : loadError ? (
@@ -143,7 +167,7 @@ export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: P
               </div>
             ) : (
               visibleProjects.map((project) => {
-                const selected = project.id === selectedProject?.id;
+                const selected = selectedIds.includes(project.id);
                 return (
                   <button
                     key={project.id}
@@ -151,8 +175,7 @@ export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: P
                     role="option"
                     aria-selected={selected}
                     className={`${styles.item}${selected ? ` ${styles.itemSelected}` : ''}`}
-                    onClick={() => setSelectedId(project.id)}
-                    onDoubleClick={() => void confirm()}
+                    onClick={() => toggleSelected(project.id)}
                   >
                     <span className={styles.itemIcon} aria-hidden>
                       <Icon name="folder" size={15} />
@@ -183,7 +206,7 @@ export function ProjectReferenceModal({ currentProjectId, onClose, onSelect }: P
             type="button"
             className={`${styles.button} ${styles.primary}`}
             onClick={() => void confirm()}
-            disabled={!selectedProject || pending}
+            disabled={selectedProjects.length === 0 || pending}
           >
             {pending ? t('common.loading') : t('chat.referenceProject.confirm')}
           </button>

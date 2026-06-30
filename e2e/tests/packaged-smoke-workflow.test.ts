@@ -29,6 +29,7 @@ const bakePreviewsAutomergeWorkflowPath = join(
   "bake-plugin-previews-automerge.yml",
 );
 const bakePreviewsWorkflowPath = join(workspaceRoot, ".github", "workflows", "bake-plugin-previews.yml");
+const finalizeReleaseWorkflowPath = join(workspaceRoot, ".github", "workflows", "finalize-release.yml");
 const handoffScriptPath = join(workspaceRoot, ".github", "scripts", "handoff.py");
 const releaseBetaWorkflowPath = join(workspaceRoot, ".github", "workflows", "release-beta.yml");
 const releaseBetaSelfHostedWorkflowPath = join(workspaceRoot, ".github", "workflows", "release-beta-s.yml");
@@ -83,6 +84,41 @@ async function gitPatchId(mode: "--stable" | "--verbatim", diff: string): Promis
     });
     child.stdin?.end(diff);
   });
+}
+
+// Pull the two jq programs that the `validate` job's "Check workspace validation jobs" step runs
+// (the blanket failure scan and the required-jobs scan) straight out of ci.yml, so the gate logic
+// under test stays the real workflow source rather than a reimplementation. Both are invoked as
+// `jq -r --arg event "$EVENT_NAME" '<program>'` and contain no single quotes, so the program is the
+// text between the opening and the next `'`.
+function extractValidateGateJqPrograms(workflow: string): { failures: string; requiredMisses: string } {
+  const validate = sectionBetween(workflow, "  validate:", "  runtime_summary:");
+  const programs = [...validate.matchAll(/jq -r --arg event "\$EVENT_NAME" '([\s\S]*?)'/g)].map((match) => match[1] ?? "");
+  expect(programs).toHaveLength(2);
+  return { failures: programs[0] ?? "", requiredMisses: programs[1] ?? "" };
+}
+
+function runValidateGateJq(program: string, eventName: string, needs: unknown): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = execFile("jq", ["-r", "--arg", "event", eventName, program], { encoding: "utf8" }, (error, stdout, stderr) => {
+      if (error) {
+        reject(Object.assign(error, { stdout, stderr }));
+        return;
+      }
+      resolve(stdout.trim());
+    });
+    child.stdin?.end(JSON.stringify(needs));
+  });
+}
+
+// Mirrors the bash gate decision: the step exits non-zero when either jq program emits any line.
+async function validateGatePasses(workflow: string, eventName: string, needs: unknown): Promise<boolean> {
+  const { failures, requiredMisses } = extractValidateGateJqPrograms(workflow);
+  const [failureLines, missLines] = await Promise.all([
+    runValidateGateJq(failures, eventName, needs),
+    runValidateGateJq(requiredMisses, eventName, needs),
+  ]);
+  return failureLines === "" && missLines === "";
 }
 
 async function runReleaseStableForFailure(env: Record<string, string>): Promise<string> {
@@ -351,6 +387,53 @@ describe("packaged smoke workflow", () => {
     expect(feishuStep).not.toContain("'cancelled'");
   });
 
+  it("[P2] gates the finalize-release follow-up as a trusted workflow_run consumer", async () => {
+    const workflow = await readFile(finalizeReleaseWorkflowPath, "utf8");
+
+    // Reacts to release-stable completing (not release: published — release-stable promotes its
+    // own draft with GITHUB_TOKEN, which cannot trigger workflows), plus a manual backfill.
+    expect(workflow).toContain('workflows: ["release-stable"]');
+    expect(workflow).toContain("types: [completed]");
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("github.event_name == 'workflow_dispatch'");
+    expect(workflow).toContain("github.event.workflow_run.conclusion == 'success'");
+
+    // It mints the privileged release App token for label deletion, branch push, PR + merge-queue.
+    expect(workflow).toContain("actions/create-github-app-token");
+    expect(workflow).toContain("secrets.RELEASE_BOT_APP_ID");
+
+    // The shipped version is resolved from the LATEST published release (release-stable marks it
+    // --latest) or the dispatch tag — NEVER from workflow_run.head_branch, which can be the
+    // dispatch ref rather than the built release branch when release-stable runs with a `ref` input.
+    expect(workflow).toContain("gh release view --repo nexu-io/open-design --json tagName,isDraft,isPrerelease");
+    expect(workflow).not.toContain("github.event.workflow_run.head_branch");
+    expect(workflow).not.toContain("HEAD_BRANCH");
+
+    // Only a published (draft=false), non-prerelease, open-design-vX.Y.Z release finalizes; a
+    // dry-run completion (latest stays the previous, already-finalized stable) must no-op.
+    expect(workflow).toContain("isDraft");
+    expect(workflow).toContain("isPrerelease");
+    expect(workflow).toContain("^[0-9]+\\.[0-9]+\\.[0-9]+$");
+    expect(workflow).toContain('echo "skip=true"');
+    expect(workflow).toContain("steps.ver.outputs.skip != 'true'");
+
+    // Idempotent forward-only bump of the synchronized manifests (patch, not the next minor that
+    // cut-release owns); independently-versioned packages are skipped via npm pkg set version.
+    expect(workflow).toContain("sort -V");
+    expect(workflow).toContain("npm pkg set version");
+    expect(workflow).toContain("changed=true");
+
+    // The bump PR needs one core-maintainer approval (code-owned manifests + require_code_owner_review
+    // on main), so finalize requests that review and arms the merge queue pinned to the pushed SHA.
+    expect(workflow).toContain("--add-reviewer nexu-io/core-maintainers");
+    expect(workflow).toContain("--squash --auto --match-head-commit");
+    expect(workflow).toContain("head_sha=$(git rev-parse HEAD)");
+
+    // The shipped release's backport label is cleaned up (tolerant of an already-deleted label).
+    expect(workflow).toContain('label="backport release/v$VERSION"');
+    expect(workflow).toContain("gh label delete");
+  });
+
   it("[P2] keeps the backport patch-equivalence gate whitespace-sensitive", async () => {
     const compactDiff = [
       "diff --git a/script.py b/script.py",
@@ -531,6 +614,49 @@ describe("packaged smoke workflow", () => {
       run_nix_validation: true,
       run_ui_p0: true,
     });
+  });
+
+  it("[P2] keeps the Validate workspace gate Nix-advisory on PRs and enforced at merge", async () => {
+    const workflow = await readFile(ciWorkflowPath, "utf8");
+    const validate = sectionBetween(workflow, "  validate:", "  runtime_summary:");
+
+    // The gate must read the event so it can treat a red nix_validation differently per surface.
+    expect(validate).toContain("EVENT_NAME: ${{ github.event_name }}");
+    expect(validate).toContain('select(.key != "nix_validation" or $event != "pull_request")');
+    expect(validate).toContain('when($out.run_nix_validation == "true" and $event != "pull_request"; ["nix_validation"])');
+
+    const baseOutputs = {
+      run_nix_validation: "true",
+      run_preflight: "false",
+      run_workspace_unit_tests: "false",
+      run_windows_tools_pack_payload_tests: "false",
+      run_web_workspace_tests: "false",
+      run_e2e_vitest: "false",
+      run_playwright_critical: "false",
+      run_ui_p0: "false",
+      run_playwright_visual: "false",
+      run_docker_build: "false",
+    };
+    const needsWithFailedNix = {
+      scopes: { result: "success", outputs: baseOutputs },
+      static_gate: { result: "success" },
+      nix_validation: { result: "failure" },
+    };
+
+    // A stale/failed Nix hash is advisory on pull_request: the gate still passes while autofix heals it.
+    await expect(validateGatePasses(workflow, "pull_request", needsWithFailedNix)).resolves.toBe(true);
+    // ...but it is a hard gate at merge time and on manual full runs — fail closed, never reaching main.
+    await expect(validateGatePasses(workflow, "merge_group", needsWithFailedNix)).resolves.toBe(false);
+    await expect(validateGatePasses(workflow, "workflow_dispatch", needsWithFailedNix)).resolves.toBe(false);
+
+    // The PR exception is scoped to Nix only — any other failed required job still fails the gate on a PR.
+    const needsWithFailedWeb = {
+      scopes: { result: "success", outputs: { ...baseOutputs, run_web_workspace_tests: "true" } },
+      static_gate: { result: "success" },
+      nix_validation: { result: "success" },
+      web_workspace_tests: { result: "failure" },
+    };
+    await expect(validateGatePasses(workflow, "pull_request", needsWithFailedWeb)).resolves.toBe(false);
   });
 
   it("[P2] routes default CI through cost-sensitive runner tiers", async () => {
@@ -824,6 +950,37 @@ describe("packaged smoke workflow", () => {
     expectWindowsUpdaterSmokeContract(releasePreviewWorkflow, "preview");
     expectWindowsUpdaterSmokeContract(releasePrereleaseWorkflow, "prerelease");
     expectWindowsUpdaterSmokeContract(releaseStableWorkflow, "stable");
+  });
+
+  it("[P2] prerelease publishes github.commit so its changelog has a baseline", async () => {
+    // The Feishu release card computes its changelog as `git log <previous>..<current>`,
+    // where <previous> is read from prerelease/latest/metadata.json's `.github.commit`
+    // (notify-release-feishu.yml). That field is written by githubInfo() from the
+    // RELEASE_COMMIT env. release-beta sets RELEASE_COMMIT on every build + publish job,
+    // but release-prerelease historically set it on none, so every prerelease published an
+    // empty github.commit and the card could never diff against the prior prerelease
+    // ("首个 Prerelease 包"). Require RELEASE_COMMIT on the prerelease build + publish jobs
+    // so the per-platform manifests and the final metadata.json carry the built commit and
+    // stay mutually consistent (publish-metadata rejects a manifest whose commit disagrees).
+    const [prereleaseWorkflow, betaWorkflow] = await Promise.all([
+      readFile(releasePrereleaseWorkflowPath, "utf8"),
+      readFile(releaseBetaWorkflowPath, "utf8"),
+    ]);
+
+    const releaseCommitEnv = "RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}";
+    // Beta is the working reference that already populates the commit.
+    expect(betaWorkflow).toContain(releaseCommitEnv);
+
+    const jobBounds: Array<[string, string]> = [
+      ["  build_mac:", "  build_mac_intel:"],
+      ["  build_mac_intel:", "  build_win:"],
+      ["  build_win:", "  build_linux:"],
+      ["  build_linux:", "  publish:"],
+      ["  publish:", "  cleanup_partial_release_assets:"],
+    ];
+    for (const [start, end] of jobBounds) {
+      expect(sectionBetween(prereleaseWorkflow, start, end)).toContain(releaseCommitEnv);
+    }
   });
 
   it("[P2] keeps counted release workflow calls on a consistent ref and output contract", async () => {

@@ -110,6 +110,36 @@ export interface Dict {
   'common.hoursShort': string;
   'common.daysShort': string;
   'common.untitled': string;
+  'designBrowser.savePageBrief': string;
+  'designBrowser.menu': string;
+  'designBrowser.copyScreenshot': string;
+  'designBrowser.hardReload': string;
+  'designBrowser.copyUrl': string;
+  'designBrowser.openExternal': string;
+  'designBrowser.downloadPage': string;
+  'designBrowser.downloadPageBusy': string;
+  'designBrowser.clearHistory': string;
+  'designBrowser.clearCookies': string;
+  'designBrowser.clearAllData': string;
+  'designBrowser.status.noUrlToCopy': string;
+  'designBrowser.status.urlCopied': string;
+  'designBrowser.status.openHttpFirst': string;
+  'designBrowser.status.openBeforeScreenshot': string;
+  'designBrowser.status.screenshotSaved': string;
+  'designBrowser.status.screenshotFailed': string;
+  'designBrowser.status.openBeforeBrief': string;
+  'designBrowser.status.briefSaveFailed': string;
+  'designBrowser.status.openBeforeDownload': string;
+  'designBrowser.status.pageSnapshotStarted': string;
+  'designBrowser.status.pageSnapshotUnsupported': string;
+  'designBrowser.status.pageSnapshotFailed': string;
+  'designBrowser.status.pageSnapshotSaved': string;
+  'designBrowser.status.viewDesignFiles': string;
+  'designBrowser.status.downloadAssistHint': string;
+  'designBrowser.status.desktopDataUnavailable': string;
+  'designBrowser.status.browserDataCleared': string;
+  'designBrowser.status.browserDataClearFailed': string;
+  'designBrowser.status.historyCleared': string;
 
   // Plugin registry / details
   'plugins.availableDetails.provenance': string;
@@ -347,6 +377,9 @@ export interface Dict {
   'settings.amrCancelSignIn': string;
   'settings.amrAccountStatus': string;
   'settings.amrConsole': string;
+  'settings.amrBalance': string;
+  'settings.amrPlan': string;
+  'settings.amrUpgrade': string;
   'settings.amrLoginErrorCompact': string;
   'settings.apiSection': string;
   'settings.quickFillProvider': string;
@@ -919,6 +952,9 @@ export interface Dict {
   'entry.loadingWorkspace': string;
   'entry.useEverywhereTitle': string;
   'entry.useEverywhereAria': string;
+  'entry.workspaceTeamsLabel': string;
+  'entry.workspaceTeamsTitle': string;
+  'entry.workspaceTeamsAria': string;
   // Left nav rail (icon-only) — surface labels also serve as tooltips
   'entry.navExpand': string;
   'entry.navCollapse': string;
@@ -1242,12 +1278,19 @@ export interface Dict {
   'pluginCard.use': string;
   'pluginCard.useWithQuery': string;
   'pluginCard.applying': string;
+  'pluginCard.duplicate': string;
+  'pluginCard.duplicating': string;
+  'pluginCard.duplicateFailed': string;
+  'pluginCard.saved': string;
   'pluginCard.publish': string;
   'pluginCard.contribute': string;
   'pluginCard.starting': string;
   'pluginCard.detailsAria': string;
   'pluginCard.chooseUseAria': string;
   'pluginCard.useOptionsAria': string;
+  'pluginCard.duplicateAria': string;
+  'pluginCard.saveAria': string;
+  'pluginCard.savedAria': string;
   'pluginCard.shareAria': string;
   'pluginCard.publishAria': string;
   'pluginCard.publishTitle': string;
@@ -1998,6 +2041,7 @@ export interface Dict {
   'designs.deleteAria': string;
   'designs.menuMore': string;
   'designs.menuRename': string;
+  'designs.menuDuplicate': string;
   'designs.menuDelete': string;
   'designs.renamePrompt': string;
   'designs.selectMode': string;
@@ -2306,6 +2350,12 @@ export interface Dict {
   'project.brandReadyEditManually': string;
   'project.brandReadyPreviewOpened': string;
   'project.metaFreeform': string;
+  'project.typePrototype': string;
+  'project.typeDeck': string;
+  'project.typeTemplate': string;
+  'project.typeImage': string;
+  'project.typeVideo': string;
+  'project.typeAudio': string;
   'project.customInstructions': string;
   'project.customInstructionsPlaceholder': string;
   'project.instructionsActive': string;
@@ -2412,6 +2462,11 @@ export interface Dict {
   'chat.brandBrowserAssistDesktopOnly': string;
   'chat.brandBrowserAssistReadFailed': string;
   'chat.brandBrowserAssistMessage': string;
+  'chat.brandBrowserLocalSnapshotMissing': string;
+  'chat.brandBrowserLocalSnapshotReadFailed': string;
+  'chat.brandBrowserSnapshotSaveFailed': string;
+  'chat.brandBrowserAssistDownloadGuideTitle': string;
+  'chat.brandBrowserAssistDownloadGuideDetails': string;
   'brandEnrichment.title': string;
   'brandEnrichment.body': string;
   'brandEnrichment.cta': string;
@@ -2678,6 +2733,9 @@ export interface Dict {
   'chat.example3Title': string;
   'chat.example3Tag': string;
   'chat.example3Prompt': string;
+  'chat.example4Title': string;
+  'chat.example4Tag': string;
+  'chat.example4Prompt': string;
 
   // Preview modal
   'preview.usePlugin': string;
@@ -2685,6 +2743,8 @@ export interface Dict {
   'preview.usePluginOnlyDesc': string;
   'preview.replicateContent': string;
   'preview.replicateContentDesc': string;
+  'preview.duplicateTemplate': string;
+  'preview.duplicateTemplateDesc': string;
   'preview.shareMenu': string;
   'preview.exportMenu': string;
   'preview.shareTemplateBadge': string;
@@ -2792,6 +2852,9 @@ export interface Dict {
   'designFiles.paste.title': string;
   'designFiles.upload.label': string;
   'designFiles.paste.label': string;
+  'designFiles.projectMenu': string;
+  'designFiles.createDesignSystemFromProject': string;
+  'designFiles.duplicateProject': string;
   'designFiles.previewOpen': string;
   'designFiles.previewClose': string;
   'designFiles.modified': string;
@@ -3039,6 +3102,12 @@ export interface Dict {
   'fileViewer.exportImage': string;
   'fileViewer.exportPptxImages': string;
   'fileViewer.exportPptxEditable': string;
+  'fileViewer.exportPptxEditableHint': string;
+  'fileViewer.exportPptxModalSubtitle': string;
+  'fileViewer.exportPptxScreenshot': string;
+  'fileViewer.exportPptxScreenshotHint': string;
+  'fileViewer.exportPptxConfirm': string;
+  'fileViewer.exportPptxRecommended': string;
   'fileViewer.exportingProgress': string;
   'fileViewer.exportSlideProgress': string;
   'fileViewer.exportingElapsed': string;
@@ -3287,11 +3356,26 @@ export interface Dict {
   'nextStep.more': string;
   'nextStep.share': string;
   'nextStep.download': string;
+  'nextStep.createDesignSystemTitle': string;
+  'nextStep.createDesignSystemBody': string;
+  'nextStep.createDesignSystemBusy': string;
   'nextStep.contribute': string;
+  'nextStep.projectContinueTitle': string;
+  'nextStep.projectGenerateArtifactTitle': string;
+  'nextStep.designSystemAiRefineTitle': string;
+  'nextStep.designSystemAuditKitTitle': string;
   'nextStep.brandAiOptimizeTitle': string;
   'nextStep.brandAiOptimizeBody': string;
   'nextStep.brandCreateDesignTitle': string;
   'nextStep.brandCreateDesignBody': string;
+  'nextStep.brandCreateDesignPrompt': string;
+  'nextStep.brandContinueExtractionTitle': string;
+  'nextStep.brandContinueExtractionBody': string;
+  'nextStep.brandContinueExtractionBusy': string;
+  'nextStep.brandContinueAiExtractionTitle': string;
+  'nextStep.brandContinueAiExtractionProgrammaticBody': string;
+  'nextStep.brandContinueAiExtractionAiBody': string;
+  'nextStep.brandContinueAiExtractionBusy': string;
   'nextStep.createDesignBusy': string;
   'assistant.thinking': string;
   'assistant.thought': string;

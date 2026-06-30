@@ -38,6 +38,7 @@ import {
 import {
   applyPlugin,
   createProject,
+  duplicatePluginAsProject,
   listPlugins,
   patchProject,
   renderPluginBriefTemplate,
@@ -57,7 +58,7 @@ import {
   mergeAihubmixImageModels,
   useAIHubMixImageModels,
 } from '../media/aihubmix-image-models';
-import { openFolderDialog, fetchRecentLinkedDirs, pushRecentLinkedDir } from '../providers/registry';
+import { openFolderDialog, fetchRecentLinkedDirs, pushRecentLinkedDir, dirExists } from '../providers/registry';
 import { isOpenDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
 import type {
   DesignSystemSummary,
@@ -76,6 +77,7 @@ import type { PlaceholderScenario } from './home-hero/placeholderScenarios';
 import { consumePendingHomeChip, HOME_CHIP_INTENT_EVENT } from '../runtime/home-intent';
 import { navigate } from '../router';
 import { setPendingDesignSystemCreateEntry } from '../analytics/ds-create-entry';
+import { workspaceContextLinkedDirs } from './workspace-context';
 import {
   buildHomeMediaComposer,
   homeMediaSurfaceForChipId,
@@ -91,6 +93,7 @@ import {
   type HomePromptHandoff,
 } from './home-hero/plugin-authoring';
 import { PluginDetailsModal } from './PluginDetailsModal';
+import { SkillDetailsModal } from './SkillDetailsModal';
 import { HomeTemplatesReveal } from './HomeTemplatesReveal';
 import { PluginsHomeSection } from './PluginsHomeSection';
 import type { PluginLoopSubmit } from './PluginLoopHome';
@@ -207,9 +210,10 @@ interface Props {
   designSystems?: DesignSystemSummary[];
   defaultDesignSystemId?: string | null;
   onSubmit: (payload: PluginLoopSubmit) => Promise<boolean> | boolean | void;
-  onOpenProject: (id: string) => void;
+  onOpenProject: (id: string, fileName?: string) => void;
   onViewAllProjects: () => void;
   onDeleteProject?: (id: string) => Promise<boolean | void> | boolean | void;
+  onDuplicateProject?: (id: string) => Promise<void> | void;
   onRenameProject?: (id: string, name: string) => void;
   onBrowseRegistry?: () => void;
   onOpenIntegrations?: () => void;
@@ -218,6 +222,7 @@ interface Props {
   // HomeView itself never imports them; EntryShell threads them
   // through so the dispatcher can stay declarative.
   onOpenNewProject?: (tab: 'template') => void;
+  onStartBlankProject?: () => Promise<void> | void;
   promptHandoff?: HomePromptHandoff | null;
   skills?: SkillSummary[];
   skillsLoading?: boolean;
@@ -231,6 +236,46 @@ const EMPTY_SKILLS: SkillSummary[] = [];
 const EMPTY_CONNECTORS: ConnectorDetail[] = [];
 const EMPTY_PROMPT_TEMPLATES: PromptTemplateSummary[] = [];
 
+// The Home composer lives inside EntryView, which App.tsx fully UNMOUNTS the
+// moment the user opens a project tab (the single `appMain` slot swaps
+// EntryView → ProjectView). Plain useState would therefore be discarded on
+// every tab switch, so a half-typed prompt and the chosen design system vanish
+// when the user steps away and comes back. Persist those two serializable,
+// user-visible fields to localStorage so they survive the unmount/remount,
+// mirroring ChatComposer's draft persistence. Object-valued selections (active
+// template, skill, staged files, working directory) are intentionally NOT
+// persisted here — they reference live catalogue records / File handles / a
+// desktop auth token that cannot round-trip through JSON safely.
+const HOME_COMPOSER_PROMPT_KEY = 'open-design:home-composer:prompt';
+const HOME_COMPOSER_DESIGN_SYSTEM_KEY = 'open-design:home-composer:design-system';
+
+function readHomeComposerDraft(key: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeHomeComposerDraft(key: string, value: string | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (value) window.localStorage.setItem(key, value);
+    else window.localStorage.removeItem(key);
+  } catch {
+    // Storage unavailable (private mode / quota exceeded) — degrade silently to
+    // in-memory-only state; the composer still works for this session.
+  }
+}
+
+// Drop the persisted draft once a run is actually created, so the just-sent
+// prompt and pick don't resurrect the next time the Home tab mounts.
+function clearHomeComposerDraft(): void {
+  writeHomeComposerDraft(HOME_COMPOSER_PROMPT_KEY, null);
+  writeHomeComposerDraft(HOME_COMPOSER_DESIGN_SYSTEM_KEY, null);
+}
+
 export function HomeView({
   isActive = true,
   projects,
@@ -241,11 +286,13 @@ export function HomeView({
   onOpenProject,
   onViewAllProjects,
   onDeleteProject,
+  onDuplicateProject,
   onRenameProject,
   onBrowseRegistry,
   onOpenIntegrations,
   onOpenMcp,
   onOpenNewProject,
+  onStartBlankProject,
   promptHandoff,
   skills = EMPTY_SKILLS,
   skillsLoading = false,
@@ -266,6 +313,7 @@ export function HomeView({
   const [plugins, setPlugins] = useState<InstalledPluginRecord[]>([]);
   const [pluginsLoading, setPluginsLoading] = useState(true);
   const [pendingApplyId, setPendingApplyId] = useState<string | null>(null);
+  const [pendingDuplicatePluginId, setPendingDuplicatePluginId] = useState<string | null>(null);
   const [pendingChipId, setPendingChipId] = useState<string | null>(null);
   const [pendingAuthoringChipId, setPendingAuthoringChipId] = useState<string | null>(null);
   const [pendingAuthoringPrompt, setPendingAuthoringPrompt] = useState(PLUGIN_AUTHORING_PROMPT);
@@ -285,7 +333,7 @@ export function HomeView({
     text: string;
     chipId: string | null;
   } | null>(null);
-  const [sessionMode, setSessionMode] = useState<ChatSessionMode>('design');
+  const sessionMode: ChatSessionMode = 'design';
   const [activeSkill, setActiveSkill] = useState<SkillSummary | null>(null);
   const [selectedPluginContexts, setSelectedPluginContexts] = useState<SelectedPluginContext[]>([]);
   const [selectedMcpContexts, setSelectedMcpContexts] = useState<SelectedMcpContext[]>([]);
@@ -304,10 +352,27 @@ export function HomeView({
   // Personal default and re-seeded if that resolves async, until the user picks
   // one explicitly (tracked by `designSystemTouchedRef` so a later default
   // change never clobbers an explicit selection).
+  // Read the persisted composer draft exactly once per mount (see the module
+  // note above). Restoring here is what makes the prompt + design-system pick
+  // survive a tab switch, since the whole view is torn down on every switch.
+  const restoredDraftRef = useRef<{
+    prompt: string;
+    designSystemId: string | null;
+  } | null>(null);
+  if (restoredDraftRef.current === null) {
+    restoredDraftRef.current = {
+      prompt: readHomeComposerDraft(HOME_COMPOSER_PROMPT_KEY) ?? '',
+      designSystemId: readHomeComposerDraft(HOME_COMPOSER_DESIGN_SYSTEM_KEY),
+    };
+  }
+  const restoredDraft = restoredDraftRef.current;
   const [designSystemId, setDesignSystemId] = useState<string | null>(() =>
+    restoredDraft.designSystemId ??
     homeDefaultDesignSystemId(designSystems, defaultDesignSystemId),
   );
-  const designSystemTouchedRef = useRef(false);
+  // A restored pick counts as user-touched so the async default re-seed effect
+  // below does not overwrite it once the catalogue resolves.
+  const designSystemTouchedRef = useRef(restoredDraft.designSystemId != null);
   // Global most-recently-used working directories, surfaced in the picker's
   // "Recent folders" submenu. Loaded from the daemon's app-config and bumped
   // whenever the user picks a folder.
@@ -330,8 +395,21 @@ export function HomeView({
   }, []);
   const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
   const [mcpLoading, setMcpLoading] = useState(true);
-  const [prompt, setPrompt] = useState('');
-  const [promptEditedByUser, setPromptEditedByUser] = useState(false);
+  const [prompt, setPrompt] = useState(() => restoredDraft.prompt);
+  // Treat a restored non-empty prompt as user-edited so the plugin/skill
+  // replacement guard still asks before clobbering it.
+  const [promptEditedByUser, setPromptEditedByUser] = useState(
+    () => restoredDraft.prompt.trim().length > 0,
+  );
+  // Persist the composer draft on every change so it survives the unmount that
+  // a tab switch triggers (see the module note above). Empty values clear the
+  // key rather than storing "".
+  useEffect(() => {
+    writeHomeComposerDraft(HOME_COMPOSER_PROMPT_KEY, prompt);
+  }, [prompt]);
+  useEffect(() => {
+    writeHomeComposerDraft(HOME_COMPOSER_DESIGN_SYSTEM_KEY, designSystemId);
+  }, [designSystemId]);
   const [figmaModalOpen, setFigmaModalOpen] = useState(false);
   const examplePromptInfoRef = useRef<ExamplePromptInfo | null>(null);
   const handleExamplePromptStatusChange = useCallback((info: ExamplePromptInfo | null) => {
@@ -353,6 +431,7 @@ export function HomeView({
   const [elevenLabsVoicesLoaded, setElevenLabsVoicesLoaded] = useState(false);
   const [elevenLabsVoicesError, setElevenLabsVoicesError] = useState<string | null>(null);
   const [detailsRecord, setDetailsRecord] = useState<InstalledPluginRecord | null>(null);
+  const [detailsSkill, setDetailsSkill] = useState<SkillSummary | null>(null);
   const [pendingReplacement, setPendingReplacement] = useState<PendingReplacement | null>(null);
   // Surface_view fires when the replacement modal becomes visible. Tied
   // to the {before, after} pair so reopening with the same pair after a
@@ -1101,11 +1180,30 @@ export function HomeView({
     focusPromptAtEnd();
   }
 
+  async function duplicateExamplePlugin(record: InstalledPluginRecord) {
+    setError(null);
+    setPendingDuplicatePluginId(record.id);
+    try {
+      const result = await duplicatePluginAsProject(record.id, {
+        name: localizePluginTitle(locale, record),
+      });
+      onOpenProject(result.projectId, result.relPath);
+    } catch {
+      setError(t('pluginCard.duplicateFailed'));
+    } finally {
+      setPendingDuplicatePluginId(null);
+    }
+  }
+
   // "…or start a blank project": create an empty project directly — no dialog,
   // no design system, template, prompt, or plugin — and enter it.
   async function startBlankProject() {
     setError(null);
     try {
+      if (onStartBlankProject) {
+        await onStartBlankProject();
+        return;
+      }
       const { project } = await createProject({
         name: t('common.untitled'),
         skillId: null,
@@ -1302,6 +1400,59 @@ export function HomeView({
   }
 
   function clearActivePlugin() {
+    if (active?.explicitPick && active.chipId) {
+      const chip = findChip(active.chipId);
+      const action = chip?.action;
+      if (
+        chip &&
+        (
+          action?.kind === 'apply-scenario' ||
+          action?.kind === 'apply-figma-migration'
+        )
+      ) {
+        const record = plugins.find((p) => p.id === action.pluginId);
+        if (record) {
+          const mediaSurface = homeMediaSurfaceForChipId(chip.id);
+          setPromptEditedByUser(prompt.trim().length > 0);
+          if (mediaSurface) {
+            const composer = buildHomeMediaComposer(
+              mediaSurface,
+              promptTemplates,
+              action.inputs,
+              elevenLabsVoices,
+              {
+                elevenLabsVoiceWarning,
+                elevenLabsVoicesLoading,
+                imageModels: composerImageModels,
+              },
+            );
+            void usePlugin(record, undefined, {
+              projectKind: composer.projectKind,
+              chipId: chip.id,
+              inputs: composer.inputs,
+              inputFields: composer.fields,
+              queryTemplate: composer.queryTemplate,
+              mediaSurface,
+              projectMetadata: metadataForHomeMediaComposer(mediaSurface, composer.inputs, promptTemplates),
+              editableInputNames: composer.editableFieldNames,
+              preserveInputFields: true,
+              suppressPromptUpdate: true,
+              deferApply: true,
+            });
+            return;
+          }
+          void usePlugin(record, undefined, {
+            projectKind: action.projectKind,
+            chipId: chip.id,
+            inputs: action.inputs,
+            projectMetadata: action.projectMetadata ?? null,
+            suppressPromptUpdate: true,
+            deferApply: true,
+          });
+          return;
+        }
+      }
+    }
     activePluginApplyRequestRef.current += 1;
     setActive(null);
     setFallbackProjectKind(null);
@@ -1733,9 +1884,12 @@ export function HomeView({
           status: item.connector.status,
           ...(item.connector.accountLabel ? { accountLabel: item.connector.accountLabel } : {}),
         }));
-      const contextLinkedDirs = contextWorkspaceItems
-        .map((item) => item.absolutePath || '')
-        .filter((dir): dir is string => Boolean(dir.trim()));
+      const contextLinkedDirCandidates = workspaceContextLinkedDirs(contextWorkspaceItems);
+      const contextLinkedDirs = (
+        await Promise.all(
+          contextLinkedDirCandidates.map(async (dir) => ((await dirExists(dir)) ? dir : null)),
+        )
+      ).filter((dir): dir is string => Boolean(dir));
       const submittedProjectKind =
         submittedActive?.projectKind ?? fallbackProjectKind ?? projectKindForSkill(activeSkill) ?? 'other';
       const submittedProjectMetadata = submittedActive?.mediaSurface
@@ -1793,6 +1947,10 @@ export function HomeView({
       }
       // Create accepted — now it is safe to spend the one-shot marker.
       if (examplePromptToSend) localStorage.setItem(examplePromptKey, '1');
+      // The draft has become a real run; drop it synchronously (before the
+      // navigation unmounts us) so the sent prompt + pick don't reappear the
+      // next time the Home tab mounts.
+      clearHomeComposerDraft();
       // Only drop the staged contexts once the run actually started — a
       // rejected creation keeps them so the retry sends the same payload.
       setSelectedPluginContexts([]);
@@ -1825,6 +1983,7 @@ export function HomeView({
         activePluginRecord={active?.record ?? null}
         activeSkillId={activeSkill?.id ?? null}
         activeSkillTitle={activeSkill ? localizeSkillName(locale, activeSkill) : null}
+        activeSkillRecord={activeSkill}
         activeChipId={active?.chipId ?? null}
         showActivePluginChip={showActivePluginChip}
         onClearActivePlugin={clearActivePlugin}
@@ -1846,6 +2005,7 @@ export function HomeView({
         onAddConnector={onOpenIntegrations}
         onAddMcp={onOpenMcp}
         onOpenPluginDetails={setDetailsRecord}
+        onOpenSkillDetails={setDetailsSkill}
         pluginInputFields={(active?.inputFields ?? []).filter(
           (field) => !ARTIFACT_FOOTER_FIELD_NAMES.has(field.name),
         )}
@@ -1877,6 +2037,8 @@ export function HomeView({
         }
         onPickPlugin={(record, nextPrompt) => addPluginContext(record, nextPrompt)}
         onPickExamplePlugin={useExamplePlugin}
+        onDuplicateExamplePlugin={duplicateExamplePlugin}
+        pendingDuplicatePluginId={pendingDuplicatePluginId}
         onPickSkill={useSkill}
         onPickMcp={useMcpServer}
         onPickConnector={useConnector}
@@ -1899,9 +2061,9 @@ export function HomeView({
           setWorkingDirToken(null);
         }}
         onExamplePromptStatusChange={handleExamplePromptStatusChange}
-        onStartBlankProject={startBlankProject}
-        sessionMode={sessionMode}
-        onSessionModeChange={setSessionMode}
+        onStartBlankProject={() => {
+          void startBlankProject();
+        }}
         executionSwitcher={executionSwitcher}
       />
 
@@ -1933,6 +2095,7 @@ export function HomeView({
           onViewAllProjects();
         }}
         {...(onDeleteProject ? { onDelete: onDeleteProject } : {})}
+        {...(onDuplicateProject ? { onDuplicate: onDuplicateProject } : {})}
         {...(onRenameProject ? { onRename: onRenameProject } : {})}
       />
 
@@ -1944,7 +2107,9 @@ export function HomeView({
           loading={pluginsLoading}
           activePluginId={active?.record.id ?? null}
           pendingApplyId={pendingApplyId}
+          pendingDuplicateId={pendingDuplicatePluginId}
           onUse={(record, action) => void routePluginUse(record, action)}
+          onDuplicate={(record) => void duplicateExamplePlugin(record)}
           onOpenDetails={handleCommunityOpenDetails}
           onBrowseRegistry={onBrowseRegistry}
           preferDefaultFacet={false}
@@ -1981,6 +2146,10 @@ export function HomeView({
               });
               void routePluginUse(record, action);
             }}
+            onDuplicate={(record) => {
+              setDetailsRecord(null);
+              void duplicateExamplePlugin(record);
+            }}
             isApplying={pendingApplyId === detailsRecord.id}
             onSharePopoverItemClick={(item) =>
               trackPluginDetailModalSharePopoverClick(analytics.track, {
@@ -1990,6 +2159,13 @@ export function HomeView({
                 plugin_id: detailsRecord.sourceMarketplaceEntryName ?? detailsRecord.id,
                 plugin_type: detailsRecord.marketplaceTrust ?? 'official',
               })}
+          />
+        ) : null}
+        {detailsSkill ? (
+          <SkillDetailsModal
+            skillId={detailsSkill.id}
+            summary={detailsSkill}
+            onClose={() => setDetailsSkill(null)}
           />
         ) : null}
         {figmaModalOpen ? (

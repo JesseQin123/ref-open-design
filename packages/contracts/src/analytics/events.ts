@@ -166,7 +166,11 @@ export type TrackingAmrEntrySource =
   | 'chat_error_switch_retry_card'
   | 'generation_preview_authorize_retry'
   | 'generation_preview_recharge'
-  | 'generation_preview_switch_retry_card';
+  | 'generation_preview_switch_retry_card'
+  | 'settings_amr_upgrade'
+  | 'inline_amr_upgrade'
+  | 'avatar_amr_upgrade'
+  | 'avatar_amr_agent_card';
 
 export interface AmrEntryAttribution {
   entryId: string;
@@ -254,6 +258,7 @@ export type TrackingArtifactKind =
 // tracked exclusively by artifact_deploy_result (see TrackingDeployProvider).
 export type TrackingExportFormat =
   | 'pdf'
+  | 'pptx'
   | 'zip'
   | 'html'
   | 'image'
@@ -341,6 +346,40 @@ export type TrackingRunFailureStage =
   | 'artifact_write'
   | 'child_close'
   | 'finalize';
+export type TrackingRunLifecyclePhase =
+  | 'queued'
+  | 'prompt_build'
+  | 'launch_preflight'
+  | 'process_spawn'
+  | 'stdin_write'
+  | 'runtime_init'
+  | 'first_token_wait'
+  | 'stream_output'
+  | 'tool_execution'
+  | 'artifact_write'
+  | 'finalize'
+  | 'complete'
+  | 'unknown';
+export type TrackingRunPhaseTimingStatus =
+  | 'complete'
+  | 'partial'
+  | 'missing';
+export type TrackingArtifactWriteStatus =
+  | 'none'
+  | 'started'
+  | 'completed'
+  | 'failed';
+export type TrackingArtifactWriteSource =
+  | 'write_tool'
+  | 'live_artifact'
+  | 'design_system_file'
+  | 'artifact_event'
+  | 'unknown';
+export type TrackingFirstModelEventType =
+  | 'text_delta'
+  | 'thinking_delta'
+  | 'tool_use'
+  | 'artifact';
 export type TrackingRunFailureUserAction =
   | 'retry'
   | 'login'
@@ -1163,7 +1202,7 @@ export interface HelpPopoverClickProps {
 export interface HomeToolbarClickProps {
   page_name: 'home';
   area: 'toolbar';
-  element: 'star' | 'execution_settings' | 'use_everywhere' | 'settings';
+  element: 'star' | 'execution_settings' | 'use_everywhere' | 'workspace_teams' | 'settings';
 }
 
 export interface ExecutionSettingsPopoverClickProps {
@@ -1204,6 +1243,7 @@ export interface SettingsPopoverClickProps {
     | 'language_select'
     | 'appearance'
     | 'share_channel'
+    | 'workspace_teams'
     | 'join_discord'
     | 'follow_x'
     | 'follow_threads'
@@ -1272,13 +1312,13 @@ export interface HomeChatComposerClickProps {
     | 'example_open_project'
     // The "+" menu on the home composer (same control as the in-project
     // composer's `plus_*` events): opening it, inserting a
-    // connector/plugin/mcp mention (`resource_kind` + `resource_id`), or
+    // connector/plugin/skill/mcp mention (`resource_kind` + `resource_id`), or
     // jumping to the add-resource surface (`resource_kind`).
     | 'plus_menu_open'
     | 'plus_pick'
     | 'plus_add';
   // For `plus_pick` / `plus_add`: which kind of resource (and its id on pick).
-  resource_kind?: 'connector' | 'plugin' | 'mcp';
+  resource_kind?: 'connector' | 'plugin' | 'skill' | 'mcp';
   resource_id?: string;
   // For plugin / action / task chips, the specific id (e.g. `prototype`,
   // `from_figma`, `hyperframes`).
@@ -1400,7 +1440,7 @@ export interface ProjectsListClickProps {
 export interface ProjectsMorePopoverClickProps {
   page_name: 'projects';
   area: 'projects_more_popover';
-  element: 'rename' | 'delete';
+  element: 'rename' | 'duplicate' | 'delete';
   project_id?: string;
   project_kind?: TrackingProjectKind;
 }
@@ -2016,6 +2056,8 @@ export interface FileManagerClickProps {
     | 'new_sketch'
     | 'new_browser'
     | 'create_design_system'
+    | 'create_design_system_from_project'
+    | 'duplicate_project'
     | 'paste'
     | 'upload'
     | 'library'
@@ -2918,9 +2960,17 @@ export interface RunFinishedProps extends Omit<RunCreatedProps, 'area'> {
   cache_token_source?: 'anthropic' | 'openai' | 'unavailable';
   queue_duration_ms?: number;
   pre_spawn_duration_ms?: number;
+  prompt_build_duration_ms?: number;
+  launch_preflight_duration_ms?: number;
   process_spawn_duration_ms?: number;
+  stdin_write_duration_ms?: number;
+  time_to_first_model_event_ms?: number;
+  first_model_event_type?: TrackingFirstModelEventType;
   time_to_first_token_ms?: number;
+  time_to_first_visible_output_ms?: number;
+  runtime_init_to_first_token_ms?: number;
   spawn_to_first_token_ms?: number;
+  time_to_first_artifact_ms?: number;
   // `spawn_to_first_token_ms` split into auditable subsegments so dashboards
   // can separate local CLI startup from session handshake from provider
   // first-token latency. The four parts sum back to `spawn_to_first_token_ms`
@@ -2932,8 +2982,18 @@ export interface RunFinishedProps extends Omit<RunCreatedProps, 'area'> {
   generation_duration_ms?: number;
   tool_call_count?: number;
   tool_duration_ms?: number;
+  artifact_write_duration_ms?: number;
+  artifact_write_status?: TrackingArtifactWriteStatus;
+  artifact_write_source?: TrackingArtifactWriteSource;
   finalize_duration_ms?: number;
   total_duration_ms: number;
+  bottleneck_phase?: TrackingRunLifecyclePhase;
+  last_observed_phase?: TrackingRunLifecyclePhase;
+  phase_timing_status?: TrackingRunPhaseTimingStatus;
+  attempt_index?: number;
+  attempt_duration_ms?: number;
+  attempt_time_to_first_token_ms?: number;
+  attempt_terminal_phase?: TrackingRunLifecyclePhase;
   // DS-variant outcome fields. `design_system_created` is true when
   // the run produced a stored DESIGN.md; `preview_module_count` and
   // `missing_font_count` give the dashboard a coarse quality read
@@ -3572,6 +3632,8 @@ export function byokProtocolToTracking(
       return 'ollama_cloud';
     case 'senseaudio':
       return 'senseaudio';
+    case 'bedrock':
+      return null;
     default:
       return null;
   }
