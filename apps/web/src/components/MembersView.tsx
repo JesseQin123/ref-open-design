@@ -67,7 +67,7 @@ export function MembersView({ solo = false }: { solo?: boolean }) {
   );
   const [removedMemberIds, setRemovedMemberIds] = useState<Set<string>>(() => new Set());
   const [teamSeats, setTeamSeats] = useState(MIN_TEAM_SEATS);
-  const [teamTier, setTeamTier] = useState({ name: '标准版', tokens: 80 });
+  const [teamTier, setTeamTier] = useState({ name: '常规项目协作', tokens: 80 });
 
   // A solo plan that hasn't locally upgraded behaves single-seat.
   const isSolo = solo && !upgraded;

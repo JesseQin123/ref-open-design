@@ -18,9 +18,9 @@ interface Props {
 
 const DEFAULT_SEAT_COUNT = 3;
 const TEAM_TIERS = [
-  { id: 'starter', name: '入门版', tokens: 40, hint: '小团队协作入门' },
-  { id: 'growth', name: '标准版', tokens: 80, hint: '常规项目协作', recommended: true },
-  { id: 'scale', name: '旗舰版', tokens: 220, hint: '高频生成与评审' },
+  { id: 'starter', name: '小团队协作入门', tokens: 40 },
+  { id: 'growth', name: '常规项目协作', tokens: 80, recommended: true },
+  { id: 'scale', name: '高频生成与评审', tokens: 220 },
 ];
 const TEAM_BENEFITS = [
   '资产共享与管理：项目 / 设计系统 / 插件',
@@ -48,7 +48,7 @@ export function UpgradeTeamDialog({
   if (!open) return null;
 
   const selectedTier = TEAM_TIERS.find((tier) => tier.id === selectedTierId) ?? TEAM_TIERS[1];
-  const selectedTierName = selectedTier?.name ?? '标准版';
+  const selectedTierName = selectedTier?.name ?? '常规项目协作';
   const selectedTokens = selectedTier?.tokens ?? 80;
   const purchaseSeatsMode = mode === 'seats';
   // Total the user will actually be charged — shown on the CTA so a payment
@@ -134,7 +134,6 @@ export function UpgradeTeamDialog({
                 <span className="upgrade-team__plan-allowance-label">
                   {seatCount} 席位共含 <strong>${tier.tokens * seatCount}</strong> 等值用量额度
                 </span>
-                <span className="upgrade-team__plan-hint">{tier.hint}</span>
               </button>
             );
           })}
@@ -172,7 +171,7 @@ export function UpgradeTeamDialog({
             <Icon name="sparkles" size={14} />{' '}
             {purchaseSeatsMode
               ? `确认支付 · $${monthlyTotal}/月`
-              : `升级${selectedTierName} · $${monthlyTotal}/月`}
+              : `确认升级 · $${monthlyTotal}/月`}
           </button>
         </div>
       </div>
