@@ -133,7 +133,11 @@
       rgba(25, 23, 19, 0.07) 0 75%,
       rgba(255, 255, 255, 0.42) 0
     )
+<<<<<<< HEAD
       0 0 / 16px 16px;
+=======
+      0 0 / 22px 22px;
+>>>>>>> 8d83d2490 ([codex] Keep AMR settings card actions inline (#4993))
   display: flex;
   align-items: center;
   justify-content: center;
