@@ -40,6 +40,10 @@ type ContactLead = {
   budget: string;
   useCases: string[];
   role: string;
+  /** User-entered country / region (distinct from the Cloudflare geo below). */
+  location: string;
+  /** Expected seat count (free text, e.g. "20"). */
+  seats: string;
   message: string;
   source: string;
   locale: string;
@@ -65,15 +69,9 @@ const MAX_EMAIL_LENGTH = 254;
 const MAX_SHORT = 200;
 const MAX_MESSAGE = 4000;
 const ALLOWED_SOURCES = new Set(["enterprise", "client"]);
-const ALLOWED_TEAM_SIZES = new Set(["1-10", "11-50", "51-200", "200+"]);
-const ALLOWED_BUDGETS = new Set([
-  "lt_50",
-  "usd_50_200",
-  "usd_200_1k",
-  "usd_1k_5k",
-  "usd_5k_plus",
-  "unsure",
-]);
+// The /enterprise page still submits these budget enum codes; the pricing
+// modal submits free display strings. The card maps a known code to a label
+// and otherwise shows the raw value.
 const BUDGET_LABELS: Record<string, string> = {
   lt_50: "每月 $50 以下",
   usd_50_200: "每月 $50 – $200",
@@ -189,6 +187,8 @@ function buildFeishuCard(lead: ContactLead): Record<string, unknown> {
           fieldRow("企业邮箱", lead.email),
           fieldRow("公司", lead.company),
           fieldRow("团队规模", lead.teamSize),
+          fieldRow("国家 / 地区", lead.location),
+          fieldRow("预计席位数", lead.seats),
           fieldRow("预算", BUDGET_LABELS[lead.budget] ?? lead.budget),
           fieldRow("使用场景", lead.useCases.map((v) => USE_CASE_LABELS[v] ?? v).join("、")),
           fieldRow("职位", lead.role),
@@ -301,19 +301,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
 
   const name = readString(payload.name, MAX_SHORT);
+  if (!name) {
+    return json({ ok: false, error: "missing_fields" }, 400, origin);
+  }
+
+  // Everything past name + email is optional — the pricing "Request Team" modal
+  // only requires those two. Team size and budget arrive as free display
+  // strings from that surface, so they are stored as-is rather than matched
+  // against the enterprise-page enums.
   const company = readString(payload.company, MAX_SHORT);
   const teamSize = readString(payload.teamSize, MAX_SHORT);
   const budget = readString(payload.budget, MAX_SHORT);
   const useCases = readUseCases(payload.useCases);
-  if (
-    !name ||
-    !company ||
-    !ALLOWED_TEAM_SIZES.has(teamSize) ||
-    !ALLOWED_BUDGETS.has(budget) ||
-    useCases.length === 0
-  ) {
-    return json({ ok: false, error: "missing_fields" }, 400, origin);
-  }
 
   const source =
     typeof payload.source === "string" && ALLOWED_SOURCES.has(payload.source)
@@ -329,6 +328,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     budget,
     useCases,
     role: readString(payload.role, MAX_SHORT),
+    location: readString(payload.location, MAX_SHORT),
+    seats: readString(payload.seats, MAX_SHORT),
     message: readString(payload.message, MAX_MESSAGE),
     source,
     locale: readString(payload.locale, 16) || "en",
