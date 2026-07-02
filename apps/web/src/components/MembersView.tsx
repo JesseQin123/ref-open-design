@@ -73,7 +73,8 @@ export function MembersView({ solo = false }: { solo?: boolean }) {
   // A solo plan that hasn't locally upgraded behaves single-seat.
   const isSolo = solo && !upgraded;
   // Demo team state: solo shows only "you"; team shows you + one active member.
-  const activeMemberIds = isSolo ? new Set(['qy']) : new Set(['qy', 'zw']);
+  const TEAM_ACTIVE_IDS = ['qy', 'zw'];
+  const activeMemberIds = isSolo ? new Set(['qy']) : new Set(TEAM_ACTIVE_IDS);
   const members = MOCK_MEMBERS.filter((m) => activeMemberIds.has(m.id) && !removedMemberIds.has(m.id));
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const seatsUsed = members.length + pendingInvites.length;
@@ -82,6 +83,14 @@ export function MembersView({ solo = false }: { solo?: boolean }) {
   // When buying seats (stepper "+" or an over-capacity invite), the floor must
   // cover already-used seats plus any queued invites, and add at least one.
   const seatPurchaseMin = Math.max(teamSeats + 1, seatsUsed + queuedInvites.length);
+  // Solo → team upgrade floor: after the flip the team roster activates
+  // (owner + seeded member) and every queued invite lands as pending, so the
+  // purchased seats must cover both — otherwise a free user queuing 2+ invites
+  // could accept the default 3 seats and end up over capacity (4/3, 5/3…).
+  const postUpgradeMemberCount = MOCK_MEMBERS.filter(
+    (m) => TEAM_ACTIVE_IDS.includes(m.id) && !removedMemberIds.has(m.id),
+  ).length;
+  const soloUpgradeMin = Math.max(MIN_TEAM_SEATS, postUpgradeMemberCount + queuedInvites.length);
 
   function setRole(id: string, role: Role) {
     setRoles((prev) => ({ ...prev, [id]: role }));
@@ -350,8 +359,8 @@ export function MembersView({ solo = false }: { solo?: boolean }) {
         open={upgradeOpen}
         onClose={() => setUpgradeOpen(false)}
         onConfirm={handleUpgradeConfirm}
-        initialSeatCount={isSolo ? teamSeats : seatPurchaseMin}
-        minSeatCount={isSolo ? MIN_TEAM_SEATS : seatPurchaseMin}
+        initialSeatCount={isSolo ? soloUpgradeMin : seatPurchaseMin}
+        minSeatCount={isSolo ? soloUpgradeMin : seatPurchaseMin}
         mode={isSolo ? 'upgrade' : 'seats'}
       />
       {confettiOn ? <Confetti /> : null}

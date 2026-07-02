@@ -47,10 +47,14 @@ export function InviteDialog({ open, onClose, freePlan = false, onSubmit, canAss
     setRows((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   }
 
-  const hasValidEmail = rows.some((r) => r.email.trim().length > 0);
+  // Demo-grade email shape check (something@something.tld) — keeps obvious
+  // non-emails from enabling submit; both the button state and the rows
+  // passed to onSubmit use the same predicate.
+  const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  const hasValidEmail = rows.some((r) => isEmail(r.email));
 
   function handleConfirm() {
-    const valid = rows.filter((r) => r.email.trim().length > 0);
+    const valid = rows.filter((r) => isEmail(r.email));
     if (valid.length === 0) return;
     onClose();
     onSubmit?.(valid);
@@ -89,6 +93,7 @@ export function InviteDialog({ open, onClose, freePlan = false, onSubmit, canAss
               <div className="entry-invite__fields" key={i}>
                 <input
                   className="entry-invite__input"
+                  type="email"
                   placeholder="输入电子邮件地址……"
                   value={row.email}
                   onChange={(e) => updateRow(i, { email: e.target.value })}
