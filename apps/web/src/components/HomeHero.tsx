@@ -3422,7 +3422,15 @@ function homeHeroChipTitle(chip: HomeHeroChip, t: ReturnType<typeof useT>): stri
 // card never appears under the audio/image/video chips — and, because the
 // example card's selected state is keyed on the active plugin id, never shows
 // up pre-selected when a media mode is entered.
-const EXAMPLE_PRESET_HIDDEN_PLUGIN_IDS = new Set<string>(['od-media-generation']);
+//
+// `example-web-clone` is the Website clone chip's own base scenario, not a
+// concrete example — the per-site `example-clone-*` cards are the real
+// examples. Hide the base plugin so its generic "Recreate the site from a
+// real URL" preview doesn't sit redundantly alongside the site cards.
+const EXAMPLE_PRESET_HIDDEN_PLUGIN_IDS = new Set<string>([
+  'od-media-generation',
+  'example-web-clone',
+]);
 
 export function homeHeroExamplePluginsForChip(
   chipId: string,

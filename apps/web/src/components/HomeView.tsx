@@ -40,6 +40,7 @@ import {
   createProject,
   duplicatePluginAsProject,
   listPlugins,
+  listPluginsFresh,
   patchProject,
   renderPluginBriefTemplate,
   resolvePluginQueryFallback,
@@ -315,6 +316,12 @@ export function HomeView({
     homePageViewFiredRef.current = true;
     trackPageView(analytics.track, { page_name: 'home' });
   }, [analytics.track]);
+  // Start empty + loading (cheap first render — seeding the full list here made
+  // the mount do all plugin-dependent render work on the click's critical path,
+  // a visible freeze). The effect below uses the cache-aware loader, which on a
+  // warm cache resolves on a microtask, so `pluginsLoading` clears within a
+  // frame without the heavy `/api/plugins` re-fetch that greyed the rail for
+  // 1-2s on every Home remount.
   const [plugins, setPlugins] = useState<InstalledPluginRecord[]>([]);
   const [pluginsLoading, setPluginsLoading] = useState(true);
   const [pendingApplyId, setPendingApplyId] = useState<string | null>(null);
@@ -496,18 +503,21 @@ export function HomeView({
   }, []);
   useEffect(() => {
     let cancelled = false;
-    const load = () => {
-      void listPlugins().then((rows) => {
+    // On mount use the cache-aware loader (skips the network when warm); an
+    // explicit plugins-changed event forces a fresh fetch.
+    const load = (force = false) => {
+      void (force ? listPlugins() : listPluginsFresh()).then((rows) => {
         if (cancelled) return;
         setPlugins(rows);
         setPluginsLoading(false);
       });
     };
     load();
-    window.addEventListener('open-design:plugins-changed', load);
+    const onChanged = () => load(true);
+    window.addEventListener('open-design:plugins-changed', onChanged);
     return () => {
       cancelled = true;
-      window.removeEventListener('open-design:plugins-changed', load);
+      window.removeEventListener('open-design:plugins-changed', onChanged);
     };
   }, []);
 
