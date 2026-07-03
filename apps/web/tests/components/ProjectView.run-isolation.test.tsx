@@ -1507,6 +1507,30 @@ describe('ProjectView conversation run isolation', () => {
     await waitFor(() => expect(playSound).toHaveBeenCalledWith('success-sound'));
   });
 
+  it('keeps Bedrock BYOK chats on the client-side unsupported path', async () => {
+    listMessages.mockResolvedValue([]);
+
+    renderProjectView({
+      ...config,
+      mode: 'api',
+      apiProtocol: 'bedrock',
+      apiKey: '',
+      model: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+    });
+
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-a'));
+    await waitFor(() => expect(screen.getByTestId('send-message')).toHaveProperty('disabled', false));
+
+    fireEvent.click(screen.getByTestId('send-message'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('chat-error').textContent).toBe(
+        'AWS Bedrock BYOK chat requires AWS credential signing and is not supported by the current API-key proxy.',
+      ),
+    );
+    expect(streamViaDaemon).not.toHaveBeenCalled();
+  });
+
   it('converges a daemon chat back to idle when the first AMR run fails authentication', async () => {
     conversationAMessages = [];
     fetchChatRunStatus.mockResolvedValue(null);

@@ -444,6 +444,8 @@ const MIN_WORKSPACE_PANEL_WIDTH = 400;
 const SPLIT_RESIZE_HANDLE_WIDTH = 8;
 const BYOK_OPENCODE_UNAVAILABLE_MESSAGE =
   'BYOK API runs require OpenCode. Install OpenCode, then rescan local agents in Settings before retrying.';
+const BEDROCK_BYOK_UNSUPPORTED_MESSAGE =
+  'AWS Bedrock BYOK chat requires AWS credential signing and is not supported by the current API-key proxy.';
 const CHAT_PANEL_KEYBOARD_STEP = 16;
 const DESIGN_SYSTEM_AUDIT_AUTO_REPAIR_ATTEMPTS = 2;
 // Trailing-debounce window for the canonical (daemon + SQLite) tab-state write.
@@ -4992,6 +4994,10 @@ export function ProjectView({
         });
         return true;
       } else {
+        if (config.apiProtocol === 'bedrock') {
+          handlers.onError(new Error(BEDROCK_BYOK_UNSUPPORTED_MESSAGE));
+          return true;
+        }
         if (!agentsById.get('byok-opencode')?.available) {
           handlers.onError(new Error(BYOK_OPENCODE_UNAVAILABLE_MESSAGE));
           return true;
