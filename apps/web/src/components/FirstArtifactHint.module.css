@@ -18,10 +18,8 @@
   border-radius: 12px;
   background: var(--bg-panel);
   box-shadow: var(--shadow-md);
-  /* 600ms delay lets the freshly-opened preview settle first; the entrance
-     then ends in two decaying bobs — a nudge that draws the eye without a
-     glint (this hint is persistent, the bob just says "I appeared"). */
-  animation: first-artifact-hint-in 900ms cubic-bezier(0.23, 1, 0.32, 1) 600ms both;
+  /* Entrance motion lives in the component (motion/react): 600ms settle
+     delay, slide-down, then a double knock with easeInOut segments. */
 }
 
 /* Upward caret aimed at the share/download cluster above. Same surface and
@@ -37,40 +35,6 @@
   background: var(--bg-panel);
   border-top: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
   border-left: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
-}
-
-/* Slide down from the toolbar, then two decaying bobs (4px → 2px). */
-@keyframes first-artifact-hint-in {
-  0% {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  22% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  40% {
-    transform: translateY(-4px);
-  }
-  58% {
-    transform: translateY(0);
-  }
-  74% {
-    transform: translateY(-2px);
-  }
-  90% {
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .root {
-    animation: none;
-  }
 }
 
 .icon {

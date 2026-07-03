@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useT } from '../i18n';
 import { useAnalytics } from '../analytics/provider';
 import {
@@ -25,7 +26,16 @@ import styles from './FirstArtifactHint.module.css';
 export function FirstArtifactHint() {
   const t = useT();
   const analytics = useAnalytics();
+  const reducedMotion = useReducedMotion();
   const [visible, setVisible] = useState(() => !hasSeenFirstArtifactHint());
+  // Delayed mount replaces an opacity fade: the card appears fully opaque
+  // (no see-through frame, per review) — the 600ms settle window is simply
+  // "not rendered yet".
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettled(true), 600);
+    return () => window.clearTimeout(timer);
+  }, []);
   const firedRef = useRef(false);
 
   useEffect(() => {
@@ -38,7 +48,7 @@ export function FirstArtifactHint() {
     });
   }, [visible, analytics.track]);
 
-  if (!visible) return null;
+  if (!visible || !settled) return null;
 
   function dismiss() {
     trackStudioOnboardingHintClick(analytics.track, {
@@ -53,7 +63,35 @@ export function FirstArtifactHint() {
   }
 
   return (
-    <div className={styles.root} role="status" data-testid="first-artifact-hint">
+    // Motion-driven entrance (the repo already ships `motion`), fully opaque
+    // throughout: the card DROPS from the toolbar and settles (easeOut — set
+    // down gently, same vertical axis as what follows), holds a beat, then
+    // gives two equal 4px knocks with a pause between them (easeInOut).
+    // Skipped entirely under prefers-reduced-motion.
+    <motion.div
+      className={styles.root}
+      role="status"
+      data-testid="first-artifact-hint"
+      initial={reducedMotion ? false : { y: -28 }}
+      animate={reducedMotion ? { y: 0 } : { y: [-28, 0, 0, -4, 0, 0, -4, 0] }}
+      transition={
+        reducedMotion
+          ? { duration: 0 }
+          : {
+              duration: 2.4,
+              times: [0, 0.19, 0.32, 0.44, 0.56, 0.64, 0.76, 0.88],
+              ease: [
+                'easeOut',
+                'linear',
+                'easeInOut',
+                'easeInOut',
+                'linear',
+                'easeInOut',
+                'easeInOut',
+              ],
+            }
+      }
+    >
       <span className={styles.icon} aria-hidden>
         <Icon name="sparkles" size={18} />
       </span>
@@ -69,6 +107,6 @@ export function FirstArtifactHint() {
       >
         <Icon name="close" size={15} />
       </button>
-    </div>
+    </motion.div>
   );
 }
