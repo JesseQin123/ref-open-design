@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { recordAmrEntry } from '../../src/analytics/amr-attribution';
 import { saveOnboardingProfile } from '../../src/state/onboarding-profile';
 
 vi.mock('../../src/analytics/client', () => ({
@@ -64,6 +65,37 @@ describe('source attribution person properties', () => {
         od_org_size: 'startup',
         od_use_cases: ['marketing'],
         od_onboarding_source: 'social',
+      }),
+    );
+  });
+
+  it('binds the stored AMR entry attribution alongside onboarding fields', () => {
+    saveOnboardingProfile({
+      role: 'growth',
+      orgSize: 'startup',
+      useCase: ['marketing'],
+      source: 'social',
+    });
+    const track = vi.fn();
+    recordAmrEntry(
+      track,
+      'inline_model_switcher_amr_row',
+      new Date('2026-07-02T08:15:00.000Z'),
+    );
+
+    bindSignedInUserAttributionPersonProperties(
+      'usr_amr_42',
+      new Date('2026-07-02T08:30:00.000Z'),
+    );
+
+    expect(setAnalyticsPersonProperties).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        od_app_user_id: 'usr_amr_42',
+        od_source_resolved: 'social',
+        od_source_resolution: 'onboarding',
+        od_amr_entry_id: expect.stringMatching(/^od-amr-/u),
+        od_amr_entry_source: 'inline_model_switcher_amr_row',
+        od_amr_entry_at: '2026-07-02T08:15:00.000Z',
       }),
     );
   });
