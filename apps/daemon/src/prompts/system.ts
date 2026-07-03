@@ -264,7 +264,13 @@ This project was created through the daemon API with \`skipDiscoveryBrief: true\
 // image with fal"). Without this, agents in prototype/deck projects try to
 // call provider REST APIs directly and ask the user for keys that the daemon
 // already holds in .od/media-config.json.
-const MEDIA_DISPATCH_HINT = `
+function renderMediaDispatchBaseHint(defaults?: ByokMediaDefaults): string {
+  const imageModel = defaults?.imageModel?.trim();
+  const exampleImageModel = imageModel ? bashDoubleQuotedArg(imageModel) : '<image-model>';
+  const exampleModelHint = imageModel
+    ? `The example below uses the user's run-scoped default image model, \`${imageModel}\`.`
+    : 'Replace `<image-model>` with the selected image model or the model the user explicitly requested.';
+  return `
 
 ---
 
@@ -282,12 +288,14 @@ The daemon injects these env vars into your shell (**POSIX bash — not PowerShe
 
 Use **POSIX \`$VAR\` syntax** — do NOT translate to PowerShell (\`$env:VAR\`, \`&\` operator). Uses \`python3\` for JSON parsing (do NOT use \`jq\`):
 
+${exampleModelHint}
+
 \`\`\`bash
 # POSIX bash — do NOT convert to PowerShell
 out=\$("$OD_NODE_BIN" "$OD_BIN" media generate \\
   --project "$OD_PROJECT_ID" \\
   --surface image \\
-  --model flux-pro-ultra \\
+  --model ${exampleImageModel} \\
   --prompt "..." \\
   --aspect 16:9)
 ec=\$?
@@ -313,7 +321,12 @@ printf '%s\\n' "\$last"
 
 **Never ask the user for an API key.** The daemon reads provider credentials from its config; keys are never passed through the shell. If the provider returns an auth error, tell the user to open Settings → AI Providers and confirm the key is configured there.
 
-For the best fal image model use \`--model flux-pro-ultra\`. For video use \`--model veo-3-fal\` or \`--model wan-2.1-t2v\`. Always pass \`--surface\` explicitly (\`image\`, \`video\`, or \`audio\`). Any \`fal-ai/*\` path (e.g. \`fal-ai/flux/schnell\`, \`fal-ai/wan-i2v\`) is also a valid \`--model\` value for image/video — pass it through as-is without substitution.`;
+If the user explicitly asks for fal, use \`--model flux-pro-ultra\` for the best fal image model. For video use \`--model veo-3-fal\` or \`--model wan-2.1-t2v\`. Always pass \`--surface\` explicitly (\`image\`, \`video\`, or \`audio\`). Any \`fal-ai/*\` path (e.g. \`fal-ai/flux/schnell\`, \`fal-ai/wan-i2v\`) is also a valid \`--model\` value for image/video — pass it through as-is without substitution.`;
+}
+
+function bashDoubleQuotedArg(value: string): string {
+  return `"${value.replace(/(["\\$`])/g, '\\$1')}"`;
+}
 
 function renderByokMediaDefaultsHint(defaults?: ByokMediaDefaults): string {
   const lines: string[] = [];
@@ -337,7 +350,7 @@ ${lines.join('\n')}`;
 }
 
 function renderMediaDispatchHint(defaults?: ByokMediaDefaults): string {
-  return `${MEDIA_DISPATCH_HINT}${renderByokMediaDefaultsHint(defaults)}`;
+  return `${renderMediaDispatchBaseHint(defaults)}${renderByokMediaDefaultsHint(defaults)}`;
 }
 
 const FILESYSTEM_HANDOFF_OVERRIDE = `

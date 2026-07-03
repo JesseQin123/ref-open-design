@@ -450,6 +450,10 @@ describe('composeSystemPrompt — metadata.promptTemplate', () => {
     expect(out).toContain('## Media generation (if asked)');
     expect(out).toContain('### Run-scoped BYOK media defaults');
     expect(out).toContain('- Image model: `senseaudio-image-1.0-260319`');
+    expect(out).toContain('--model "senseaudio-image-1.0-260319"');
+    expect(out).toContain(
+      'The example below uses the user\'s run-scoped default image model',
+    );
   });
 
   it('keeps unrestricted enabled media contract unchanged', () => {
