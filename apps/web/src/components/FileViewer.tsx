@@ -140,6 +140,7 @@ import {
   liveCommentTargetMapsEqual,
   liveSnapshotForComment,
   overlayBoundsFromSnapshot,
+  resolveCommentAnchor,
   selectionKindLabel,
   targetFromSnapshot,
   type PreviewCommentSnapshot,
@@ -154,6 +155,7 @@ import {
 import type {
   ChatCommentAttachment,
   PreviewComment,
+  PreviewCommentAnchorState,
   PreviewCommentAttachment,
   PreviewCommentMember,
   PreviewCommentTarget,
@@ -4485,6 +4487,19 @@ export function applyInspectOverridesToSource(source: string, css: string): stri
   return block + out;
 }
 
+function anchorStateLabel(state: PreviewCommentAnchorState): string {
+  switch (state) {
+    case 'reanchored':
+      return 'based on an older version';
+    case 'stale':
+      return 'anchor may have moved';
+    case 'lost':
+      return 'anchor lost';
+    default:
+      return '';
+  }
+}
+
 function CommentPreviewOverlays({
   comments,
   liveTargets,
@@ -4499,6 +4514,8 @@ function CommentPreviewOverlays({
   offsetY,
   strokePoints,
   activeSlideIndex = null,
+  driftLadder = false,
+  currentVersion,
   onOpenComment,
 }: {
   comments: PreviewComment[];
@@ -4514,22 +4531,42 @@ function CommentPreviewOverlays({
   offsetY: number;
   strokePoints: StrokePoint[];
   activeSlideIndex?: number | null;
+  /** Team-collab: resolve anchors through the drift ladder (keep + badge stale/lost)
+   *  instead of the exact-match silent drop. Off for single-user. */
+  driftLadder?: boolean;
+  /** Current content version, used by the ladder to flag reanchored (older vN). */
+  currentVersion?: number;
   onOpenComment: (comment: PreviewComment, snapshot: PreviewCommentSnapshot) => void;
 }) {
   const overlayOffset = useMemo(() => ({ x: offsetX, y: offsetY }), [offsetX, offsetY]);
   const visibleComments = useMemo(
     () =>
       comments
-        .map((comment, globalIndex) => ({
-          comment,
-          markerNumber: globalIndex + 1,
-          snapshot: liveSnapshotForComment(comment, liveTargets),
-        }))
-        .filter((item): item is { comment: PreviewComment; markerNumber: number; snapshot: PreviewCommentSnapshot } =>
-          Boolean(item.snapshot),
+        .map((comment, globalIndex) => {
+          const markerNumber = globalIndex + 1;
+          if (driftLadder) {
+            // Keep stale/lost comments and carry their state so the marker can
+            // badge them, instead of silently dropping a drifted anchor.
+            const resolution = resolveCommentAnchor(comment, liveTargets, currentVersion);
+            return { comment, markerNumber, snapshot: resolution.snapshot, anchorState: resolution.state };
+          }
+          return {
+            comment,
+            markerNumber,
+            snapshot: liveSnapshotForComment(comment, liveTargets),
+            anchorState: 'anchored' as PreviewCommentAnchorState,
+          };
+        })
+        .filter(
+          (item): item is {
+            comment: PreviewComment;
+            markerNumber: number;
+            snapshot: PreviewCommentSnapshot;
+            anchorState: PreviewCommentAnchorState;
+          } => Boolean(item.snapshot),
         )
         .filter(({ comment }) => commentVisibleOnDeckSlide(comment, activeSlideIndex)),
-    [comments, liveTargets, activeSlideIndex],
+    [comments, liveTargets, activeSlideIndex, driftLadder, currentVersion],
   );
   // `onOpenComment` is an inline arrow from the parent (new identity every
   // render), so read it through a ref to keep the saved-marker memo below from
@@ -4544,13 +4581,14 @@ function CommentPreviewOverlays({
   // comments reuses the whole subtree and React skips reconciling it.
   const savedMarkers = useMemo(
     () =>
-      visibleComments.map(({ comment, markerNumber, snapshot }) => {
+      visibleComments.map(({ comment, markerNumber, snapshot, anchorState }) => {
         const bounds = overlayBoundsFromSnapshot(snapshot, scale, overlayOffset);
         const label = commentTargetDisplayName(comment);
+        const drifted = anchorState !== 'anchored';
         return (
           <div
             key={comment.id}
-            className="comment-saved-marker"
+            className={`comment-saved-marker${drifted ? ` comment-saved-marker--${anchorState}` : ''}`}
             style={{
               left: bounds.left,
               top: bounds.top,
@@ -4558,6 +4596,7 @@ function CommentPreviewOverlays({
               height: bounds.height,
             }}
             data-testid={`comment-saved-marker-${comment.elementId}`}
+            data-anchor-state={anchorState}
             onClick={() => onOpenCommentRef.current(comment, snapshot)}
           >
             <div className="comment-saved-outline" />
@@ -4568,7 +4607,11 @@ function CommentPreviewOverlays({
                 event.stopPropagation();
                 onOpenCommentRef.current(comment, snapshot);
               }}
-              title={`${markerNumber}. ${label}: ${comment.note}`}
+              title={
+                drifted
+                  ? `${markerNumber}. ${label} · ${anchorStateLabel(anchorState)}`
+                  : `${markerNumber}. ${label}: ${comment.note}`
+              }
               aria-label={`Open comment for ${label}`}
             >
               {markerNumber}
