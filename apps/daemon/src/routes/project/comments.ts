@@ -11,6 +11,7 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
     listPreviewComments,
     upsertPreviewComment,
     updatePreviewCommentStatus,
+    updatePreviewCommentAnchor,
     deletePreviewComment,
   } = ctx.conversations;
 
@@ -63,6 +64,32 @@ export function registerProjectCommentRoutes(app: Express, ctx: RegisterProjectC
         if (!comment)
           return res.status(404).json({ error: 'comment not found' });
         updateProject(db, req.params.id, {});
+        res.json({ comment });
+      } catch (err: any) {
+        res.status(400).json({ error: String(err?.message || err) });
+      }
+    },
+  );
+
+  app.patch(
+    '/api/projects/:id/conversations/:cid/comments/:commentId/anchor',
+    (req, res) => {
+      const conv = getConversation(db, req.params.cid);
+      if (!conv || conv.projectId !== req.params.id) {
+        return res.status(404).json({ error: 'conversation not found' });
+      }
+      try {
+        // Drift-ladder write-back: the client resolves anchor state each render
+        // and reports it here. No updateProject() — anchor resolution is a
+        // derived read-back, not a content edit.
+        const comment = updatePreviewCommentAnchor(
+          db,
+          req.params.id,
+          req.params.cid,
+          req.params.commentId,
+          req.body || {},
+        );
+        if (!comment) return res.status(404).json({ error: 'comment not found' });
         res.json({ comment });
       } catch (err: any) {
         res.status(400).json({ error: String(err?.message || err) });

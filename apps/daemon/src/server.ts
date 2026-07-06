@@ -506,6 +506,7 @@ import {
   openDatabase,
   setTabs,
   updateConversation,
+  updatePreviewCommentAnchor,
   updatePreviewCommentStatus,
   updateProject,
   updateRoutine,
@@ -4037,6 +4038,7 @@ export async function startServer({
     listPreviewComments,
     upsertPreviewComment,
     updatePreviewCommentStatus,
+    updatePreviewCommentAnchor,
     deletePreviewComment,
   };
   const templateDeps = { getTemplate, listTemplates, deleteTemplate, insertTemplate, findTemplateByNameAndProject, updateTemplate };
