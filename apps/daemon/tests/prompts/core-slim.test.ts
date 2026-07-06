@@ -26,21 +26,16 @@ const repoRoot = path.resolve(__dirname, '../../../..');
  *    it moved to.
  */
 
-// 10.5KB: the 8KB doctrine budget, plus the ~1KB security section the charter
-// absorbed from the standalone injection-resistance block (composed total
-// unchanged), plus ~0.7KB from the structure-review fixes — chiefly restoring
-// the full `output` question to the form example so it reads in forward
-// order (which also shores up few-shot density for weaker fleet models) —
-// plus ~0.5KB from the regression-audit restorations: the no-hot-linked-user-
-// images product rule, the skill/DS domain-precedence clause, the expressive
-// form-control guidance, and the modern-CSS encouragement. All four were
-// classic behaviors the first compression pass wrongly classified as
-// model-competence filler. Plus ~0.45KB from the A/B-eval form fixes:
-// the blind pairwise eval (2026-07-04) showed slim forms lost 12:1 to
-// classic because the tailoring guidance was compressed to one word —
-// restored as an explicit mandate with per-brief examples, plus the
-// first-message-always-forms scope limit on session inheritance.
-const SLIM_CORE_BYTE_BUDGET = 11_264;
+// 12KB budget. History: 8KB doctrine core, +1KB absorbed security section,
+// +0.7KB structure-review fixes, +0.5KB regression-audit restorations,
+// +0.45KB form-tailoring/first-message fixes. The final headroom is the
+// 2026-07-06 readability refactor (per-concern section split of the
+// overloaded turn-1 form section into "Turn 1 — the discovery form",
+// "Writing a <question-form>", and a "### Form contract" cross-cutting
+// subsection): the budget was consciously expanded for human
+// maintainability/readability at the maintainer's direction, since a
+// write-only prompt only one author can safely edit is its own kind of debt.
+const SLIM_CORE_BYTE_BUDGET = 12_288;
 
 describe('renderSlimCoreCharter — byte budget', () => {
   it('stays under the byte budget in both execution profiles', () => {
