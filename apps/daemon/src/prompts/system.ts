@@ -718,6 +718,15 @@ export function composeSystemPrompt({
           '\n\n---\n\n',
         ]
       : [PROMPT_INJECTION_RESISTANCE, '\n\n---\n\n'];
+  // The slim charter's plan step is deliberately generic ("use your runtime's
+  // plan/todo tool, else a numbered list") so it works on codex / opencode /
+  // ACP agents that have no such tool. Claude-family runs (streamFormat
+  // 'claude-stream-json': claude, codebuddy, amp) are the only ones with a
+  // `TodoWrite` tool the host renders as a live Todos card — name the concrete
+  // tool + its UI benefit here, for that family only.
+  if (isSlimCharterHead && streamFormat === 'claude-stream-json') {
+    parts.push(CLAUDE_PLAN_TOOL_NOTE, '\n\n---\n\n');
+  }
   const activeDesignSystemBody = designSystemBody?.trim();
   const activeSkillModes = new Set(
     Array.isArray(skillModes)
@@ -1177,9 +1186,11 @@ export function composeSystemPrompt({
  * precedence war and let `<todo-list>` / `[读取 X]` pseudo-tool markup
  * leak into the chat.
  */
+const CLAUDE_PLAN_TOOL_NOTE = `Your plan tool is \`TodoWrite\` — use it for the plan step above; the host renders it as a live Todos card. Mark each item \`in_progress\` when started and \`completed\` as it lands.`;
+
 const API_MODE_OVERRIDE = `# API mode — no tools available (read first — overrides every rule below)
 
-You are running through a plain Messages API. **No tools are wired through to you.** \`TodoWrite\`, \`Read\`, \`Write\`, \`Edit\`, \`Bash\`, and \`WebFetch\` are unavailable — calls to them will not execute and will not render in the UI.
+You are running through a plain Messages API. **No tools are wired through to you.** Any tool call — \`TodoWrite\`, \`Read\`, \`Write\`, \`Edit\`, \`Bash\`, \`WebFetch\`, or whatever your runtime normally exposes — will not execute and will not render in the UI.
 
 Every later instruction in this prompt that tells you to "call TodoWrite", "run Bash", "read via Read", or otherwise invoke a tool is describing the daemon-mode workflow. In this API run those instructions are **overridden** — do not attempt them and do not pretend you did.
 

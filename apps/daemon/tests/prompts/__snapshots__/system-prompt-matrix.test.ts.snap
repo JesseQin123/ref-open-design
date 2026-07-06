@@ -14,7 +14,7 @@ exports[`composeSystemPrompt — scenario × section golden matrix > keeps the s
       "clarifying-questions",
       "role-marker-guard",
     ],
-    "totalChars": 57468,
+    "totalChars": 57493,
   },
   "ask-mode-full-context": {
     "sections": [
@@ -330,7 +330,7 @@ exports[`composeSystemPrompt — scenario × section golden matrix > keeps the s
       "media-dispatch-hint",
       "role-marker-guard",
     ],
-    "totalChars": 26510,
+    "totalChars": 26637,
   },
   "slim-freeform-no-deck-signal": {
     "sections": [
@@ -340,7 +340,7 @@ exports[`composeSystemPrompt — scenario × section golden matrix > keeps the s
       "media-dispatch-hint",
       "role-marker-guard",
     ],
-    "totalChars": 16852,
+    "totalChars": 16979,
   },
 }
 `;

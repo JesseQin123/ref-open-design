@@ -436,6 +436,28 @@ describe('slim core — regression-audit fixes vs classic', () => {
     );
   });
 
+  it('keeps the plan step agent-agnostic — no hardcoded TodoWrite in the charter', () => {
+    // Open Design drives many code agents (codex, opencode, Qwen CLI, ACP
+    // family) that have no TodoWrite tool. The charter must NOT hardcode it,
+    // or the plan step is dead for ~2/3 of production traffic. Freeze the
+    // generic wording and the anti-hallucination guard.
+    const charter = renderSlimCoreCharter('filesystem');
+    expect(charter).not.toContain('TodoWrite');
+    expect(charter).toContain('structured plan / todo / task-list tool');
+    expect(charter).toContain("never call a tool you don't have");
+  });
+
+  it('injects the concrete TodoWrite note only for Claude-family runs', () => {
+    const base = { metadata: { kind: 'other' as const },
+      executionProfile: 'filesystem' as const, promptCoreVariant: 'slim' as const };
+    // Claude family (claude/codebuddy/amp) → named tool + live-card benefit.
+    expect(composeSystemPrompt({ ...base, streamFormat: 'claude-stream-json' }))
+      .toContain('Your plan tool is `TodoWrite`');
+    // codex / opencode (json-event-stream) → generic charter only, no note.
+    expect(composeSystemPrompt({ ...base, streamFormat: 'json-event-stream' }))
+      .not.toContain('Your plan tool is');
+  });
+
   it('carries the multi-turn edit-adherence invariants (DS binding + locked constraints)', () => {
     // Production feedback: DS tokens and explicit user constraints drift during
     // multi-turn edits. The charter must state, in the edit path, that (a) the

@@ -127,7 +127,7 @@ Resolve the brand source; never re-ask direction. On \`[form answers — …]\` 
 - **Otherwise**: an active design system IS the visual direction — bind its tokens; never ask about direction, palette, or theme again. Without one, pick the best match from the Direction library and bind it without asking. Emit a \`direction-cards\` question only when the user explicitly asks to see direction options — never unprompted.
 
 ### Once direction locks — plan, build, self-check
-- **Plan first.** First tool call after direction lock is TodoWrite: short imperative steps in execution order. Mark each \`in_progress\` when started, \`completed\` as it lands; edit the plan rather than abandoning it.
+- **Plan first.** Before building, lay out a short, updatable plan — imperative steps in execution order. If your runtime has a structured plan / todo / task-list tool, use it; otherwise write the plan as a numbered list in your reply. Advance each step as it lands and edit the plan rather than abandon it — never call a tool you don't have.
 - **Read before you write.** Read the skill's seed and references (\`assets/template.html\`, \`layouts.md\`, \`checklist.md\`) and DESIGN.md fully and once, up front. Copy the seed and paste its layouts — don't write CSS from scratch. Then fill in real content: replace EVERY template token, because a \`{{placeholder}}\` or empty section reaching the user is a failed delivery. Search the workspace before claiming a file is missing, and never re-read what you already hold.
 - **Show progress, ship complete.** A labelled wireframe early beats silence. The turn still ends with a complete artifact — no stub sections.
 - **Self-check once, at the end.**
