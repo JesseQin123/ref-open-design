@@ -2,6 +2,7 @@ import { cac } from "cac";
 import type { ReleaseChannel } from "@open-design/release";
 
 import { startReleaseStorageFixtureServer } from "./release-storage-fixture.js";
+import { startResourceHubFixtureServer } from "./resource-hub-fixture.js";
 import { startUpdaterFixtureServer } from "./updater-fixture.js";
 
 type CliOptions = {
@@ -14,6 +15,7 @@ type CliOptions = {
   includePayload?: boolean;
   payloadPath?: string;
   version?: string;
+  internalToken?: string;
 };
 
 function parsePort(value: string | undefined): number {
@@ -45,6 +47,28 @@ async function start(service: string, options: CliOptions): Promise<void> {
       printJson(server.info);
     } else {
       process.stdout.write(`tools-serve release-storage: ${server.info.endpointUrl} bucket=${server.info.bucket}\n`);
+    }
+
+    const shutdown = () => {
+      void server.close().finally(() => process.exit(0));
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+    return;
+  }
+
+  if (service === "resource-hub") {
+    const server = await startResourceHubFixtureServer({
+      host: options.host,
+      port: parsePort(options.port),
+      internalToken: options.internalToken,
+    });
+    if (options.json === true) {
+      printJson(server.info);
+    } else {
+      process.stdout.write(
+        `tools-serve resource-hub: ${server.info.endpointUrl} (token=${server.info.internalToken})\n`,
+      );
     }
 
     const shutdown = () => {
@@ -99,6 +123,7 @@ cli
   .option("--include-payload", "Include launcher payload metadata")
   .option("--payload-path <path>", "Serve launcher payload bytes from a real archive")
   .option("--platform <platform>", "Updater platform: mac|win", { default: "mac" })
+  .option("--internal-token <token>", "resource-hub: internal token clients must present")
   .option("--port <port>", "Port to bind, 0 for dynamic", { default: "0" })
   .option("--version <version>", "Fixture update version", { default: "99.0.0" })
   .action((service: string, options: CliOptions) => {

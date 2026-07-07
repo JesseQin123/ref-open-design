@@ -5,6 +5,7 @@ import { basename } from 'node:path';
 import { runDaemonCliStartup, startDaemonRuntime } from './daemon-startup.js';
 import { runLiveArtifactsMcpServer } from './mcp-live-artifacts-server.js';
 import { runArtifactsCli } from './artifacts-cli.js';
+import { runResource } from './resource-cli.js';
 import { runProjectHandoff } from './handoff-cli.js';
 import { runConnectorsToolCli } from './tools-connectors-cli.js';
 import { runDesignSystemsToolCli } from './tools-design-systems-cli.js';
@@ -333,6 +334,7 @@ const SUBCOMMAND_MAP = {
   atoms: runAtoms,
   skills: runSkills,
   'design-systems': runDesignSystems,
+  resource: runResource,
   craft: runCraft,
   diagnostics: runDiagnostics,
   export: runExport,
