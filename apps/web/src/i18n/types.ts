@@ -303,6 +303,9 @@ export interface Dict {
   'settings.modeDaemonOfflineMeta': string;
   'settings.modeDaemonInstalledMeta': string;
   'settings.modeApi': string;
+  'settings.cloudCalloutTitle': string;
+  'settings.cloudCalloutBody': string;
+  'settings.cloudCalloutButton': string;
   'settings.modeApiMeta': string;
   'settings.byokNoFileToolsNotice': string;
   'settings.codeAgent': string;

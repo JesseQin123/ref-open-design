@@ -4122,6 +4122,21 @@ export function SettingsDialog({
                   <span className="seg-meta">{t('settings.modeApi')}</span>
                 </button>
               </div>
+              {cfg.mode === 'daemon' ? (
+                <div className="settings-cloud-signin-callout">
+                  <div>
+                    <strong>{t('settings.cloudCalloutTitle')}</strong>
+                    <p>{t('settings.cloudCalloutBody')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="settings-cloud-signin-callout__button"
+                    onClick={() => navigateRoute({ kind: 'home', view: 'onboarding' })}
+                  >
+                    {t('settings.cloudCalloutButton')}
+                  </button>
+                </div>
+              ) : null}
               {cfg.mode === 'api' ? (
                 <div
                   className="protocol-chips protocol-chips--providers"
