@@ -2798,7 +2798,18 @@ export function FileWorkspace({
             onCurrentDirChange={setUploadDir}
             navState={designFilesNavRef.current}
             onNavStateChange={onDesignFilesNavStateChange}
-            onOpenFile={openFile}
+            onOpenFile={(name) => {
+              // Re-engagement entry: opening an existing sketch from the file
+              // list (new_sketch already covers fresh creation).
+              if (isSketchName(name)) {
+                trackFileManagerClick(analytics.track, {
+                  page_name: 'file_manager',
+                  area: 'file_manager',
+                  element: 'open_sketch',
+                });
+              }
+              openFile(name);
+            }}
             onOpenLiveArtifact={(tabId) => openFile(tabId)}
             onRenameFile={handleRename}
             onDeleteFile={(name) => {
