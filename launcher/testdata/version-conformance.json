@@ -1,0 +1,22 @@
+{
+  "comment": "Shared version-ordering conformance fixture. Go CmpVersion and TypeScript compareLauncherVersions must both return `expected` (sign of a vs b) for every case, so the two ports never drift. expected: -1 (a<b), 0 (a==b), 1 (a>b).",
+  "cases": [
+    { "a": "1.0.1", "b": "1.0.0", "expected": 1 },
+    { "a": "1.0.0", "b": "1.0.1", "expected": -1 },
+    { "a": "1.0.0", "b": "1.0.0", "expected": 0 },
+    { "a": "2.0.0", "b": "1.9.9", "expected": 1 },
+    { "a": "1.10.0", "b": "1.9.0", "expected": 1 },
+    { "a": "v1.0.1", "b": "1.0.0", "expected": 1 },
+    { "a": "1.0.0+build.7", "b": "1.0.0", "expected": 0 },
+    { "a": "1.0.0", "b": "1.0.0-beta.1", "expected": 1 },
+    { "a": "1.0.0-beta.1", "b": "1.0.0-beta.2", "expected": -1 },
+    { "a": "1.0.0-beta.2", "b": "1.0.0-beta.10", "expected": -1 },
+    { "a": "1.0.0-alpha", "b": "1.0.0-beta", "expected": -1 },
+    { "a": "1.0.0-beta.1", "b": "1.0.0-beta", "expected": 1 },
+    { "a": "1.0.0-1", "b": "1.0.0-alpha", "expected": -1 },
+    { "a": "1.2.3.nightly.5", "b": "1.2.3.nightly.4", "expected": 1 },
+    { "a": "1.2.3.nightly.5", "b": "1.2.3", "expected": -1 },
+    { "a": "1.0.0-rc.1", "b": "1.0.0-rc.1", "expected": 0 },
+    { "a": "0.10.0-beta.1", "b": "0.9.0-beta.1", "expected": 1 }
+  ]
+}
