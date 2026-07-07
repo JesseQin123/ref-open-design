@@ -4308,6 +4308,7 @@ export async function startServer({
   registerStaticResourceRoutes(app, {
     http: httpDeps,
     paths: pathDeps,
+    teamResources: collab.teamResources,
     resources: {
       listAllSkills,
       listAllDesignTemplates,

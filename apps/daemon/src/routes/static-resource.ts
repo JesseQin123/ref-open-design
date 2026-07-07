@@ -3,6 +3,11 @@ import type Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { DesignSystemTokenContractRebuildJobResponse } from '@open-design/contracts';
+import { TeamResourceCopyForbiddenError } from '@open-design/contracts';
+import {
+  enforceTeamResourceCopyAllowed,
+  type TeamResourceStateProvider,
+} from '../collab/team-resource-state.js';
 import { detectAgents, detectAgentsStream } from '../agents.js';
 import {
   SkillImportError,
@@ -40,6 +45,9 @@ export interface RegisterStaticResourceRoutesDeps extends RouteDeps<'http' | 'pa
       designSystemId: string,
     ) => Promise<DesignSystemTokenContractRebuildJobResponse | undefined>;
   };
+  /** Team-resource copy red-line (D3). When present, a frozen team skill cannot
+   *  be edit-shadowed into a personal editable copy. Omit to skip (no-op). */
+  teamResources?: TeamResourceStateProvider;
 }
 
 export function registerAtomRoutes(app: Express, ctx: RegisterAtomRoutesDeps) {
@@ -90,6 +98,7 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
     mimeFor,
   } = ctx.resources;
   const { isLocalSameOrigin, resolvedPortRef, sendApiError } = ctx.http;
+  const teamResources = ctx.teamResources;
   const requireLocalOrigin = (req: any, res: any) => {
     if (isLocalSameOrigin(req, resolvedPortRef.current)) return true;
     sendApiError(res, 403, 'FORBIDDEN', 'local origin required');
@@ -263,6 +272,12 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
       if (!skill) {
         return sendApiError(res, 404, 'NOT_FOUND', 'skill not found');
       }
+      // AC-9 copy red-line (D3): a frozen team skill cannot be edit-shadowed into
+      // a personal editable copy. No-op until the resource-hub reports this skill
+      // as a frozen team resource.
+      if (teamResources) {
+        await enforceTeamResourceCopyAllowed(teamResources, { kind: 'skill', resourceId: skill.id });
+      }
       const result = await updateUserSkill(USER_SKILLS_DIR, {
         ...(req.body || {}),
         id: skill.id,
@@ -286,6 +301,9 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
         },
       });
     } catch (err: any) {
+      if (err instanceof TeamResourceCopyForbiddenError) {
+        return sendApiError(res, 403, err.code, err.message);
+      }
       if (err instanceof SkillImportError) {
         const status = err.code === 'NOT_FOUND' ? 404 : err.code === 'BAD_REQUEST' ? 400 : 500;
         return sendApiError(res, status, err.code, err.message);
