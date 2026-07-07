@@ -243,7 +243,7 @@ export interface CommentAnchorResolution {
 }
 
 /**
- * Team-collab comment drift ladder (spec §D2). Resolves a stored comment against
+ * Team collaboration comment drift ladder. Resolves a stored comment against
  * the live DOM snapshots without relying on an injected stable id:
  *   0. exact anchor hit + matching version → `anchored` (older version → `reanchored`)
  *   1. content-based fuzzy match (selector / htmlHint / text, position tie-break) → `stale`
@@ -278,7 +278,7 @@ export interface AnchorWriteBack {
 /**
  * The only durable fact the drift ladder needs to persist: when a comment first
  * becomes `lost`, capture its last-good position so the ghost pin keeps a stable
- * spot even after the anchoring content is gone (spec §D2). The anchored /
+ * spot even after the anchoring content is gone. The anchored /
  * reanchored / stale states are derived per-viewer against that viewer's live
  * snapshots, so they are intentionally NOT written back — persisting them would
  * let one member's view overwrite another's. This is idempotent: a comment that

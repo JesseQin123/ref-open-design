@@ -333,7 +333,7 @@ function migrate(db: SqliteDb): void {
     db.exec(`ALTER TABLE preview_comments ADD COLUMN slide_index INTEGER`);
   }
   migratePreviewCommentsSlideKey(db);
-  // Team-collab anchor columns — added after the slide-key rebuild so a legacy
+  // Team collaboration anchor columns — added after the slide-key rebuild so a legacy
   // table rebuild cannot drop them.
   const previewCommentAnchorCols = db.prepare(`PRAGMA table_info(preview_comments)`).all() as DbRow[];
   if (!previewCommentAnchorCols.some((c: DbRow) => c.name === 'anchor_state')) {
@@ -1664,7 +1664,7 @@ export function upsertPreviewComment(db: SqliteDb, projectId: string, conversati
     : 0;
   const slideIndex = Number.isFinite(target.slideIndex) ? Math.max(0, Math.round(target.slideIndex)) : null;
   const slideKey = slideIndex ?? -1;
-  // Team-collab creation metadata. anchor_state / last_good_position stay null at
+  // Team collaboration creation metadata. anchor_state / last_good_position stay null at
   // creation — the drift ladder resolves and writes them back (updatePreviewCommentAnchor).
   const anchoredVersion = Number.isFinite(target.anchoredVersion)
     ? Math.max(0, Math.round(target.anchoredVersion))
@@ -1751,7 +1751,7 @@ export function updatePreviewCommentStatus(db: SqliteDb, projectId: string, conv
 }
 
 /**
- * Team-collab drift-ladder write-back: persist how a comment resolved this render.
+ * Team collaboration drift-ladder write-back: persist how a comment resolved this render.
  * `lastGoodPosition`/`anchoredVersion` are COALESCEd so a `lost` resolve (which omits
  * them) keeps the last known-good values instead of wiping them. Does not bump
  * `updated_at` — anchor resolution is a derived read, not a content edit.

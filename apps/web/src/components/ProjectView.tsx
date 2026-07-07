@@ -1319,7 +1319,7 @@ export function ProjectView({
   const { locale, t } = useI18n();
   const analytics = useAnalytics();
   const iframeKeepAlivePool = useIframeKeepAlivePool();
-  // Team-collab (C lane): presence for a shared project. Dormant (no heartbeat,
+  // Team collaboration: presence for a shared project. Dormant (no heartbeat,
   // renders nothing) unless the workspace context marks the viewer an active
   // team member — safe to mount unconditionally.
   const projectCollab = useProjectCollab(project?.id ?? null);
@@ -1410,7 +1410,7 @@ export function ProjectView({
     () => conversations.find((conversation) => conversation.id === activeConversationId) ?? null,
     [conversations, activeConversationId],
   );
-  // Team-collab (C lane): persist a comment that drifted to `lost` so its ghost
+  // Team collaboration: persist a comment that drifted to `lost` so its ghost
   // pin survives reload. Only ProjectView has the active conversation id the
   // anchor route needs; fed to the drift ladder through the collab context.
   const handleLostAnchors = useCallback(

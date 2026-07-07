@@ -1,6 +1,6 @@
-// Team-collab (C lane) daemon subsystem: bundles the author-side publish
+// Team collaboration daemon subsystem: bundles the author-side publish
 // scheduler and the presence tracker behind one factory so the server wires
-// them once. The resource hub itself is E's (沅锡) — this holds only C's
+// them once. The resource hub itself is E's (the resource-hub owner) — this holds only C's
 // trigger + presence, talking to the hub through ResourcePublishAdapter.
 
 import {
@@ -33,16 +33,16 @@ export interface CollabRuntime {
   teamResources: TeamResourceStateProvider;
   /** Last published version for a project (members poll this to know what to pull). */
   publishedVersion(projectId: string): number | null;
-  /** C-owned sync state for a project (`local_only` until a share is requested). */
+  /**  sync state for a project (`local_only` until a share is requested). */
   projectSyncState(projectId: string): ProjectSyncState;
   /**
-   * D→C sync-intent seam: mark a project as awaiting upload and flush a publish.
+   * visibility-to-sync sync-intent seam: mark a project as awaiting upload and flush a publish.
    * D calls this (through the route) when a project flips to team-visible; C
-   * orchestrates the publish, which drives E's resource mechanism behind it.
+   * orchestrates the publish, which drives the resource hub mechanism behind it.
    */
   requestTeamShare(projectId: string): void;
   /**
-   * Member pull trigger (C owns *when* to pull). Reads the published head via
+   * Member pull trigger (the sync trigger owns *when* to pull). Reads the published head via
    * the adapter (E's `syncLatest`); E's client also fetches + extracts the
    * bytes locally. Returns the head version, or null if nothing is published.
    */

@@ -4,9 +4,9 @@ import type {
   WorkspaceLifecycleState,
 } from '@open-design/contracts';
 
-// The C-lane seam onto the B (workspace) + D (visibility) lanes. B owns the
+// The the collaboration surface seam onto the B (workspace) + D (visibility) lanes. B owns the
 // CurrentWorkspaceContext (identity token → workspaceMemberId + role + lifecycle);
-// D owns whether a workspace/project is team-shared. Collab (presence + sync)
+// the visibility surface owns whether a workspace/project is team-shared. Collab (presence + sync)
 // should only run for an active member of a live team workspace. The context
 // shape is the shared contract DTO (a faithful subset of B's context), so wiring
 // B's real context in is a direct field pass-through.
@@ -32,11 +32,11 @@ const LIVE_LIFECYCLE: ReadonlySet<WorkspaceLifecycleState> = new Set([
 /**
  * Decide whether collab should run for the current workspace context, and who
  * the present member is. Gating (in order):
- *   - no context → off
- *   - personal workspace → off (D: only team workspaces are collaborative)
- *   - removed member → off
- *   - frozen/deleting/deleted lifecycle → off
- *   - otherwise → on, identity from workspaceMemberId
+ * - no context → off
+ * - personal workspace → off (D: only team workspaces are collaborative)
+ * - removed member → off
+ * - frozen/deleting/deleted lifecycle → off
+ * - otherwise → on, identity from workspaceMemberId
  */
 export function resolveCollabSession(ctx: WorkspaceCollabContext | null): CollabSessionDecision {
   if (!ctx) return { enabled: false, reason: 'no-workspace-context', member: null };

@@ -51,7 +51,7 @@ export type Route =
     }
   | { kind: 'marketplace' }
   | { kind: 'marketplace-detail'; pluginId: string }
-  // Team-collab (C lane) demo surface. Drives the live presence + sync loop
+  // Team collaboration demo surface. Drives the live presence + sync loop
   // against the real daemon routes with a clearly-stubbed demo identity (real
   // B identity / D visibility integration pending). Deep-linkable so a second
   // browser tab can join the same project and appear in the presence overlay.

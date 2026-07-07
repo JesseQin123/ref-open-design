@@ -1,6 +1,6 @@
 import type { ApiErrorCode } from '../errors.js';
 
-// Team-edition resource foundation (地基 — owned by the C/麻薯 summary lane, per
+// Team-edition resource foundation (地基 — owned by the C/the orchestrator summary lane, per
 // the foundation contract). The copy red-line guard is a pure invariant every
 // lane calls (D, E, and our own extension surfaces) at each "copy a team
 // resource into a personal, editable copy" route. AC-9: a downgraded team must

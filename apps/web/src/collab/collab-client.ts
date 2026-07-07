@@ -1,9 +1,9 @@
-// Team-collab (C lane) client integration. Ties the daemon collab capabilities
+// Team collaboration client integration. Ties the daemon collab capabilities
 // together for a shared-project session: heartbeat presence, poll the published
 // head version (so a member knows when to pull), and report author-side changes
 // / request a publish. It is the glue the read-only collab view consumes.
 //
-// Polling-based by design (live cursors were cut; content is polled — spec §D6).
+// Polling-based by design (live cursors were cut; content is polled — the spec).
 
 import type { CollabPresenceMember, ProjectSyncState } from '@open-design/contracts';
 
@@ -14,7 +14,7 @@ export type { CollabPresenceMember };
 export interface CollabSnapshot {
   present: CollabPresenceMember[];
   publishedVersion: number | null;
-  /** C-owned project sync state; null until the first status poll lands. */
+  /**  project sync state; null until the first status poll lands. */
   syncState: ProjectSyncState | null;
 }
 

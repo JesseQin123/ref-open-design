@@ -10,7 +10,7 @@ export interface RegisterCollabContextRoutesDeps {
 }
 
 /**
- * Workspace-context route (C lane): the daemon's single B-integration seam. The
+ * Workspace-context route : the daemon's single B-integration seam. The
  * web client fetches the current caller's workspace context here to decide
  * whether collab runs and who the present member is (resolveCollabSession). In
  * production the provider proxies B; the dev provider is settable via PUT so a

@@ -4535,12 +4535,12 @@ function CommentPreviewOverlays({
   offsetY: number;
   strokePoints: StrokePoint[];
   activeSlideIndex?: number | null;
-  /** Team-collab: resolve anchors through the drift ladder (keep + badge stale/lost)
+  /** Team collaboration: resolve anchors through the drift ladder (keep + badge stale/lost)
    *  instead of the exact-match silent drop. Off for single-user. */
   driftLadder?: boolean;
   /** Current content version, used by the ladder to flag reanchored (older vN). */
   currentVersion?: number;
-  /** Team-collab: persist the durable `lost` capture (last-good position) so the
+  /** Team collaboration: persist the durable `lost` capture (last-good position) so the
    *  ghost pin survives reload. Only fires in drift-ladder mode. */
   onLostAnchors?: (writeBacks: AnchorWriteBack[]) => void;
   onOpenComment: (comment: PreviewComment, snapshot: PreviewCommentSnapshot) => void;
@@ -4575,7 +4575,7 @@ function CommentPreviewOverlays({
         .filter(({ comment }) => commentVisibleOnDeckSlide(comment, activeSlideIndex)),
     [comments, liveTargets, activeSlideIndex, driftLadder, currentVersion],
   );
-  // Team-collab durability: when a comment first drifts to `lost`, persist its
+  // Team collaboration durability: when a comment first drifts to `lost`, persist its
   // last-good position once so the ghost pin survives reload. The ref set keeps
   // pointermove re-renders (during pod drawing) from re-firing the same capture;
   // the server COALESCEs too, so this is belt-and-suspenders idempotency.
@@ -5484,7 +5484,7 @@ function HtmlViewer({
 }) {
   const { locale, t } = useI18n();
   const analytics = useAnalytics();
-  // Team-collab (C lane): resolve comment anchors through the drift ladder when
+  // Team collaboration: resolve comment anchors through the drift ladder when
   // the viewer is a team member of a shared project. Off (exact-match, single
   // user) otherwise. From the ProjectView-provided collab context — no props to
   // thread, no second collab client.

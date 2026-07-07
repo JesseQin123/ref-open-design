@@ -1,12 +1,12 @@
-// Team-collab (C lane) sync trigger — the author-side "触发 + 编排" that C owns.
+// Team collaboration sync trigger — the author-side "trigger + orchestration" that the sync trigger owns.
 //
 // It does NOT implement the resource store: publishing content + advancing the
-// `published` ref is E's resource面 (沅锡, E v1.0 §2.4 = createVersion + setRef).
+// `published` ref is the resource hub (the resource-hub owner, the resource hub the spec = createVersion + setRef).
 // C's job is *when* to publish: coalesce rapid author edits into one publish so
 // half-written intermediate states never reach members, flush at run boundaries,
 // and — on success — let the orchestrator notify online members to pull.
 //
-// Invariant (spec §D2 / §I.0): notification happens strictly AFTER the adapter's
+// Invariant: notification happens strictly AFTER the adapter's
 // publish resolves (content durable, pointer moved), so members are never told to
 // pull a version that is not yet durable. The adapter is expected to resolve only
 // on durable success (E's atomic write); this scheduler adds the coalescing.
@@ -20,8 +20,8 @@ export interface ResourcePublishAdapter {
    */
   publish(input: { projectId: string; reason: string }): Promise<{ version: number } | null>;
   /**
-   * Read the currently-published head for a project (E v1.0 §2.4
-   * `syncLatest` = getRef('published')). C owns *when* a member pulls; the
+   * Read the currently-published head for a project (the resource hub the spec
+   * `syncLatest` = getRef('published')). the sync trigger owns *when* a member pulls; the
    * adapter reports what head is available. Optional: the local stub reports the
    * in-memory head; the real E client resolves the ref + fetches missing blobs.
    * Returns null when nothing has been published yet.

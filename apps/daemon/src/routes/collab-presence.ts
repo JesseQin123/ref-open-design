@@ -17,9 +17,9 @@ function readMember(body: unknown): PresenceMember | null {
 }
 
 /**
- * Team-collab presence (在场) capability. Members heartbeat while viewing a
+ * Team collaboration presence (presence) capability. Members heartbeat while viewing a
  * shared project; clients poll the present set (live cursors were cut, content
- * is polled — spec §D6). The set is process-local in {@link CollabRuntime}.
+ * is polled — the spec). The set is process-local in {@link CollabRuntime}.
  */
 export function registerCollabPresenceRoutes(app: Express, deps: RegisterCollabPresenceRoutesDeps): void {
   const { presence } = deps.collab;

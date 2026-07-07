@@ -21,7 +21,7 @@ function initials(member: CollabPresenceMember): string {
 }
 
 /**
- * Presence overlay (在场, spec §D6): a compact avatar stack of the members
+ * Presence overlay (presence, the spec): a compact avatar stack of the members
  * currently viewing the shared project. Poll-driven — the set comes from
  * {@link useCollab}; there are no live cursors.
  */

@@ -142,7 +142,7 @@ describe('od collab CLI', () => {
     ]);
   });
 
-  it('sends the D→C team-share intent and reports the sync state', async () => {
+  it('sends the visibility-to-sync team-share intent and reports the sync state', async () => {
     stub = await startCollabStubServer();
     const share = await runCli(['collab', 'share', 'p1', '--json', '--daemon-url', stub.baseUrl]);
     expect(share.code).toBe(0);

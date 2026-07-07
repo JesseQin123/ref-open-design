@@ -1389,7 +1389,7 @@
 .comment-active-pin {
   pointer-events: none;
 }
-/* Team-collab drift-ladder states (spec §D2): surface anchor drift instead of
+/* Team collaboration drift-ladder states: surface anchor drift instead of
    silently mis-pointing. */
 .comment-saved-marker--reanchored .comment-saved-pin {
   background: #b8791f; /* amber — based on an older content version */

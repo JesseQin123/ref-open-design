@@ -56,7 +56,7 @@ export interface ProjectCollab {
 }
 
 /**
- * Real-product collab integration for a project (C lane): resolves the workspace
+ * Real-product collab integration for a project : resolves the workspace
  * context → decides whether collab runs (team member of a live workspace) → runs
  * presence + sync for the viewer. Dormant (enabled=false, no heartbeat) when the
  * project is personal / the viewer is not a team member — so it is safe to mount

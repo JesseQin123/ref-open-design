@@ -37,7 +37,7 @@ function demoMemberId(): string {
 }
 
 /**
- * Team-collab (C lane) demo surface. Drives the live presence + sync loop
+ * Team collaboration demo surface. Drives the live presence + sync loop
  * against the real daemon routes so the flow can be seen end-to-end: open this
  * page in two tabs on the same project id and each tab appears in the other's
  * presence overlay; an author publish advances the version both tabs poll.
@@ -172,7 +172,7 @@ export function CollabDemoView({ projectId }: { projectId: string | null }) {
               Publish
             </button>
             <button type="button" onClick={() => void shareToTeam()}>
-              Share to team (D→C)
+              Share to team 
             </button>
           </div>
         </div>

@@ -85,7 +85,7 @@ describe('collab sync routes', () => {
     expect((await api.json('/api/projects/p1/collab/status')).body.syncState).toBe('local_only');
   });
 
-  it('drives the D→C team-share intent through to synced', async () => {
+  it('drives the visibility-to-sync team-share intent through to synced', async () => {
     const api = await startSyncServer();
     const intent = await api.json('/api/projects/p1/collab/sync-intent', {
       method: 'POST',

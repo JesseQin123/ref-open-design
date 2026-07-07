@@ -83,7 +83,7 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 /**
- * Visible demo of the comment drift ladder (C lane, spec §D2). Drives the real
+ * Visible demo of the comment drift ladder . Drives the real
  * {@link resolveCommentAnchor} + {@link planLostAnchorWriteBacks} so the four
  * anchor states and the durable last-good write-back can be seen, without the
  * full preview/snapshot machinery. Snapshots are synthetic (labelled below);

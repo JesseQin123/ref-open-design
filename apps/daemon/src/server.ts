@@ -3798,9 +3798,9 @@ export async function startServer({
   // ---- Projects (DB-backed) -------------------------------------------------
 
 
-  // Team-collab (C lane) subsystem: presence + author-side publish scheduler.
-  // The resource hub itself is E's; the scheduler talks to it through the
-  // stub adapter until E's client ships.
+  // Team collaboration subsystem: presence + author-side publish scheduler.
+  // The resource hub is a separate surface; the scheduler talks to it through
+  // an adapter (a local stub until the hub client is configured).
   const collab = createCollabRuntime();
   registerCollabPresenceRoutes(app, { collab });
   registerCollabSyncRoutes(app, { collab });

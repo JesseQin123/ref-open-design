@@ -10,7 +10,7 @@ export interface PersistCommentAnchorArgs {
 
 /**
  * Persist a single comment anchor transition through the daemon anchor route
- * (C lane). Only the durable `lost` capture flows here (see
+ * . Only the durable `lost` capture flows here (see
  * {@link planLostAnchorWriteBacks}); the server COALESCEs lastGoodPosition so a
  * repeated write is a no-op. Rejections are the caller's to swallow — a failed
  * durability write must never break rendering.

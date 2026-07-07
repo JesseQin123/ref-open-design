@@ -7,7 +7,7 @@ import {
 // Team-resource state seam (D1 state model). Reports whether a design system /
 // plugin / skill is a team resource and its lifecycle state, so the copy
 // red-line guard (D3, assertTeamResourceCopyAllowed) can be enforced at the
-// copy-out routes. In production this resolves against E's resource-hub (沅锡,
+// copy-out routes. In production this resolves against E's resource-hub (the resource-hub owner,
 // which owns whether a resource is team-shared + frozen); until it is reachable,
 // the dev provider holds an in-memory map a demo/test can seed. Swapping the
 // provider is the only change when the hub ships.

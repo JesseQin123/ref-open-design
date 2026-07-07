@@ -15,10 +15,9 @@ const SYNC_INTENT_EVENTS: ReadonlySet<ProjectSyncIntentEvent> = new Set([
 ]);
 
 /**
- * Team-collab sync trigger, exposed as a client-driven capability (C lane, spec
- * §D1). The client is authoritative about whether it is in a shared context, so
+ * Team collaboration sync trigger, exposed as a client-driven capability . The client is authoritative about whether it is in a shared context, so
  * it drives the trigger — the daemon does not need D's visibility fact to gate
- * this. Publishing content + advancing the published ref is E's resource面; here
+ * this. Publishing content + advancing the published ref is the resource hub; here
  * we only coalesce and flush.
  */
 export function registerCollabSyncRoutes(app: Express, deps: RegisterCollabSyncRoutesDeps): void {
@@ -39,8 +38,8 @@ export function registerCollabSyncRoutes(app: Express, deps: RegisterCollabSyncR
     res.json({ ok: true });
   });
 
-  // D→C orchestration seam (spec §D1). D flips project visibility and emits a
-  // ProjectSyncIntent here; C owns the reaction. `project_team_share_requested`
+  // visibility-to-sync orchestration seam. The visibility surface flips project visibility and emits a
+  // ProjectSyncIntent here; the sync trigger owns the reaction. `project_team_share_requested`
   // marks the project pending and flushes a publish (which drives E's resource
   // mechanism behind the scheduler). `project_visibility_changed` is accepted as
   // a no-op signal for now (the share request is the actionable one).
@@ -53,7 +52,7 @@ export function registerCollabSyncRoutes(app: Express, deps: RegisterCollabSyncR
     res.json({ ok: true, syncState: projectSyncState(req.params.id) });
   });
 
-  // Member pull trigger (C owns *when*; E fetches + extracts the bytes behind the
+  // Member pull trigger (the sync trigger owns *when*; the resource hub fetches + extracts the bytes behind the
   // adapter). Returns the head version that was pulled.
   app.post('/api/projects/:id/collab/pull', async (req, res) => {
     const result = await pullLatest(req.params.id);

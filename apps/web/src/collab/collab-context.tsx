@@ -8,7 +8,7 @@ import type { ProjectCollab } from './useProjectCollab';
 
 export interface CollabContextValue extends ProjectCollab {
   /** Persist a drifted-to-`lost` comment's last-good position (needs the active
-   *  conversation id, which only ProjectView has). Absent when unavailable. */
+   * conversation id, which only ProjectView has). Absent when unavailable. */
   onLostAnchors?: (writeBacks: AnchorWriteBack[]) => void;
 }
 

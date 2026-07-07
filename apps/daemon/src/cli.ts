@@ -691,7 +691,7 @@ Options:
 }
 
 // ---------------------------------------------------------------------------
-// Subcommand: od collab …  (team-edition collaboration — C lane)
+// Subcommand: od collab …  (team-edition collaboration)
 // ---------------------------------------------------------------------------
 
 function printCollabHelp() {
@@ -705,11 +705,11 @@ function printCollabHelp() {
   od collab share <projectId> [--json]
   od collab pull <projectId> [--json]
 
-Team-edition collaboration (C lane): presence overlay + sync trigger. The
+Team-edition collaboration: presence overlay + sync trigger. The
 client is authoritative about whether it is in a shared context, so it drives
 the trigger; the daemon coalesces author edits and flushes at a run boundary,
 advancing the published head version members poll to learn when to pull.
-\`share\` is the D→C team-share intent: it requests the project be published so
+\`share\` is the team-share intent: it requests the project be published so
 members can pull it, and reports the sync state (local_only / pending_upload /
 synced / sync_failed).
 
@@ -782,7 +782,7 @@ async function runCollab(args) {
       });
     }
     case 'share': {
-      // D→C team-share intent: request the project be published so members can pull.
+      // Team-share intent: request the project be published so members can pull.
       const body = await request('POST', '/collab/sync-intent', {
         event: 'project_team_share_requested',
         projectId,

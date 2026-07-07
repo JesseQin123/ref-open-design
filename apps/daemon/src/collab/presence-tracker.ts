@@ -1,5 +1,5 @@
-// Team-collab (C lane) presence — the "在场" overlay: who is currently viewing a
-// shared project. Decoupled from the resource/sync layer (spec §D2/§D6): it is a
+// Team collaboration presence — the "presence" overlay: who is currently viewing a
+// shared project. Decoupled from the resource/sync layer: it is a
 // lightweight, poll-friendly heartbeat set, not a realtime-cursor engine (live
 // cursors were cut; content is polled).
 //

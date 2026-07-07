@@ -6,7 +6,7 @@ import type {
   WorkspaceType,
 } from '@open-design/contracts';
 
-// The daemon's single B-integration point (C lane). Presence + sync need the
+// The daemon's single B-integration point . Presence + sync need the
 // caller's workspace identity (workspaceMemberId + role + lifecycle). In
 // production this provider verifies the request's auth against the B service and
 // returns B's CurrentWorkspaceContext for that user; until B is reachable, the
