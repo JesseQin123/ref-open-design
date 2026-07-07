@@ -122,3 +122,45 @@ func TestSelect(t *testing.T) {
 		t.Fatalf("attempt for another version must not trigger rollback, got %+v", s)
 	}
 }
+
+func TestSelectRunnableSchemaFloor(t *testing.T) {
+	active := ptr("2.0.0", 1)
+	last := ptr("1.0.0", 0)
+	allOK := func(string) bool { return true }
+	only := func(v string) func(string) bool {
+		return func(candidate string) bool { return candidate == v }
+	}
+
+	// Compatible active → run it (C4).
+	if s := SelectRunnable(contract.Runtime{Active: active, LastSuccessful: last}, nil, 1, allOK); s.Reason != ReasonActive {
+		t.Fatalf("compatible active must run, got %+v", s)
+	}
+	// Active schema-incompatible, lastSuccessful compatible → fall back (C3).
+	if s := SelectRunnable(contract.Runtime{Active: active, LastSuccessful: last}, nil, 1, only("1.0.0")); s.Reason != ReasonLastSuccessful || s.Pointer.Version != "1.0.0" {
+		t.Fatalf("incompatible active must fall back to compatible last-successful, got %+v", s)
+	}
+	// Both incompatible → nothing runnable (C3 → A5).
+	if s := SelectRunnable(contract.Runtime{Active: active, LastSuccessful: last}, nil, 1, func(string) bool { return false }); s.Selected || s.Reason != ReasonNone {
+		t.Fatalf("all-incompatible must be ReasonNone, got %+v", s)
+	}
+}
+
+func TestNextAttempt(t *testing.T) {
+	cfg := contract.Config{Channel: "beta", Namespace: "ns"}
+	target := contract.Pointer{Version: "2.0.0", Generation: 1}
+
+	fresh := NextAttempt(nil, cfg, target)
+	if fresh.FailCount != 0 || fresh.Version != "2.0.0" || fresh.Channel != "beta" || fresh.SchemaVersion != contract.RuntimeSchema {
+		t.Fatalf("fresh attempt wrong: %+v", fresh)
+	}
+	// A retry of the same version increments the crash-loop counter.
+	retry := NextAttempt(&contract.Attempt{Version: "2.0.0", Generation: 1, FailCount: 1}, cfg, target)
+	if retry.FailCount != 2 {
+		t.Fatalf("retry must increment FailCount to 2, got %d", retry.FailCount)
+	}
+	// A different version resets the counter.
+	reset := NextAttempt(&contract.Attempt{Version: "1.0.0", Generation: 0, FailCount: 5}, cfg, target)
+	if reset.FailCount != 0 {
+		t.Fatalf("new version must reset FailCount, got %d", reset.FailCount)
+	}
+}

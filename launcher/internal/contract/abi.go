@@ -31,6 +31,16 @@ var SelfVersion = "0.0.0"
 // LAUNCHER_SCHEMA_VERSION so the two readers stay consistent (Q4 conformance).
 const SupportedLauncherSchema = 1
 
+// RuntimeSchema is the on-disk document format version stamped into runtime.json
+// and attempt.json (the launcher-proto `schemaVersion` field). Distinct from
+// SupportedLauncherSchema (the payload ABI axis); both are 1 today.
+const RuntimeSchema = 1
+
+// RollbackThreshold is the default CS2 crash-loop tolerance: roll back to
+// lastSuccessful only after this many consecutive unconfirmed boots, so a single
+// transient boot failure does not demote a good version. Contract-configurable.
+const RollbackThreshold = 2
+
 // Frozen identity handshake vocabulary. These names are ABI: additive-only,
 // never renamed. The launcher resolves identity and injects it downward; remote
 // content never contributes to these fields.

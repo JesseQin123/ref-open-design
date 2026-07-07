@@ -54,3 +54,46 @@ func Select(rt contract.Runtime, attempt *contract.Attempt, rollbackThreshold in
 	}
 	return Selection{Pointer: rt.Active, Reason: ReasonActive, Selected: true}
 }
+
+// SelectRunnable is Select plus the local schema floor: a chosen version whose
+// on-disk manifest schema this build cannot interpret (schemaOK reports false) is
+// treated as not runnable, so it falls back to lastSuccessful if THAT is
+// schema-compatible, else ReasonNone. This is the launcher-side counterpart of
+// the feed-facing guardrail — the launcher never runs a version it can't govern.
+func SelectRunnable(rt contract.Runtime, attempt *contract.Attempt, rollbackThreshold int, schemaOK func(version string) bool) Selection {
+	sel := Select(rt, attempt, rollbackThreshold)
+	if !sel.Selected {
+		return sel
+	}
+	if schemaOK(sel.Pointer.Version) {
+		return sel
+	}
+	// Chosen version is schema-incompatible; try lastSuccessful if it differs and
+	// is itself compatible.
+	if rt.LastSuccessful != nil &&
+		rt.LastSuccessful.Version != sel.Pointer.Version &&
+		schemaOK(rt.LastSuccessful.Version) {
+		return Selection{Pointer: rt.LastSuccessful, Reason: ReasonLastSuccessful, Selected: true}
+	}
+	return Selection{Reason: ReasonNone}
+}
+
+// NextAttempt computes the attempt marker to persist before booting target. It
+// carries the crash-loop FailCount: incremented when the previous attempt was for
+// the same version+generation (a retry after an unconfirmed boot), reset to 0
+// otherwise (a fresh version).
+func NextAttempt(prev *contract.Attempt, c contract.Config, target contract.Pointer) contract.Attempt {
+	fails := 0
+	if prev != nil && prev.Version == target.Version && prev.Generation == target.Generation {
+		fails = prev.FailCount + 1
+	}
+	return contract.Attempt{
+		SchemaVersion: contract.RuntimeSchema,
+		Channel:       c.Channel,
+		Namespace:     c.Namespace,
+		Version:       target.Version,
+		Generation:    target.Generation,
+		FailCount:     fails,
+		StartedAt:     contract.Now(),
+	}
+}
