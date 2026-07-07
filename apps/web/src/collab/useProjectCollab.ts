@@ -52,12 +52,11 @@ export interface ProjectCollab {
   publishedVersion: number | null;
   syncState: ReturnType<typeof useCollab>['syncState'];
   /**
-   * Whether the viewer should see this project single-writer/read-only: a team
-   * member looking at a project that has been shared to the team. The precise
-   * "am I this project's owner" check belongs to the project-visibility owner
-   * (project origin/ownership); until that lands, a non-managing role viewing a
-   * shared project is the working signal — an owner/admin still edits, and a
-   * personal or unshared project is never read-only.
+   * Whether the viewer should see this project single-writer/read-only: it has
+   * been shared to the team and the viewer is not its owner (the member who
+   * shared it). Ownership — not workspace role — is the determinant, so the
+   * sharer keeps editing their own project while everyone else views it
+   * read-only. A personal or unshared project is never read-only.
    */
   viewerOnly: boolean;
   reportChange: () => void;
@@ -86,10 +85,14 @@ export function useProjectCollab(
     ...(options.heartbeatMs !== undefined ? { heartbeatMs: options.heartbeatMs } : {}),
     ...(options.statusPollMs !== undefined ? { statusPollMs: options.statusPollMs } : {}),
   });
-  // A non-managing member viewing a project shared to the team sees it
-  // read-only. Owners/admins keep editing; a personal or unshared project
-  // (syncState `local_only`) is never read-only.
-  const viewerOnly = context?.role === 'member' && collab.syncState !== 'local_only';
+  // A project shared to the team (syncState past `local_only`) is read-only for
+  // everyone except the member who shared it — the single writer keeps editing
+  // their own project. Until the owner id has been polled, fall back to the
+  // workspace role so a member does not momentarily get edit affordances on a
+  // shared project. A personal / unshared project is never read-only.
+  const shared = collab.syncState !== 'local_only' && collab.syncState !== null;
+  const isOwner = collab.ownerMemberId != null && collab.ownerMemberId === context?.workspaceMemberId;
+  const viewerOnly = shared && !isOwner && (collab.ownerMemberId != null || context?.role === 'member');
   return {
     enabled: decision.enabled,
     member: decision.member,

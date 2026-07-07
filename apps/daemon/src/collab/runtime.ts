@@ -43,8 +43,12 @@ export interface CollabRuntime {
    * visibility-to-sync sync-intent seam: mark a project as awaiting upload and flush a publish.
    * D calls this (through the route) when a project flips to team-visible; C
    * orchestrates the publish, which drives the resource hub mechanism behind it.
+   * `ownerMemberId` is the sharer's member id — recorded so a member viewing the
+   * project can tell whether it is their own (writer) or someone else's (read-only).
    */
-  requestTeamShare(projectId: string): void;
+  requestTeamShare(projectId: string, ownerMemberId?: string): void;
+  /** The member who shared this project, or null if not shared here. */
+  projectOwnerMemberId(projectId: string): string | null;
   /**
    * Member pull trigger (the sync trigger owns *when* to pull). Reads the published head via
    * the adapter (E's `syncLatest`); E's client also fetches + extracts the
@@ -88,6 +92,9 @@ export function createCollabRuntime(options: CreateCollabRuntimeOptions = {}): C
     createStubResourcePublishAdapter();
   const published = new Map<string, number>();
   const syncStates = new Map<string, ProjectSyncState>();
+  // projectId → the member who shared it (the single writer). Members compare
+  // this to their own id to know whether they view the project read-only.
+  const owners = new Map<string, string>();
   // Always track the published head + sync state so members can poll them; also
   // forward to any caller-supplied callback. (exactOptionalPropertyTypes forbids
   // assigning an explicit `undefined` to an optional property, hence we always
@@ -118,7 +125,11 @@ export function createCollabRuntime(options: CreateCollabRuntimeOptions = {}): C
     teamResources,
     publishedVersion: (projectId) => published.get(projectId) ?? null,
     projectSyncState: (projectId) => syncStates.get(projectId) ?? 'local_only',
-    requestTeamShare(projectId) {
+    projectOwnerMemberId: (projectId) => owners.get(projectId) ?? null,
+    requestTeamShare(projectId, ownerMemberId) {
+      // Record the sharer as the project's single writer so members can tell
+      // apart their own project from one shared to them.
+      if (ownerMemberId) owners.set(projectId, ownerMemberId);
       // Pending until the publish confirms (onPublished → 'synced' / onError →
       // 'sync_failed'). Flushing at a run boundary publishes the stable state.
       syncStates.set(projectId, 'pending_upload');

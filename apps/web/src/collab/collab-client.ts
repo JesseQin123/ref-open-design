@@ -16,6 +16,8 @@ export interface CollabSnapshot {
   publishedVersion: number | null;
   /**  project sync state; null until the first status poll lands. */
   syncState: ProjectSyncState | null;
+  /** The member who shared this project (its single writer); null if unshared. */
+  ownerMemberId: string | null;
 }
 
 export interface CollabClientOptions {
@@ -44,7 +46,7 @@ export class CollabClient {
   private readonly onUpdate?: CollabClientOptions['onUpdate'];
   private readonly onError?: CollabClientOptions['onError'];
   private readonly timers: ReturnType<typeof setInterval>[] = [];
-  private snapshot: CollabSnapshot = { present: [], publishedVersion: null, syncState: null };
+  private snapshot: CollabSnapshot = { present: [], publishedVersion: null, syncState: null, ownerMemberId: null };
   private running = false;
 
   constructor(options: CollabClientOptions) {
@@ -103,7 +105,8 @@ export class CollabClient {
       const body = await this.get('/collab/status');
       const version = typeof body?.publishedVersion === 'number' ? body.publishedVersion : null;
       const syncState = (body?.syncState as ProjectSyncState | undefined) ?? null;
-      this.update({ publishedVersion: version, syncState });
+      const ownerMemberId = typeof body?.ownerMemberId === 'string' ? body.ownerMemberId : null;
+      this.update({ publishedVersion: version, syncState, ownerMemberId });
     } catch (error) {
       this.onError?.(error);
     }

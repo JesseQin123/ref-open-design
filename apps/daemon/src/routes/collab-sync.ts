@@ -5,7 +5,13 @@ import type { CollabRuntime } from '../collab/runtime.js';
 export interface RegisterCollabSyncRoutesDeps {
   collab: Pick<
     CollabRuntime,
-    'scheduler' | 'publishedVersion' | 'projectSyncState' | 'requestTeamShare' | 'pullLatest'
+    | 'scheduler'
+    | 'publishedVersion'
+    | 'projectSyncState'
+    | 'projectOwnerMemberId'
+    | 'requestTeamShare'
+    | 'pullLatest'
+    | 'workspaceContext'
   >;
 }
 
@@ -21,7 +27,15 @@ const SYNC_INTENT_EVENTS: ReadonlySet<ProjectSyncIntentEvent> = new Set([
  * we only coalesce and flush.
  */
 export function registerCollabSyncRoutes(app: Express, deps: RegisterCollabSyncRoutesDeps): void {
-  const { scheduler, publishedVersion, projectSyncState, requestTeamShare, pullLatest } = deps.collab;
+  const {
+    scheduler,
+    publishedVersion,
+    projectSyncState,
+    projectOwnerMemberId,
+    requestTeamShare,
+    pullLatest,
+    workspaceContext,
+  } = deps.collab;
 
   // An author-side edit landed. The publish is coalesced within the scheduler's
   // window so a burst of edits collapses into one publish.
@@ -43,12 +57,19 @@ export function registerCollabSyncRoutes(app: Express, deps: RegisterCollabSyncR
   // marks the project pending and flushes a publish (which drives E's resource
   // mechanism behind the scheduler). `project_visibility_changed` is accepted as
   // a no-op signal for now (the share request is the actionable one).
-  app.post('/api/projects/:id/collab/sync-intent', (req, res) => {
+  app.post('/api/projects/:id/collab/sync-intent', async (req, res) => {
     const event = (req.body as { event?: unknown } | undefined)?.event;
     if (typeof event !== 'string' || !SYNC_INTENT_EVENTS.has(event as ProjectSyncIntentEvent)) {
       return res.status(400).json({ error: 'invalid sync intent event' });
     }
-    if (event === 'project_team_share_requested') requestTeamShare(req.params.id);
+    if (event === 'project_team_share_requested') {
+      // The caller sharing the project is its single writer; record their id so
+      // members can distinguish it from a project of their own.
+      const context = await workspaceContext.current({
+        authorization: req.headers.authorization,
+      });
+      requestTeamShare(req.params.id, context?.workspaceMemberId);
+    }
     res.json({ ok: true, syncState: projectSyncState(req.params.id) });
   });
 
@@ -65,6 +86,7 @@ export function registerCollabSyncRoutes(app: Express, deps: RegisterCollabSyncR
     res.json({
       publishedVersion: publishedVersion(req.params.id),
       syncState: projectSyncState(req.params.id),
+      ownerMemberId: projectOwnerMemberId(req.params.id),
     });
   });
 }
