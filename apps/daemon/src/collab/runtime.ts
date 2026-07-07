@@ -18,6 +18,10 @@ import {
   createDevWorkspaceContextProvider,
   type WorkspaceContextProvider,
 } from './workspace-context.js';
+import {
+  createDevTeamResourceStateProvider,
+  type TeamResourceStateProvider,
+} from './team-resource-state.js';
 import type { ProjectSyncState } from '@open-design/contracts';
 
 export interface CollabRuntime {
@@ -25,6 +29,8 @@ export interface CollabRuntime {
   scheduler: CollabPublishScheduler;
   /** Workspace-context provider — the B-integration seam (identity/visibility). */
   workspaceContext: WorkspaceContextProvider;
+  /** Team-resource state provider — the E-resource-hub seam (share/freeze state). */
+  teamResources: TeamResourceStateProvider;
   /** Last published version for a project (members poll this to know what to pull). */
   publishedVersion(projectId: string): number | null;
   /** C-owned sync state for a project (`local_only` until a share is requested). */
@@ -49,6 +55,8 @@ export interface CreateCollabRuntimeOptions {
   adapter?: ResourcePublishAdapter;
   /** Workspace-context provider. Defaults to the dev provider until B's client ships. */
   workspaceContext?: WorkspaceContextProvider;
+  /** Team-resource state provider. Defaults to the dev provider until E's hub ships. */
+  teamResources?: TeamResourceStateProvider;
   /** Fired after a project is published so the caller can notify online members. */
   onPublished?: (result: { projectId: string; version: number; reason: string }) => void;
   /** Fired when a project's presence set changes (join/leave). */
@@ -83,10 +91,12 @@ export function createCollabRuntime(options: CreateCollabRuntimeOptions = {}): C
   if (options.onPresenceChange) presenceOptions.onChange = options.onPresenceChange;
   const presence = new CollabPresenceTracker(presenceOptions);
   const workspaceContext = options.workspaceContext ?? createDevWorkspaceContextProvider();
+  const teamResources = options.teamResources ?? createDevTeamResourceStateProvider();
   return {
     presence,
     scheduler,
     workspaceContext,
+    teamResources,
     publishedVersion: (projectId) => published.get(projectId) ?? null,
     projectSyncState: (projectId) => syncStates.get(projectId) ?? 'local_only',
     requestTeamShare(projectId) {

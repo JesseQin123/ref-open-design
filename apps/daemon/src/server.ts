@@ -571,6 +571,7 @@ import { registerMemoryRoutes } from './routes/memory.js';
 import { registerCollabPresenceRoutes } from './routes/collab-presence.js';
 import { registerCollabSyncRoutes } from './routes/collab-sync.js';
 import { registerCollabContextRoutes } from './routes/collab-context.js';
+import { registerTeamResourceRoutes } from './routes/team-resources.js';
 import { createCollabRuntime } from './collab/runtime.js';
 import { registerTelemetryRoutes } from './routes/telemetry.js';
 import {
@@ -3803,6 +3804,7 @@ export async function startServer({
   registerCollabPresenceRoutes(app, { collab });
   registerCollabSyncRoutes(app, { collab });
   registerCollabContextRoutes(app, { workspaceContext: collab.workspaceContext });
+  registerTeamResourceRoutes(app, { teamResources: collab.teamResources });
 
   registerMemoryRoutes(app, {
     http: { createSseResponse, requireLocalDaemonRequest },
