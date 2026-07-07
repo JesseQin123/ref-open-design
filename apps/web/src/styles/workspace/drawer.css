@@ -1933,13 +1933,25 @@
     color 120ms var(--ease-out);
 }
 .page-creator-subcat:hover {
-  border-color: color-mix(in srgb, var(--border) 45%, var(--text-faint));
+  border-color: var(--border-strong);
+  background: var(--bg-subtle);
   color: var(--text);
 }
+/* Active filter uses the same tinted-fill + accent-text treatment as the
+   sidebar (`.page-creator-sidebar button.active`) and the home-hero subtype
+   chips. Avoid a solid-accent fill with white knockout text here: `--accent`
+   is app-chrome only and can be a light tone, which made the selected pill
+   read as blank white ("反白"). Accent text on a soft accent tint stays legible
+   regardless of the accent's lightness. */
 .page-creator-subcat.active {
-  border-color: transparent;
-  background: var(--accent);
-  color: var(--accent-contrast, #fff);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+  color: var(--accent);
+}
+.page-creator-subcat.active:hover {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-panel));
+  color: var(--accent);
 }
 .page-creator-subcat-count {
   font-size: 11px;
@@ -1950,7 +1962,7 @@
   color: var(--text-muted);
 }
 .page-creator-subcat.active .page-creator-subcat-count {
-  color: color-mix(in srgb, var(--accent-contrast, #fff) 78%, transparent);
+  color: color-mix(in srgb, var(--accent) 72%, transparent);
 }
 .page-creator-grid {
   flex: 1 1 auto;

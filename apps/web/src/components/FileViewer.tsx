@@ -3444,6 +3444,7 @@ function FileVersionManagerModal({
       ) : null}
       {versionExportToast ? (
         <Toast
+          className="file-version-export-toast"
           message={versionExportToast.message}
           tone={versionExportToast.tone}
           role={versionExportToast.tone === 'error' ? 'alert' : 'status'}
