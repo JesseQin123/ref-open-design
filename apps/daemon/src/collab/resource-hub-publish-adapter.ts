@@ -40,6 +40,12 @@ export interface ResourceHubPublishAdapterOptions {
   resolvePullDir?: (projectId: string) => string;
   /** projectId → hub resourceId. Colon-free (the hub routes it as a path param). */
   resourceIdFor?: (projectId: string) => string;
+  /**
+   * Hub resource kind. Defaults to `project`; a design-system or plugin share
+   * passes its own kind so the same publish/pull machinery serves every
+   * shareable resource type without a parallel adapter.
+   */
+  kind?: string;
 }
 
 const PUBLISHED_REF = 'published';
@@ -51,6 +57,7 @@ export function createResourceHubPublishAdapter(
   const { client, getPrincipal, resolveProjectDir } = options;
   const resolvePullDir = options.resolvePullDir ?? resolveProjectDir;
   const resourceIdFor = options.resourceIdFor ?? ((projectId: string) => `project-${projectId}`);
+  const kind = options.kind ?? PROJECT_KIND;
 
   // The resource must exist before a version is published. Get-or-create keeps
   // publish idempotent across the first and later shares of a project.
@@ -61,7 +68,7 @@ export function createResourceHubPublishAdapter(
       return existing.id;
     } catch (error) {
       if (!(error instanceof ResourceHubError) || error.status !== 404) throw error;
-      const created = await client.createResource(principal, { kind: PROJECT_KIND, resourceId });
+      const created = await client.createResource(principal, { kind, resourceId });
       return created.id;
     }
   }

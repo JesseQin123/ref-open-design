@@ -231,6 +231,7 @@ import {
   readDesignSystemStaticFile,
   readUserDesignSystemFile,
   resolveDesignSystemAssets,
+  stripPrefixAndValidateId,
   updateUserDesignSystem,
   updateUserDesignSystemRevisionStatus,
 } from './design-systems/index.js';
@@ -573,7 +574,10 @@ import { registerCollabPresenceRoutes } from './routes/collab-presence.js';
 import { registerCollabSyncRoutes } from './routes/collab-sync.js';
 import { registerCollabContextRoutes } from './routes/collab-context.js';
 import { registerTeamResourceRoutes } from './routes/team-resources.js';
+import { registerTeamDesignSystemRoutes } from './routes/team-design-systems.js';
 import { createCollabRuntime } from './collab/runtime.js';
+import { createTeamDesignSystemShareService } from './collab/team-design-system-share.js';
+import { contextToResourceHubPrincipal } from './collab/resource-hub-publish-adapter.js';
 import { registerTelemetryRoutes } from './routes/telemetry.js';
 import {
   assembleExample,
@@ -3809,6 +3813,17 @@ export async function startServer({
   registerCollabSyncRoutes(app, { collab });
   registerCollabContextRoutes(app, { workspaceContext: collab.workspaceContext });
   registerTeamResourceRoutes(app, { teamResources: collab.teamResources });
+
+  // Team design-system sharing: promote a personal design system into the team
+  // scope through the resource hub. The principal derives from the same one
+  // workspace context the project sync uses, so a single signed-in identity
+  // drives every share.
+  const teamDesignSystemShare = createTeamDesignSystemShareService({
+    resolveDesignSystemDir: (id) =>
+      path.join(USER_DESIGN_SYSTEMS_DIR, stripPrefixAndValidateId(id, 'user:') ?? '__invalid__'),
+    getPrincipal: async () => contextToResourceHubPrincipal(await collab.workspaceContext.current({})),
+  });
+  registerTeamDesignSystemRoutes(app, { share: teamDesignSystemShare });
 
   registerMemoryRoutes(app, {
     http: { createSseResponse, requireLocalDaemonRequest },

@@ -2390,7 +2390,7 @@ window.Composer = Composer;
 `;
 }
 
-function stripPrefixAndValidateId(id: string, prefix = ''): string | null {
+export function stripPrefixAndValidateId(id: string, prefix = ''): string | null {
   if (typeof id !== 'string') return null;
   if (prefix && !id.startsWith(prefix)) return null;
   const dirId = prefix ? id.slice(prefix.length) : id;
