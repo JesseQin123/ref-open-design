@@ -1426,7 +1426,7 @@ describe('FileViewer SVG artifacts', () => {
     expect(srcDocFrame?.srcdoc).toContain('data-od-sandbox-shim');
   });
 
-  it('keeps srcDoc HTML previews in preview-only mode', async () => {
+  it('keeps srcDoc HTML previews available with source mode reachable', async () => {
     const file = baseFile({
       name: 'page.html',
       path: 'page.html',
@@ -1451,8 +1451,8 @@ describe('FileViewer SVG artifacts', () => {
       />,
     );
 
-    expect(screen.queryByRole('tab', { name: 'Code' })).toBeNull();
-    expect(screen.queryByRole('tab', { name: 'Preview' })).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Code' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Preview' })).toBeTruthy();
     fireEvent.click(screen.getByTestId('manual-edit-mode-toggle'));
 
     await waitFor(() => {
@@ -1785,7 +1785,7 @@ describe('FileViewer SVG artifacts', () => {
     expect(markup).toContain('data-od-render-mode="url-load" data-od-active="false"');
   });
 
-  it('renders HTML decks in preview-only mode without thumbnail deck chrome', async () => {
+  it('keeps HTML deck source reachable without thumbnail deck chrome', async () => {
     const file = baseFile({
       name: 'deck.html',
       path: 'deck.html',
@@ -1811,8 +1811,14 @@ describe('FileViewer SVG artifacts', () => {
       />,
     );
 
-    expect(screen.queryByRole('tab', { name: 'Code' })).toBeNull();
-    expect(screen.queryByRole('tab', { name: 'Preview' })).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Preview' })).toBeTruthy();
+    const codeTab = screen.getByRole('tab', { name: 'Code' });
+    expect(codeTab).toBeTruthy();
+    fireEvent.click(codeTab);
+    expect(container.querySelector('.viewer-source')?.textContent).toContain(
+      '<section class="slide">one</section>',
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'Preview' }));
     expect(container.querySelector('.deck-nav')).toBeNull();
     expect(container.querySelector('.deck-thumbnail-toolbar-toggle')).toBeTruthy();
     expect(container.querySelector('.deck-thumbnail-rail .deck-thumbnail-toggle')).toBeNull();

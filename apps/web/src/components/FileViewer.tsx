@@ -9261,6 +9261,11 @@ function HtmlViewer({
     openInNewTab();
   }
 
+  function selectHtmlMode(nextMode: 'preview' | 'source') {
+    fireArtifactToolbarClick(nextMode);
+    setMode(nextMode);
+  }
+
   function reloadHtmlPreview() {
     fireArtifactToolbarClick('reload');
     capturePreviewScrollPosition();
@@ -10717,6 +10722,30 @@ function HtmlViewer({
           ) : null}
         </div>
         <div className="viewer-toolbar-actions">
+          <div
+            className="viewer-tabs viewer-mode-tabs"
+            role="tablist"
+            aria-label={`${t('fileViewer.preview')} / ${t('fileViewer.source')}`}
+          >
+            <button
+              type="button"
+              className={`viewer-tab ${mode === 'preview' ? 'active' : ''}`}
+              role="tab"
+              aria-selected={mode === 'preview'}
+              onClick={() => selectHtmlMode('preview')}
+            >
+              {t('fileViewer.preview')}
+            </button>
+            <button
+              type="button"
+              className={`viewer-tab ${mode === 'source' ? 'active' : ''}`}
+              role="tab"
+              aria-selected={mode === 'source'}
+              onClick={() => selectHtmlMode('source')}
+            >
+              {t('fileViewer.source')}
+            </button>
+          </div>
           {showPreviewToolbarControls ? (
             <div className="viewer-toolbar-inline-actions">
               {mode === 'preview' ? (
