@@ -50,7 +50,14 @@ export type Route =
       fileName: string | null;
     }
   | { kind: 'marketplace' }
-  | { kind: 'marketplace-detail'; pluginId: string };
+  | { kind: 'marketplace-detail'; pluginId: string }
+  // Team collaboration demo surface. Drives the live presence + sync loop
+  // against the real daemon routes with a clearly-stubbed demo identity (real
+  // B identity / D visibility integration pending). Deep-linkable so a second
+  // browser tab can join the same project and appear in the presence overlay.
+  | { kind: 'collab-demo'; projectId: string | null }
+  // Community template gallery — browse and remix shared design templates.
+  | { kind: 'community' };
 
 export function parseRoute(pathname: string): Route {
   const parts = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
@@ -114,6 +121,12 @@ export function parseRoute(pathname: string): Route {
   if (parts[0] === 'integrations') {
     return { kind: 'home', view: 'integrations' };
   }
+  if (parts[0] === 'collab-demo') {
+    return { kind: 'collab-demo', projectId: parts[1] ? decodeURIComponent(parts[1]) : null };
+  }
+  if (parts[0] === 'community') {
+    return { kind: 'community' };
+  }
   // Phase 2B / spec §11.6 — marketplace deep UI routes. Two paths:
   //   /marketplace            → catalog grid (MarketplaceView)
   //   /marketplace/<pluginId> → detail page (PluginDetailView)
@@ -144,6 +157,10 @@ export function buildPath(route: Route): string {
   }
   if (route.kind === 'marketplace') return '/marketplace';
   if (route.kind === 'marketplace-detail') return `/marketplace/${encodeURIComponent(route.pluginId)}`;
+  if (route.kind === 'collab-demo') {
+    return route.projectId ? `/collab-demo/${encodeURIComponent(route.projectId)}` : '/collab-demo';
+  }
+  if (route.kind === 'community') return '/community';
   if (route.kind === 'design-system-create') return '/design-systems/create';
   if (route.kind === 'design-system-detail') {
     return `/design-systems/${encodeURIComponent(route.designSystemId)}`;

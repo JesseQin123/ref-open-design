@@ -1389,6 +1389,33 @@
 .comment-active-pin {
   pointer-events: none;
 }
+/* Team collaboration drift-ladder states: surface anchor drift instead of
+   silently mis-pointing. */
+.comment-saved-marker--reanchored .comment-saved-pin {
+  background: #b8791f; /* amber — based on an older content version */
+}
+.comment-saved-marker--stale .comment-saved-pin {
+  background: #b8791f;
+  border-style: dashed; /* anchor may have moved */
+}
+.comment-saved-marker--stale .comment-saved-outline,
+.comment-saved-marker--lost .comment-saved-outline {
+  display: block;
+  position: absolute;
+  inset: 0;
+  border: 2px dashed rgba(184, 121, 31, 0.8);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.comment-saved-marker--lost .comment-saved-pin {
+  background: #8a8f98; /* grey ghost — anchor lost */
+  opacity: 0.85;
+  box-shadow: none;
+}
+.comment-saved-marker--lost .comment-saved-outline {
+  border-color: rgba(138, 143, 152, 0.7);
+  border-style: dotted;
+}
 .comment-popover {
   position: absolute;
   left: 14px;

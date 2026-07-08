@@ -61,7 +61,7 @@ const CATEGORY_ORDER = [
 ];
 
 type SurfaceFilter = 'all' | Surface;
-type DesignSystemCollection = 'mine' | 'official' | 'enterprise';
+type DesignSystemCollection = 'mine' | 'team' | 'official' | 'enterprise';
 type DesignSystemActionKind = 'edit' | 'publish' | 'default' | 'delete';
 
 const SURFACE_PILLS: { value: SurfaceFilter; labelKey: 'examples.modeAll' | 'ds.surfaceWeb' | 'ds.surfaceImage' | 'ds.surfaceVideo' | 'ds.surfaceAudio' }[] = [
@@ -158,6 +158,12 @@ export function DesignSystemsTab({
     notifyAction('loading', message);
   };
   const [designSystemCollection, setDesignSystemCollection] = useState<DesignSystemCollection>('mine');
+  // Ids of the caller's design systems shared into the team scope. The daemon is
+  // the source of truth (it publishes them to the resource hub); we mirror the
+  // list here so the "team" collection and the per-system share action stay in
+  // sync. Empty (and the share action is a no-op) when there is no team context.
+  const [teamSharedIds, setTeamSharedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [sharingId, setSharingId] = useState<string | null>(null);
   const [surfaceFilter, setSurfaceFilter] = useState<SurfaceFilter>('all');
   const [category, setCategory] = useState<string>('All');
   // The master-detail selection — which row renders in the right preview pane.
@@ -183,6 +189,13 @@ export function DesignSystemsTab({
   const userSearched = useMemo(
     () => userSystems.filter((s) => systemMatchesQuery(locale, s, q)),
     [userSystems, locale, q],
+  );
+
+  // The "team" collection: the caller's own design systems that have been shared
+  // into the team scope (search-filtered like the others).
+  const teamSearched = useMemo(
+    () => userSearched.filter((s) => teamSharedIds.has(s.id)),
+    [userSearched, teamSharedIds],
   );
 
   const surfaceScoped = useMemo(
@@ -251,9 +264,10 @@ export function DesignSystemsTab({
   // The list backing the active scope. Design-system scopes carry summaries;
   const activeSystems = useMemo<DesignSystemSummary[]>(() => {
     if (designSystemCollection === 'mine') return userSearched;
+    if (designSystemCollection === 'team') return teamSearched;
     if (designSystemCollection === 'official') return filtered;
     return [];
-  }, [designSystemCollection, userSearched, filtered]);
+  }, [designSystemCollection, userSearched, teamSearched, filtered]);
 
   const activeIds = useMemo(() => {
     return activeSystems.map((s) => s.id);
@@ -298,6 +312,54 @@ export function DesignSystemsTab({
 
   async function refreshSystems() {
     await onSystemsRefresh?.();
+  }
+
+  // Load the set of design systems already shared to the team. Off-team (or with
+  // the hub unconfigured) this returns an empty list, so the team collection is
+  // simply empty and the share action is available but a no-op.
+  async function refreshTeamShared() {
+    try {
+      const res = await fetch('/api/workspace/design-systems/team');
+      if (!res.ok) return;
+      const body = (await res.json()) as { ids?: unknown };
+      if (Array.isArray(body.ids)) {
+        setTeamSharedIds(new Set(body.ids.filter((id): id is string => typeof id === 'string')));
+      }
+    } catch {
+      // Non-fatal: leave the team collection empty on a transient failure.
+    }
+  }
+
+  useEffect(() => {
+    void refreshTeamShared();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Promote a personal design system into the team scope. The daemon packs and
+  // pushes it to the resource hub; on success it appears in the team collection.
+  async function handleShareToTeam(system: DesignSystemSummary) {
+    if (sharingId) return;
+    setSharingId(system.id);
+    notifyActionLoading(t('dsManager.shareToTeam'));
+    try {
+      const res = await fetch(`/api/workspace/design-systems/${encodeURIComponent(system.id)}/share`, {
+        method: 'POST',
+      });
+      const body = (await res.json().catch(() => ({}))) as { shared?: boolean };
+      if (res.ok && body.shared) {
+        setTeamSharedIds((prev) => new Set(prev).add(system.id));
+        notifyAction('success', t('ds.actionDone'));
+      } else if (res.ok) {
+        // Reached the daemon but there is no team identity to share under.
+        notifyAction('error', t('dsManager.shareToTeamFailed'));
+      } else {
+        notifyAction('error', t('dsManager.shareToTeamFailed'));
+      }
+    } catch {
+      notifyAction('error', t('dsManager.shareToTeamFailed'));
+    } finally {
+      setSharingId(null);
+    }
   }
 
   async function togglePublished(system: DesignSystemSummary) {
@@ -491,6 +553,7 @@ export function DesignSystemsTab({
 
   const scopeTabs = [
     { value: 'mine' as const, label: t('dsManager.yourSystems'), count: userSearched.length },
+    { value: 'team' as const, label: t('pluginsView.tab.team'), count: teamSearched.length },
     { value: 'official' as const, label: t('dsManager.officialPresets'), count: queryScoped.length },
     { value: 'enterprise' as const, label: t('dsManager.enterprise'), comingSoon: true },
   ];
@@ -771,6 +834,9 @@ export function DesignSystemsTab({
           onDelete={deleteSystem}
           onSystemsRefresh={onSystemsRefresh}
           onActionFeedback={notifyAction}
+          onShareToTeam={handleShareToTeam}
+          isTeamShared={teamSharedIds.has(selectedSystem.id)}
+          sharing={sharingId === selectedSystem.id}
         />
       );
     }
@@ -954,6 +1020,12 @@ interface DetailProps {
   onDelete: (system: DesignSystemSummary) => void | Promise<void>;
   onSystemsRefresh?: () => Promise<void> | void;
   onActionFeedback: (tone: DesignKitActionFeedbackTone, message: string) => void;
+  /** Share this personal design system into the team scope. */
+  onShareToTeam?: (system: DesignSystemSummary) => void;
+  /** Whether the system is already shared to the team. */
+  isTeamShared?: boolean;
+  /** Whether a share request for this system is in flight. */
+  sharing?: boolean;
 }
 
 function DesignSystemDetail({
@@ -968,6 +1040,9 @@ function DesignSystemDetail({
   onDelete,
   onSystemsRefresh,
   onActionFeedback,
+  onShareToTeam,
+  isTeamShared,
+  sharing,
 }: DetailProps) {
   const analytics = useAnalytics();
   const isUser = isUserSystem(system);
@@ -1085,6 +1160,16 @@ function DesignSystemDetail({
   // publish toggle — and tuck the secondary actions (download / make-default /
   // delete) into a single ⋯ overflow so the toolbar reads clean (issue #5).
   const overflowActions: HeaderMenuAction[] = [
+    ...(isUser && onShareToTeam && !isTeamShared
+      ? [{
+          id: 'share-to-team',
+          label: t('dsManager.shareToTeam'),
+          icon: 'share' as const,
+          onClick: () => onShareToTeam(system),
+          disabled: busy || sharing,
+          loading: sharing,
+        }]
+      : []),
     ...(isUser
       ? [{
           id: 'download',

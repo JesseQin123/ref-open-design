@@ -274,6 +274,15 @@ interface Props {
   onSubmitQuestionForm?: (text: string) => void;
   // Bumped nonce that focuses the Questions tab (banner click / new form).
   focusQuestionsRequest?: { nonce: number } | null;
+  /**
+   * Read-only view of a team-shared project. A member who received a project
+   * shared to the team sees it single-writer/read-only (they can view and
+   * comment but not edit files or drive artifact changes through chat). When
+   * true, edit affordances are withheld and a notice explains why.
+   */
+  viewerOnly?: boolean;
+  /** Optional override for the read-only notice text. */
+  readonlyNotice?: string;
 }
 
 interface SketchState {
@@ -608,6 +617,8 @@ export function FileWorkspace({
   questionsGenerating = false,
   onSubmitQuestionForm,
   focusQuestionsRequest = null,
+  viewerOnly = false,
+  readonlyNotice,
 }: Props) {
   const t = useT();
   // The chat column only shows a compact Questions banner; the form itself
@@ -1639,6 +1650,7 @@ export function FileWorkspace({
   }, [quickSwitcherOpen]);
 
   async function handleDelete(name: string) {
+    if (viewerOnly) return; // read-only viewer of a team-shared project
     if (!confirm(t('workspace.deleteFileConfirm', { name }))) return;
     const ok = await deleteProjectFile(projectId, name);
     if (ok) {
@@ -1670,6 +1682,7 @@ export function FileWorkspace({
   }
 
   async function handleDeleteMany(names: string[]) {
+    if (viewerOnly) return; // read-only viewer of a team-shared project
     if (names.length === 0) return;
     if (!confirm(t('workspace.deleteSelectedFilesConfirm', { n: names.length }))) return;
     const deleted: string[] = [];
@@ -1708,6 +1721,7 @@ export function FileWorkspace({
   }
 
   async function handleRename(oldName: string, nextName: string): Promise<ProjectFile | null> {
+    if (viewerOnly) return null; // read-only viewer of a team-shared project
     const hasPendingSketchConflict = Object.entries(sketches).some(
       ([name, sketch]) => !sketch.persisted && sameFileName(name, nextName),
     );
@@ -2421,7 +2435,8 @@ export function FileWorkspace({
       return term.id;
     },
   };
-  const launcherActions = buildLauncherActions(launcherContext);
+  // A read-only viewer gets no launcher edit actions (new file, import, etc.).
+  const launcherActions = viewerOnly ? [] : buildLauncherActions(launcherContext);
 
   return (
     <div
@@ -2652,7 +2667,7 @@ export function FileWorkspace({
             className="ws-tabs-file-actions"
             data-app-chrome-file-actions="true"
           />
-          {headerActions ? (
+          {headerActions && !viewerOnly ? (
             <div className="ws-tabs-project-actions">{headerActions}</div>
           ) : null}
         </div>
@@ -2696,6 +2711,12 @@ export function FileWorkspace({
           role="alert"
           onDismiss={() => setLauncherToast(null)}
         />
+      ) : null}
+      {viewerOnly ? (
+        <div className="workspace-readonly-notice" role="status">
+          <Icon name="eye" size={14} />
+          <span>{readonlyNotice ?? t('workspace.readonlyNotice')}</span>
+        </div>
       ) : null}
       <div className="ws-body">
         {/* Banner moved into DesignFilesPanel for the Design Files tab so
@@ -2786,6 +2807,7 @@ export function FileWorkspace({
           <DesignFilesPanel
             key={projectId}
             projectId={projectId}
+            viewerOnly={viewerOnly}
             rootDirName={rootDirName}
             reloading={reloading}
             running={Boolean(streaming)}

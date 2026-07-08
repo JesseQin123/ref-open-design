@@ -303,6 +303,9 @@ export interface Dict {
   'settings.modeDaemonOfflineMeta': string;
   'settings.modeDaemonInstalledMeta': string;
   'settings.modeApi': string;
+  'settings.cloudCalloutTitle': string;
+  'settings.cloudCalloutBody': string;
+  'settings.cloudCalloutButton': string;
   'settings.modeApiMeta': string;
   'settings.byokNoFileToolsNotice': string;
   'settings.codeAgent': string;
@@ -976,6 +979,9 @@ export interface Dict {
   'entry.useEverywhereTitle': string;
   'entry.useEverywhereAria': string;
   'entry.workspaceTeamsLabel': string;
+  'workspaceSwitcher.team': string;
+  'workspaceSwitcher.invite': string;
+  'workspaceSwitcher.createTeam': string;
   'entry.workspaceTeamsTitle': string;
   'entry.workspaceTeamsAria': string;
   // Left nav rail (icon-only) — surface labels also serve as tooltips
@@ -1729,6 +1735,8 @@ export interface Dict {
   'dsManager.templateSourceAria': string;
   'dsManager.yourSystems': string;
   'dsManager.officialPresets': string;
+  'dsManager.shareToTeam': string;
+  'dsManager.shareToTeamFailed': string;
   'dsManager.enterprise': string;
   'dsManager.yourTemplates': string;
   'dsManager.yourSystemsAria': string;
@@ -3049,6 +3057,7 @@ export interface Dict {
   'workspace.showChat': string;
   'workspace.closeTab': string;
   'workspace.deleteFileConfirm': string;
+  'workspace.readonlyNotice': string;
   'workspace.deleteSelectedFilesConfirm': string;
   'workspace.deleteSelectedFilesPartial': string;
   'workspace.openFromDesignFiles': string;

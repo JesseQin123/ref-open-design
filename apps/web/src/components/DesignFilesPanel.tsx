@@ -32,6 +32,8 @@ export interface DesignFilesNavState {
 
 interface Props {
   projectId: string;
+  /** Read-only viewer of a team-shared project: withholds create/upload actions. */
+  viewerOnly?: boolean;
   // Basename of the project's working directory when the user has chosen a
   // real folder (e.g. "openclaw"). Shown as the breadcrumb root instead of
   // the generic "project" label. Undefined for default-storage projects.
@@ -285,6 +287,7 @@ function RotatingTip() {
  */
 export function DesignFilesPanel({
   projectId,
+  viewerOnly = false,
   rootDirName,
   reloading,
   running = false,
@@ -881,7 +884,7 @@ export function DesignFilesPanel({
     }
   }
 
-  const fileActions = (
+  const fileActions = viewerOnly ? null : (
     <div className="df-actions">
       {LIBRARY_UI_VISIBLE && onSelectFromLibrary ? (
         <button
@@ -1109,6 +1112,7 @@ export function DesignFilesPanel({
                 <span className="df-empty-title">
                   {t('designFiles.empty')}
                 </span>
+                {viewerOnly ? null : (
                 <div className="df-empty-actions">
                   <button
                     type="button"
@@ -1144,6 +1148,7 @@ export function DesignFilesPanel({
                     <span>{t('designFiles.paste.label')}</span>
                   </button>
                 </div>
+                )}
               </div>
             </div>
           ) : (

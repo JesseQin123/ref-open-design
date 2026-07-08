@@ -10,7 +10,7 @@
    actions, so the entry view does not render `AppChromeHeader`. */
 .entry-shell--no-header {
   grid-template-rows: 1fr;
-  --entry-rail-width: 56px;
+  --entry-rail-width: 236px;
 }
 
 .entry-shell--onboarding {
@@ -200,9 +200,10 @@
 .entry-nav-rail__group {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 5px;
+  align-items: stretch;
+  gap: 2px;
   width: 100%;
+  padding: 0 10px;
 }
 .entry-nav-rail__footer {
   display: flex;
@@ -630,17 +631,38 @@
 }
 .entry-nav-rail__btn {
   appearance: none;
-  width: 38px;
-  height: 38px;
+  width: 100%;
+  height: 33px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: 8px;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out), border-color 120ms var(--ease-out);
+}
+.entry-nav-rail__btn-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out), border-color 120ms var(--ease-out);
+  flex: 0 0 18px;
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+}
+.entry-nav-rail__btn.is-active .entry-nav-rail__btn-icon {
+  color: var(--accent);
+}
+.entry-nav-rail__btn-label {
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .entry-nav-rail__btn > svg {
   width: 18px;

@@ -140,10 +140,14 @@ import {
   liveCommentTargetMapsEqual,
   liveSnapshotForComment,
   overlayBoundsFromSnapshot,
+  planLostAnchorWriteBacks,
+  resolveCommentAnchor,
   selectionKindLabel,
   targetFromSnapshot,
+  type AnchorWriteBack,
   type PreviewCommentSnapshot,
 } from '../comments';
+import { useProjectCollabContext } from '../collab/collab-context';
 import { applyPodMemberRemoval } from '../lib/pod-members';
 import { AnnotationHoverPopover, BoardComposerPopover } from './BoardComposerPopover';
 import {
@@ -154,6 +158,7 @@ import {
 import type {
   ChatCommentAttachment,
   PreviewComment,
+  PreviewCommentAnchorState,
   PreviewCommentAttachment,
   PreviewCommentMember,
   PreviewCommentTarget,
@@ -4485,6 +4490,19 @@ export function applyInspectOverridesToSource(source: string, css: string): stri
   return block + out;
 }
 
+function anchorStateLabel(state: PreviewCommentAnchorState): string {
+  switch (state) {
+    case 'reanchored':
+      return 'based on an older version';
+    case 'stale':
+      return 'anchor may have moved';
+    case 'lost':
+      return 'anchor lost';
+    default:
+      return '';
+  }
+}
+
 function CommentPreviewOverlays({
   comments,
   liveTargets,
@@ -4499,6 +4517,9 @@ function CommentPreviewOverlays({
   offsetY,
   strokePoints,
   activeSlideIndex = null,
+  driftLadder = false,
+  currentVersion,
+  onLostAnchors,
   onOpenComment,
 }: {
   comments: PreviewComment[];
@@ -4514,23 +4535,64 @@ function CommentPreviewOverlays({
   offsetY: number;
   strokePoints: StrokePoint[];
   activeSlideIndex?: number | null;
+  /** Team collaboration: resolve anchors through the drift ladder (keep + badge stale/lost)
+   *  instead of the exact-match silent drop. Off for single-user. */
+  driftLadder?: boolean;
+  /** Current content version, used by the ladder to flag reanchored (older vN). */
+  currentVersion?: number;
+  /** Team collaboration: persist the durable `lost` capture (last-good position) so the
+   *  ghost pin survives reload. Only fires in drift-ladder mode. */
+  onLostAnchors?: (writeBacks: AnchorWriteBack[]) => void;
   onOpenComment: (comment: PreviewComment, snapshot: PreviewCommentSnapshot) => void;
 }) {
   const overlayOffset = useMemo(() => ({ x: offsetX, y: offsetY }), [offsetX, offsetY]);
   const visibleComments = useMemo(
     () =>
       comments
-        .map((comment, globalIndex) => ({
-          comment,
-          markerNumber: globalIndex + 1,
-          snapshot: liveSnapshotForComment(comment, liveTargets),
-        }))
-        .filter((item): item is { comment: PreviewComment; markerNumber: number; snapshot: PreviewCommentSnapshot } =>
-          Boolean(item.snapshot),
+        .map((comment, globalIndex) => {
+          const markerNumber = globalIndex + 1;
+          if (driftLadder) {
+            // Keep stale/lost comments and carry their state so the marker can
+            // badge them, instead of silently dropping a drifted anchor.
+            const resolution = resolveCommentAnchor(comment, liveTargets, currentVersion);
+            return { comment, markerNumber, snapshot: resolution.snapshot, anchorState: resolution.state };
+          }
+          return {
+            comment,
+            markerNumber,
+            snapshot: liveSnapshotForComment(comment, liveTargets),
+            anchorState: 'anchored' as PreviewCommentAnchorState,
+          };
+        })
+        .filter(
+          (item): item is {
+            comment: PreviewComment;
+            markerNumber: number;
+            snapshot: PreviewCommentSnapshot;
+            anchorState: PreviewCommentAnchorState;
+          } => Boolean(item.snapshot),
         )
         .filter(({ comment }) => commentVisibleOnDeckSlide(comment, activeSlideIndex)),
-    [comments, liveTargets, activeSlideIndex],
+    [comments, liveTargets, activeSlideIndex, driftLadder, currentVersion],
   );
+  // Team collaboration durability: when a comment first drifts to `lost`, persist its
+  // last-good position once so the ghost pin survives reload. The ref set keeps
+  // pointermove re-renders (during pod drawing) from re-firing the same capture;
+  // the server COALESCEs too, so this is belt-and-suspenders idempotency.
+  const persistedLostRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!driftLadder || !onLostAnchors) return;
+    const plan = planLostAnchorWriteBacks(
+      visibleComments.map(({ comment, snapshot, anchorState }) => ({
+        comment,
+        resolution: { state: anchorState, snapshot },
+      })),
+    );
+    const fresh = plan.filter((writeBack) => !persistedLostRef.current.has(writeBack.commentId));
+    if (fresh.length === 0) return;
+    for (const writeBack of fresh) persistedLostRef.current.add(writeBack.commentId);
+    onLostAnchors(fresh);
+  }, [driftLadder, onLostAnchors, visibleComments]);
   // `onOpenComment` is an inline arrow from the parent (new identity every
   // render), so read it through a ref to keep the saved-marker memo below from
   // busting. The closure only calls stable state setters, so a current ref read
@@ -4544,13 +4606,14 @@ function CommentPreviewOverlays({
   // comments reuses the whole subtree and React skips reconciling it.
   const savedMarkers = useMemo(
     () =>
-      visibleComments.map(({ comment, markerNumber, snapshot }) => {
+      visibleComments.map(({ comment, markerNumber, snapshot, anchorState }) => {
         const bounds = overlayBoundsFromSnapshot(snapshot, scale, overlayOffset);
         const label = commentTargetDisplayName(comment);
+        const drifted = anchorState !== 'anchored';
         return (
           <div
             key={comment.id}
-            className="comment-saved-marker"
+            className={`comment-saved-marker${drifted ? ` comment-saved-marker--${anchorState}` : ''}`}
             style={{
               left: bounds.left,
               top: bounds.top,
@@ -4558,6 +4621,7 @@ function CommentPreviewOverlays({
               height: bounds.height,
             }}
             data-testid={`comment-saved-marker-${comment.elementId}`}
+            data-anchor-state={anchorState}
             onClick={() => onOpenCommentRef.current(comment, snapshot)}
           >
             <div className="comment-saved-outline" />
@@ -4568,7 +4632,11 @@ function CommentPreviewOverlays({
                 event.stopPropagation();
                 onOpenCommentRef.current(comment, snapshot);
               }}
-              title={`${markerNumber}. ${label}: ${comment.note}`}
+              title={
+                drifted
+                  ? `${markerNumber}. ${label} · ${anchorStateLabel(anchorState)}`
+                  : `${markerNumber}. ${label}: ${comment.note}`
+              }
               aria-label={`Open comment for ${label}`}
             >
               {markerNumber}
@@ -5416,6 +5484,11 @@ function HtmlViewer({
 }) {
   const { locale, t } = useI18n();
   const analytics = useAnalytics();
+  // Team collaboration: resolve comment anchors through the drift ladder when
+  // the viewer is a team member of a shared project. Off (exact-match, single
+  // user) otherwise. From the ProjectView-provided collab context — no props to
+  // thread, no second collab client.
+  const collab = useProjectCollabContext();
   // Latest per-slide capture progress for the programmatic exporters, read by
   // the loading-toast ticker in fireShareExport to render elapsed time + ETA.
   const exportProgressRef = useRef<{ done: number; total: number } | null>(null);
@@ -10771,6 +10844,9 @@ function HtmlViewer({
               {boardMode ? (
                 <CommentPreviewOverlays
                   comments={commentCreateMode ? visibleSideComments : []}
+                  driftLadder={collab.enabled}
+                  currentVersion={collab.publishedVersion ?? undefined}
+                  {...(collab.onLostAnchors ? { onLostAnchors: collab.onLostAnchors } : {})}
                   liveTargets={liveCommentTargets}
                   hoveredTarget={hoveredCommentTarget}
                   hoveredPodMemberId={hoveredPodMemberId}

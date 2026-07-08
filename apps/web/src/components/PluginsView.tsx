@@ -6,7 +6,10 @@ import {
   type ApplyResult,
   type InstalledPluginRecord,
   type PluginSourceKind,
+  type SkillSummary,
 } from '@open-design/contracts';
+import { fetchSkills } from '../providers/registry';
+import { localizeSkillName } from '../i18n/content';
 import { useAnalytics } from '../analytics/provider';
 import {
   trackPageView,
@@ -566,7 +569,7 @@ export function PluginsView({
           />
         ) : null}
 
-        {activeTab === 'team' ? <TeamPanel t={t} /> : null}
+        {activeTab === 'team' ? <TeamPanel t={t} plugins={userPlugins} /> : null}
       </div>
 
       <AnimatePresence>
@@ -2081,19 +2084,137 @@ function normalizePluginName(name: string): string {
   return name.trim().toLowerCase();
 }
 
-function TeamPanel({ t }: { t: ReturnType<typeof useI18n>['t'] }) {
-  return (
-    <section className="plugins-view__team" aria-labelledby="plugins-team-title">
-      <span className="plugins-view__future-icon" aria-hidden>
-        <Icon name="sparkles" size={18} />
-      </span>
-      <div>
-        <p className="plugins-view__kicker">{t('tasks.comingSoon')}</p>
-        <h2 id="plugins-team-title">{t('pluginsView.teamTitle')}</h2>
-        <p>
-          {t('pluginsView.teamBody')}
-        </p>
+// Team resources: the member's installed plugins and personal skills, each
+// shareable to the team so teammates can pull them. Shared resources are pushed
+// to the resource hub under their kind (`plugin` / `skill`) — the same
+// content-shared source of truth as design systems. Off-team the fetches
+// degrade to empty collections.
+function TeamPanel({
+  t,
+  plugins,
+}: {
+  t: ReturnType<typeof useI18n>['t'];
+  plugins: InstalledPluginRecord[];
+}) {
+  const { locale } = useI18n();
+  const [skills, setSkills] = useState<SkillSummary[]>([]);
+  const [sharedPluginIds, setSharedPluginIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [sharedSkillIds, setSharedSkillIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadShared = async (
+      basePath: string,
+      setter: (ids: ReadonlySet<string>) => void,
+    ) => {
+      try {
+        const res = await fetch(`/api/workspace/${basePath}/team`);
+        if (!res.ok) return;
+        const body = (await res.json()) as { ids?: unknown };
+        if (!cancelled && Array.isArray(body.ids)) {
+          setter(new Set(body.ids.filter((id): id is string => typeof id === 'string')));
+        }
+      } catch {
+        // Off-team / offline → leave the collection empty.
+      }
+    };
+    void (async () => {
+      const userSkills = (await fetchSkills()).filter((s) => s.source === 'user');
+      if (!cancelled) setSkills(userSkills);
+      await Promise.all([
+        loadShared('plugins', setSharedPluginIds),
+        loadShared('skills', setSharedSkillIds),
+      ]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function share(
+    basePath: string,
+    id: string,
+    setShared: (update: (prev: ReadonlySet<string>) => ReadonlySet<string>) => void,
+  ) {
+    if (sharingId) return;
+    setSharingId(id);
+    setFailed(false);
+    try {
+      const res = await fetch(`/api/workspace/${basePath}/${encodeURIComponent(id)}/share`, {
+        method: 'POST',
+      });
+      const body = (await res.json().catch(() => ({}))) as { shared?: boolean };
+      if (res.ok && body.shared) {
+        setShared((prev) => new Set(prev).add(id));
+      } else {
+        setFailed(true);
+      }
+    } catch {
+      setFailed(true);
+    } finally {
+      setSharingId(null);
+    }
+  }
+
+  const renderRow = (id: string, title: string, shared: boolean, onShare: () => void) => (
+    <article key={id} className="plugins-view__available-card">
+      <div className="plugins-view__available-main">
+        <div className="plugins-view__row-title">
+          <span>{title}</span>
+        </div>
       </div>
+      <div className="plugins-view__row-actions">
+        {shared ? (
+          <span className="plugins-view__shared-badge">
+            <Icon name="check" size={13} /> {t('pluginsView.tab.team')}
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="plugins-view__primary"
+            onClick={onShare}
+            disabled={sharingId === id}
+          >
+            {t('dsManager.shareToTeam')}
+          </button>
+        )}
+      </div>
+    </article>
+  );
+
+  return (
+    <section className="plugins-view__team-collection" aria-labelledby="plugins-team-title">
+      <header className="plugins-view__team-header">
+        <h2 id="plugins-team-title">{t('pluginsView.teamTitle')}</h2>
+        <p>{t('pluginsView.teamBody')}</p>
+        {failed ? <p role="alert">{t('dsManager.shareToTeamFailed')}</p> : null}
+      </header>
+      {plugins.length > 0 ? (
+        <div>
+          <h3 className="plugins-view__team-section-title">{t('entry.navPlugins')}</h3>
+          <div className="plugins-view__available-list">
+            {plugins.map((record) =>
+              renderRow(record.id, record.title, sharedPluginIds.has(record.id), () =>
+                void share('plugins', record.id, setSharedPluginIds),
+              ),
+            )}
+          </div>
+        </div>
+      ) : null}
+      {skills.length > 0 ? (
+        <div>
+          <h3 className="plugins-view__team-section-title">{t('homeHero.skills')}</h3>
+          <div className="plugins-view__available-list">
+            {skills.map((skill) =>
+              renderRow(skill.id, localizeSkillName(locale, skill), sharedSkillIds.has(skill.id), () =>
+                void share('skills', skill.id, setSharedSkillIds),
+              ),
+            )}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

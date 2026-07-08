@@ -840,3 +840,41 @@
     flex-direction: column;
   }
 }
+
+/* Team plugins collection — installed plugins, each shareable to the team. */
+.plugins-view__team-collection {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.plugins-view__team-header h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 640;
+  color: var(--text-strong);
+}
+.plugins-view__team-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.plugins-view__team-header p[role='alert'] {
+  margin-top: 6px;
+  color: var(--danger, #d92d20);
+}
+.plugins-view__shared-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.plugins-view__team-section-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 640;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}

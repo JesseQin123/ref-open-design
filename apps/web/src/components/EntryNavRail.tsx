@@ -58,7 +58,8 @@ function NavButton({ active, ariaLabel, tooltip, onClick, disabled, testId, chil
       data-tooltip={tooltip}
       {...(testId ? { 'data-testid': testId } : {})}
     >
-      {children}
+      <span className="entry-nav-rail__btn-icon" aria-hidden>{children}</span>
+      <span className="entry-nav-rail__btn-label">{tooltip}</span>
     </button>
   );
 }
