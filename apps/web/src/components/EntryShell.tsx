@@ -132,6 +132,7 @@ import {
   type PluginShareProjectOutcome,
 } from '../state/projects';
 import { TasksView } from './TasksView';
+import { TeamProjectsView } from './TeamProjectsView';
 import {
   API_KEY_PLACEHOLDERS,
   API_PROTOCOL_TABS,
@@ -1082,13 +1083,24 @@ export function EntryShell({
             ) : null}
             {/* Team destinations — the entry shell owns the nav frame only; each
                 view is provided by another lane (B = members/board, D = team
-                project spaces / workspace settings), rendered as a placeholder
-                until those land. */}
+                project spaces / workspace settings). */}
             {view === 'drafts' ? (
-              <TeamSlotPlaceholder icon="file" title={t('entry.navDrafts')} />
+              workspaceContext ? (
+                <TeamProjectsView
+                  mode="drafts"
+                  context={workspaceContext}
+                  onOpenProject={onOpenProject}
+                />
+              ) : null
             ) : null}
             {view === 'all-projects' ? (
-              <TeamSlotPlaceholder icon="folder" title={t('entry.navAllProjects')} />
+              workspaceContext ? (
+                <TeamProjectsView
+                  mode="all-projects"
+                  context={workspaceContext}
+                  onOpenProject={onOpenProject}
+                />
+              ) : null
             ) : null}
             {view === 'members' ? (
               <TeamSlotPlaceholder icon="users" title={t('entry.navMembers')} />
