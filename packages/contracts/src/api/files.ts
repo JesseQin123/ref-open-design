@@ -166,11 +166,12 @@ export interface ProjectPreviewUrlResponse {
  * preview sandbox cannot provide.
  *
  * `baseOrigin` is the daemon's own directly-reachable http origin. The web
- * host loads the powered iframe from a host-swapped variant of it that is
- * guaranteed cross-origin to the app shell, so `allow-same-origin` can be
- * granted safely (the iframe is same-origin with the daemon, never with the
- * app). `null` when the daemon cannot resolve a usable origin (powered mode
- * is then unavailable and previews stay on the opaque sandbox).
+ * host loads the powered iframe from a host-swapped loopback variant of it.
+ * That reserved browser origin is cross-origin to the app shell and is allowed
+ * to read `/powered/` file bytes, but the daemon rejects its browser requests
+ * to normal `/api/*` routes. `null` when the daemon cannot resolve a usable
+ * origin (powered mode is then unavailable and previews stay on the opaque
+ * sandbox).
  */
 export interface ProjectPreviewIsolationResponse {
   supported: boolean;
@@ -239,9 +240,9 @@ export function buildProjectRawFileUrl(
 /**
  * Build an absolute powered-preview URL. Same shape as buildProjectRawFileUrl
  * but targets the `/powered/` route (cross-origin-isolation headers) and is
- * meant to be joined against the cross-origin `baseOrigin` from
+ * meant to be joined against the host-swapped preview origin derived from
  * ProjectPreviewIsolationResponse — NOT a relative path — so the iframe runs
- * at an origin isolated from the app shell.
+ * at an origin isolated from the app shell and from normal daemon APIs.
  */
 export function buildProjectPoweredFileUrl(
   baseOrigin: string,

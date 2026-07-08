@@ -7,12 +7,11 @@
  * viewers, ffmpeg.wasm, threaded physics/renderers) need. See issue #724.
  *
  * Isolation model: the daemon reports its own directly-reachable http origin
- * (`/api/preview/isolation`). We load the powered iframe from that origin —
- * host-swapped (127.0.0.1 <-> localhost) whenever it would collide with the
- * app origin — so the iframe is ALWAYS cross-origin to the app shell. That is
- * what makes granting `allow-same-origin` safe: the iframe becomes same-origin
- * with the daemon (its own Workers/storage work) but can never touch the app's
- * DOM, storage, or authenticated app-origin context.
+ * (`/api/preview/isolation`). We load the powered iframe from the host-swapped
+ * loopback variant of that origin (127.0.0.1 <-> localhost). That reserved
+ * origin is cross-origin to the app shell and the daemon treats browser
+ * requests from it as preview-only, so granting `allow-same-origin` gives the
+ * artifact Workers/storage without exposing the normal daemon API.
  *
  * The daemon `/powered/*` route (apps/daemon/src/routes/project/index.ts)
  * stamps the isolation headers; this module is the browser half that decides
@@ -47,8 +46,9 @@ export function __resetPreviewIsolationCache(): void {
 
 /**
  * Swap 127.0.0.1 <-> localhost so the returned origin resolves to the same
- * loopback server but is a DISTINCT browser origin. Any non-loopback host is
- * returned unchanged (no safe swap exists for a LAN IP or custom protocol).
+ * loopback server but uses the daemon's preview-only browser host. Any
+ * non-loopback host is returned unchanged; callers must reject unchanged
+ * values because no preview-only host exists for them.
  */
 export function swapLoopbackHost(origin: string): string {
   try {
@@ -63,10 +63,10 @@ export function swapLoopbackHost(origin: string): string {
 
 /**
  * Resolve the origin to load the powered iframe from, given the daemon's
- * reported base. Guarantees the result is cross-origin to the current app
- * origin (when a loopback host-swap can achieve that). Returns null when the
- * base cannot be made cross-origin (e.g. a LAN IP that equals the app origin),
- * so the caller can fall back to the opaque sandbox.
+ * reported base. The result must be the loopback host-swapped variant, because
+ * the daemon reserves that browser origin for powered file bytes only. Returns
+ * null when no safe host swap exists or when the swapped origin still collides
+ * with the app shell.
  */
 export function resolvePoweredBaseOrigin(baseOrigin: string): string | null {
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -76,9 +76,9 @@ export function resolvePoweredBaseOrigin(baseOrigin: string): string | null {
   } catch {
     return null;
   }
-  if (normalized !== appOrigin) return normalized;
   const swapped = swapLoopbackHost(normalized);
-  return swapped !== appOrigin ? swapped : null;
+  if (swapped === normalized || swapped === appOrigin) return null;
+  return swapped;
 }
 
 /**

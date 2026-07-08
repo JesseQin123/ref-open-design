@@ -223,6 +223,11 @@ describe('GET /api/projects/:id/raw/* range request route', () => {
 
   const rawUrl = (name: string) => `${baseUrl}/api/projects/${projectId}/raw/${name}`;
   const poweredUrl = (name: string) => `${baseUrl}/api/projects/${projectId}/powered/${name}`;
+  const poweredOrigin = () => {
+    const url = new URL(baseUrl);
+    url.hostname = url.hostname === '127.0.0.1' ? 'localhost' : '127.0.0.1';
+    return url.origin;
+  };
 
   it('advertises Accept-Ranges: bytes for a video file with no Range header', async () => {
     const res = await fetch(rawUrl('clip.mp4'));
@@ -420,6 +425,31 @@ describe('GET /api/projects/:id/raw/* range request route', () => {
     });
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('does not let the powered preview origin call normal daemon APIs', async () => {
+    const origin = poweredOrigin();
+    const poweredReferer = `${origin}/api/projects/${projectId}/powered/page.html`;
+
+    const poweredFile = await fetch(`${origin}/api/projects/${projectId}/powered/page.html`, {
+      headers: {
+        Referer: poweredReferer,
+        'Sec-Fetch-Site': 'same-origin',
+      },
+    });
+    expect(poweredFile.status).toBe(200);
+    expect(await poweredFile.text()).toBe('<html/>');
+
+    const api = await fetch(`${origin}/api/projects`, {
+      headers: {
+        Referer: poweredReferer,
+        'Sec-Fetch-Site': 'same-origin',
+      },
+    });
+    expect(api.status).toBe(403);
+    expect(await api.json()).toEqual({
+      error: 'Powered preview origin cannot access this API route',
+    });
   });
 
   it('injects scroll and selection URL preview bridges together', async () => {

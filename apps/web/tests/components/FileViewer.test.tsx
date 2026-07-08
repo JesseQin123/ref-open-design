@@ -939,7 +939,7 @@ describe('FileViewer SVG artifacts', () => {
       },
     });
     const workerHtml = '<!doctype html><html><body><script>new Worker("worker.js")</script></body></html>';
-    const poweredSrc = 'http://127.0.0.1:43111/api/projects/project-1/powered/worker.html?v=1000&r=0';
+    const poweredSrc = 'http://localhost:43111/api/projects/project-1/powered/worker.html?v=1000&r=0';
 
     const { rerender } = render(
       <FileViewer

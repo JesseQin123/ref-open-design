@@ -246,11 +246,12 @@ type DeployResultCard = {
 };
 const MAX_BRIDGE_COORDINATE = 1_000_000;
 // Powered-preview iframe attributes. `allow-same-origin` is what makes real
-// Workers / Web Storage / SharedArrayBuffer possible; it is SAFE here only
-// because the powered iframe loads from an origin cross-origin to the app
-// shell (see apps/web/src/runtime/powered-preview.ts). The `allow` list
-// delegates the permissions a GPU/compute artifact typically wants, including
-// `cross-origin-isolated` so the isolated document keeps SharedArrayBuffer.
+// Workers / Web Storage / SharedArrayBuffer possible; it is safe here because
+// the powered iframe loads from the daemon's preview-only loopback host, which
+// is cross-origin to the app shell and barred from normal daemon APIs. The
+// `allow` list delegates the permissions a GPU/compute artifact typically
+// wants, including `cross-origin-isolated` so the isolated document keeps
+// SharedArrayBuffer.
 const POWERED_PREVIEW_SANDBOX =
   'allow-scripts allow-same-origin allow-downloads allow-popups allow-forms allow-modals allow-pointer-lock';
 const POWERED_PREVIEW_ALLOW =

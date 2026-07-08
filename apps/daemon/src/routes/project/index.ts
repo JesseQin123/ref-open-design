@@ -2430,12 +2430,11 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
   // subresources (CDN fonts/images) — those loads just drop credentials — so
   // enabling isolation does not blank out otherwise-working artifacts.
   //
-  // The web host renders the powered iframe with `allow-same-origin` at a
-  // loopback origin that is CROSS-origin to the app shell (see
-  // apps/web/src/runtime/powered-preview.ts), so this document cannot reach the
-  // app's DOM, storage, or authenticated app-origin context. It IS same-origin
-  // with the daemon that also hosts /api, which is why powered mode is an
-  // explicit opt-in rather than the default preview path.
+  // The web host renders the powered iframe with `allow-same-origin` at the
+  // daemon's host-swapped preview origin (see
+  // apps/web/src/runtime/powered-preview.ts), so this document gets same-origin
+  // Workers/storage for sibling /powered assets while the shared /api
+  // middleware rejects browser requests from that origin to normal daemon APIs.
   function setPoweredPreviewHeaders(res: Response) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');

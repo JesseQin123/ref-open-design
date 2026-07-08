@@ -23,16 +23,18 @@ describe('swapLoopbackHost', () => {
 });
 
 describe('resolvePoweredBaseOrigin', () => {
-  // In the node test env `window` is undefined, so the app origin is '' — any
-  // real daemon origin is therefore never a same-origin collision and is
-  // returned normalized as-is. This exercises the common dev/packaged path
-  // where the daemon origin already differs from the app origin.
-  it('returns the daemon origin unchanged when it differs from the app origin', () => {
-    expect(resolvePoweredBaseOrigin('http://127.0.0.1:17456')).toBe('http://127.0.0.1:17456');
+  it('returns the host-swapped loopback origin for powered previews', () => {
+    expect(resolvePoweredBaseOrigin('http://127.0.0.1:17456')).toBe('http://localhost:17456');
+    expect(resolvePoweredBaseOrigin('http://localhost:17456')).toBe('http://127.0.0.1:17456');
   });
 
   it('normalizes a base with a trailing path down to its origin', () => {
-    expect(resolvePoweredBaseOrigin('http://127.0.0.1:17456/')).toBe('http://127.0.0.1:17456');
+    expect(resolvePoweredBaseOrigin('http://127.0.0.1:17456/')).toBe('http://localhost:17456');
+  });
+
+  it('returns null when no preview-only host swap exists', () => {
+    expect(resolvePoweredBaseOrigin('http://192.168.1.20:17456')).toBeNull();
+    expect(resolvePoweredBaseOrigin('https://example.com')).toBeNull();
   });
 
   it('returns null for an unparseable base', () => {
