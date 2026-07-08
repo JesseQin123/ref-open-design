@@ -349,8 +349,16 @@ export function MessageCenterDemo({ onOpenNotificationSettings }: Props) {
                             <span className={styles.bodyPreview}>{t(message.bodyKey)}</span>
                           </button>
 
-                          {state.expanded ? (
-                            <div className={styles.expandedActions}>
+                          <div className={styles.itemActions}>
+                            <button
+                              type="button"
+                              onClick={() => updateMessage(message.id, { read: !state.read })}
+                            >
+                              {state.read
+                                ? t('messageCenter.markUnread')
+                                : t('messageCenter.markRead')}
+                            </button>
+                            {state.expanded ? (
                               <button
                                 type="button"
                                 className={styles.primaryAction}
@@ -364,18 +372,7 @@ export function MessageCenterDemo({ onOpenNotificationSettings }: Props) {
                               >
                                 {t(message.actionKey)}
                               </button>
-                            </div>
-                          ) : null}
-
-                          <div className={styles.itemActions}>
-                            <button
-                              type="button"
-                              onClick={() => updateMessage(message.id, { read: !state.read })}
-                            >
-                              {state.read
-                                ? t('messageCenter.markUnread')
-                                : t('messageCenter.markRead')}
-                            </button>
+                            ) : null}
                           </div>
                         </article>
                       );
