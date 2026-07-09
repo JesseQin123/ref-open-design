@@ -1,9 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@/playwright/suite';
 import { ensureRailOpen } from '@/playwright/rail';
 import type { Locator, Page, Request } from '@playwright/test';
 import { applyStandardMocks, fulfillAgentsRoute, STORAGE_KEY } from '@/playwright/mock-factory';
 import { T } from '@/timeouts';
 const LOCAL_CLI_LABEL = /Local CLI|Local coding agent|本机 CLI|本地 CLI/i;
+const WEBGL_AURORA_PREVIEW_HTML = readFileSync(
+  new URL('../../plugins/_official/examples/webgl-aurora-veil/example.html', import.meta.url),
+  'utf8',
+);
 const STARTER_PLUGIN = makeStarterPlugin({
   id: 'localized-plugin',
   title: 'Localized Plugin',
@@ -1383,6 +1388,55 @@ test('[P1] home starters WebGL example previews render real canvas output', asyn
   }
 });
 
+test('[P1] home starters WebGL example previews resize the real canvas backing store', async ({ page }) => {
+  await page.setViewportSize({ width: 1240, height: 720 });
+
+  const plugin = makeStarterPlugin({
+    id: 'example-webgl-aurora-veil',
+    title: 'Aurora Veil',
+    description: 'Pure shader WebGL example.',
+    mode: 'prototype',
+    featured: true,
+    tags: ['webgl2', 'powered-preview'],
+    previewEntry: './example.html',
+  });
+
+  await page.route('**/api/plugins', async (route) => {
+    await route.fulfill({ json: { plugins: [plugin] } });
+  });
+  await page.route(`**/api/plugins/${plugin.id}/preview`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+      body: WEBGL_AURORA_PREVIEW_HTML,
+    });
+  });
+
+  await gotoEntryHome(page);
+  const home = await revealHomeTemplates(page);
+  const card = home.locator(`article.plugins-home__card[data-plugin-id="${plugin.id}"]`);
+  await expect(card).toBeVisible();
+  await card.getByRole('button', { name: /View details for Aurora Veil/i }).click();
+
+  const dialog = page.getByRole('dialog', { name: /Aurora Veil preview/i });
+  await expect(dialog).toBeVisible();
+  const canvas = dialog.frameLocator('iframe[title^="Aurora Veil"]').locator('canvas#gl');
+  await expect(canvas).toBeVisible();
+
+  await setPreviewFrameWidth(dialog, 640);
+  await expect.poll(async () => {
+    const metrics = await webglCanvasMetrics(canvas);
+    return metrics.cssWidth > 0 && metrics.cssWidth <= 660 && metrics.backingWidth >= metrics.cssWidth;
+  }).toBe(true);
+  const narrow = await webglCanvasMetrics(canvas);
+
+  await setPreviewFrameWidth(dialog, 980);
+  await expect.poll(async () => {
+    const metrics = await webglCanvasMetrics(canvas);
+    return metrics.cssWidth > narrow.cssWidth + 200 && metrics.backingWidth >= metrics.cssWidth;
+  }, { timeout: 10_000 }).toBe(true);
+});
+
 test('[P1] Community templates sort toggle switches to newest order and persists after reload', async ({ page }) => {
   const hotVisual = {
     ...makeStarterPlugin({
@@ -2723,4 +2777,23 @@ function webglCanvasPreview(label: string): string {
     </script>
   </body>
 </html>`;
+}
+
+async function webglCanvasMetrics(canvas: Locator) {
+  return canvas.evaluate((element: HTMLCanvasElement) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      backingWidth: element.width,
+      backingHeight: element.height,
+      cssWidth: Math.round(rect.width),
+      cssHeight: Math.round(rect.height),
+    };
+  });
+}
+
+async function setPreviewFrameWidth(dialog: Locator, width: number) {
+  await dialog.locator('.ds-modal-stage-iframe-scaler').evaluate((element: HTMLElement, nextWidth) => {
+    element.style.width = `${nextWidth}px`;
+    element.style.maxWidth = 'none';
+  }, width);
 }
