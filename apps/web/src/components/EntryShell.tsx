@@ -100,7 +100,7 @@ import {
   formatDiscordPresenceCount,
   useDiscordPresence,
 } from './useDiscordPresence';
-import { HomeView } from './HomeView';
+import { HomeView, seedHomeComposerPrompt } from './HomeView';
 import {
   createPluginAuthoringHandoff,
   createPluginUseHandoff,
@@ -111,6 +111,9 @@ import { homeHeroChipLabel } from './home-hero/chip-labels';
 import type { PluginUseAction } from './plugins-home/useActions';
 import { Icon } from './Icon';
 import { AgentIcon } from './AgentIcon';
+import { CommunityView } from './CommunityView';
+import { TeamSlotPlaceholder } from './TeamSlotPlaceholder';
+import { useWorkspaceContext } from '../collab/useWorkspaceContext';
 import { LanguageMenu } from './LanguageMenu';
 import { IntegrationsView, type IntegrationTab } from './IntegrationsView';
 import { InlineModelSwitcher } from './InlineModelSwitcher';
@@ -503,6 +506,27 @@ export function EntryShell({
   // view from the route rather than keeping it in component state.
   const route = useRoute();
   const view: EntryViewKind = route.kind === 'home' ? route.view : 'home';
+  // The one shared workspace context. Drives the two-state nav shell: team rail
+  // (context non-null && workspaceType === 'team') vs. local rail. Every team
+  // surface reads THIS read; the rail never re-derives role/permission gates.
+  const { context: workspaceContext, loading: workspaceLoading } = useWorkspaceContext();
+  const isTeamWorkspace =
+    Boolean(workspaceContext) && workspaceContext!.workspaceType === 'team';
+  // Team-only destinations. In the local state the rail never links to these; a
+  // deep link to one (or losing team access) falls back to home once the context
+  // has resolved. `community` is allowed in both states, so it is not guarded.
+  const isTeamOnlyView =
+    view === 'drafts' ||
+    view === 'all-projects' ||
+    view === 'members' ||
+    view === 'board' ||
+    view === 'workspace-settings';
+  useEffect(() => {
+    if (workspaceLoading) return;
+    if (isTeamOnlyView && !isTeamWorkspace) {
+      navigate({ kind: 'home', view: 'home' }, { replace: true });
+    }
+  }, [workspaceLoading, isTeamOnlyView, isTeamWorkspace]);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   useEffect(() => {
     if (view !== 'design-systems') return;
@@ -795,7 +819,12 @@ export function EntryShell({
 
   return (
     <div className="entry-shell entry-shell--no-header">
-      <div className={`entry${railOpen ? ' entry--rail-open' : ''}`}>
+      <div
+        className={`entry${railOpen ? ' entry--rail-open' : ''}`}
+        // The team/local shell is a labeled Manus-style rail, so widen the rail
+        // track (the base 56px icon-rail clips the labels + team affordances).
+        style={{ ['--entry-rail-width' as string]: '236px' }}
+      >
         <EntryNavRail
           view={view}
           onViewChange={changeView}
@@ -809,6 +838,10 @@ export function EntryShell({
           }}
           open={railOpen}
           onClose={() => setRailOpen(false)}
+          context={workspaceContext}
+          onOpenSettings={onOpenSettings}
+          onInvite={() => changeView('members')}
+          onSignInCloud={() => navigate({ kind: 'home', view: 'onboarding' })}
         />
         <main className="entry-main entry-main--scroll" ref={entryMainScrollRef}>
           <div className="entry-main__topbar">
@@ -823,6 +856,7 @@ export function EntryShell({
               <Icon name="panel-left" size={20} />
             </button>
             <div className="entry-main__topbar-chips entry-main__topbar-chips--icon-only">
+              {/* The workspace switcher moved into the nav rail's team state. */}
               <GithubStarBadge />
               <a
                 className="entry-workspace-chip od-tooltip"
@@ -1034,6 +1068,36 @@ export function EntryShell({
                 onSkillsRefresh={onSkillsRefresh}
                 onSkillsChanged={onSkillsChanged}
               />
+            ) : null}
+            {view === 'community' ? (
+              <CommunityView
+                onRemixTemplate={({ prompt }) => {
+                  // Seed the Home composer with the template's starting prompt,
+                  // then switch to Home to review + send it (keep in sync with
+                  // the standalone /community branch in App.tsx).
+                  seedHomeComposerPrompt(prompt);
+                  changeView('home');
+                }}
+              />
+            ) : null}
+            {/* Team destinations — the entry shell owns the nav frame only; each
+                view is provided by another lane (B = members/board, D = team
+                project spaces / workspace settings), rendered as a placeholder
+                until those land. */}
+            {view === 'drafts' ? (
+              <TeamSlotPlaceholder icon="file" title={t('entry.navDrafts')} />
+            ) : null}
+            {view === 'all-projects' ? (
+              <TeamSlotPlaceholder icon="folder" title={t('entry.navAllProjects')} />
+            ) : null}
+            {view === 'members' ? (
+              <TeamSlotPlaceholder icon="users" title={t('entry.navMembers')} />
+            ) : null}
+            {view === 'board' ? (
+              <TeamSlotPlaceholder icon="kanban" title={t('entry.navBoard')} />
+            ) : null}
+            {view === 'workspace-settings' ? (
+              <TeamSlotPlaceholder icon="settings" title={t('entry.navWorkspaceSettings')} />
             ) : null}
           </div>
         </main>

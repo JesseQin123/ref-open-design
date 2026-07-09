@@ -3390,3 +3390,47 @@
   font-weight: 500;
   color: var(--accent);
 }
+
+/* Cloud sign-in callout — promotes the team/cloud workspace from the local-CLI
+   settings pane (team features gate on a cloud identity, not the coding agent). */
+.settings-cloud-signin-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border-soft));
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--accent) 8%, var(--bg-panel)),
+      color-mix(in srgb, var(--bg-panel) 96%, var(--accent)));
+}
+.settings-cloud-signin-callout strong {
+  display: block;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 680;
+}
+.settings-cloud-signin-callout p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.settings-cloud-signin-callout__button {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: 10px;
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.settings-cloud-signin-callout__button:hover {
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-panel));
+}

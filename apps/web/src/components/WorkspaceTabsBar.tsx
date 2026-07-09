@@ -1198,6 +1198,12 @@ function displayTabFor(
     library: 'Library',
     brands: t('entry.navBrands'),
     integrations: t('entry.navIntegrations'),
+    community: t('pluginsHome.title'),
+    drafts: t('entry.navDrafts'),
+    'all-projects': t('entry.navAllProjects'),
+    members: t('entry.navMembers'),
+    board: t('entry.navBoard'),
+    'workspace-settings': t('entry.navWorkspaceSettings'),
   };
   const entryIcon: Record<EntryHomeView, IconName> = {
     home: 'home',
@@ -1209,6 +1215,12 @@ function displayTabFor(
     library: 'image',
     brands: 'blocks',
     integrations: 'link',
+    community: 'globe',
+    drafts: 'file',
+    'all-projects': 'folder',
+    members: 'users',
+    board: 'kanban',
+    'workspace-settings': 'settings',
   };
   return {
     id: tab.id,

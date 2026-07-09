@@ -418,8 +418,7 @@ describe('EntryShell new project rail', () => {
     );
   });
 
-  it('opens the new project modal from the Projects tab button', async () => {
-    window.localStorage.setItem('od.entry.railOpen', 'false');
+  it('opens the new project modal from the Projects view new-project button', async () => {
     const fetchMock = vi.fn(
       async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
         const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
@@ -461,6 +460,10 @@ describe('EntryShell new project rail', () => {
         return jsonResponse({});
       });
     globalThis.fetch = fetchMock as typeof fetch;
+    // Start directly on the Projects view (/projects). The nav rail no longer
+    // has a single "Projects" button — the projects list is its own route,
+    // reachable via /projects or Home's "view all" — so drive the DesignsTab's
+    // own new-project CTA rather than a removed rail button.
     const props = renderHome({
       projects: [
         {
@@ -473,10 +476,8 @@ describe('EntryShell new project rail', () => {
           status: { value: 'not_started' },
         },
       ],
-    });
+    }, '/projects');
 
-    fireEvent.click(screen.getByTestId('entry-rail-toggle'));
-    fireEvent.click(screen.getByTestId('entry-nav-projects'));
     fireEvent.click(screen.getByTestId('designs-new-project'));
 
     await waitFor(() => {

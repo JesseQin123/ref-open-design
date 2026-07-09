@@ -281,6 +281,17 @@ function clearHomeComposerDraft(): void {
   writeHomeComposerDraft(HOME_COMPOSER_DESIGN_SYSTEM_KEY, null);
 }
 
+/**
+ * Seed the Home composer's prompt for its next mount — used when another surface
+ * hands the user into Home with a starting prompt (e.g. "Remix" a community
+ * template). It writes the same draft key the composer restores from, so the
+ * text appears (as a user-edited draft) when Home next mounts. Navigate to Home
+ * right after so the fresh mount picks it up.
+ */
+export function seedHomeComposerPrompt(prompt: string): void {
+  writeHomeComposerDraft(HOME_COMPOSER_PROMPT_KEY, prompt);
+}
+
 export function HomeView({
   isActive = true,
   projects,

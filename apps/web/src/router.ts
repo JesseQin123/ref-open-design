@@ -19,7 +19,17 @@ export type EntryHomeView =
   | 'design-systems'
   | 'library'
   | 'brands'
-  | 'integrations';
+  | 'integrations'
+  // Team-edition navigation-shell destinations. `community` is the shared
+  // template gallery surfaced as a rail destination (rather than only a home
+  // sub-section); the rest are team-workspace slots (project spaces + members +
+  // board + workspace settings) whose views are provided by other lanes.
+  | 'community'
+  | 'drafts'
+  | 'all-projects'
+  | 'members'
+  | 'board'
+  | 'workspace-settings';
 
 export type Route =
   | {
@@ -50,7 +60,14 @@ export type Route =
       fileName: string | null;
     }
   | { kind: 'marketplace' }
-  | { kind: 'marketplace-detail'; pluginId: string };
+  | { kind: 'marketplace-detail'; pluginId: string }
+  // Team collaboration demo surface. Drives the live presence + sync loop
+  // against the real daemon routes with a clearly-stubbed demo identity (real
+  // B identity / D visibility integration pending). Deep-linkable so a second
+  // browser tab can join the same project and appear in the presence overlay.
+  | { kind: 'collab-demo'; projectId: string | null }
+  // Community template gallery — browse and remix shared design templates.
+  | { kind: 'community' };
 
 export function parseRoute(pathname: string): Route {
   const parts = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
@@ -114,6 +131,29 @@ export function parseRoute(pathname: string): Route {
   if (parts[0] === 'integrations') {
     return { kind: 'home', view: 'integrations' };
   }
+  if (parts[0] === 'collab-demo') {
+    return { kind: 'collab-demo', projectId: parts[1] ? decodeURIComponent(parts[1]) : null };
+  }
+  if (parts[0] === 'community') {
+    // Community is now a rail destination inside the entry shell so the nav rail
+    // stays visible alongside the gallery.
+    return { kind: 'home', view: 'community' };
+  }
+  if (parts[0] === 'drafts' && !parts[1]) {
+    return { kind: 'home', view: 'drafts' };
+  }
+  if (parts[0] === 'all-projects' && !parts[1]) {
+    return { kind: 'home', view: 'all-projects' };
+  }
+  if (parts[0] === 'members' && !parts[1]) {
+    return { kind: 'home', view: 'members' };
+  }
+  if (parts[0] === 'board' && !parts[1]) {
+    return { kind: 'home', view: 'board' };
+  }
+  if (parts[0] === 'workspace-settings' && !parts[1]) {
+    return { kind: 'home', view: 'workspace-settings' };
+  }
   // Phase 2B / spec §11.6 — marketplace deep UI routes. Two paths:
   //   /marketplace            → catalog grid (MarketplaceView)
   //   /marketplace/<pluginId> → detail page (PluginDetailView)
@@ -140,10 +180,20 @@ export function buildPath(route: Route): string {
       return route.brandId ? `/brands/${encodeURIComponent(route.brandId)}` : '/brands';
     }
     if (route.view === 'integrations') return '/integrations';
+    if (route.view === 'community') return '/community';
+    if (route.view === 'drafts') return '/drafts';
+    if (route.view === 'all-projects') return '/all-projects';
+    if (route.view === 'members') return '/members';
+    if (route.view === 'board') return '/board';
+    if (route.view === 'workspace-settings') return '/workspace-settings';
     return '/';
   }
   if (route.kind === 'marketplace') return '/marketplace';
   if (route.kind === 'marketplace-detail') return `/marketplace/${encodeURIComponent(route.pluginId)}`;
+  if (route.kind === 'collab-demo') {
+    return route.projectId ? `/collab-demo/${encodeURIComponent(route.projectId)}` : '/collab-demo';
+  }
+  if (route.kind === 'community') return '/community';
   if (route.kind === 'design-system-create') return '/design-systems/create';
   if (route.kind === 'design-system-detail') {
     return `/design-systems/${encodeURIComponent(route.designSystemId)}`;

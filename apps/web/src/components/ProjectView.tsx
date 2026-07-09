@@ -202,6 +202,11 @@ import { HandoffButton } from './HandoffButton';
 import { Icon } from './Icon';
 import { localizePluginTitle } from './plugins-home/localization';
 import { DesignSystemPicker } from './DesignSystemPicker';
+import { PresenceBar } from '../collab/PresenceBar';
+import { useProjectCollab } from '../collab/useProjectCollab';
+import { CollabProvider, type CollabContextValue } from '../collab/collab-context';
+import { persistCommentAnchors } from '../collab/comment-anchor-client';
+import type { AnchorWriteBack } from '../comments';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
 import { ChatPane } from './ChatPane';
@@ -1314,6 +1319,10 @@ export function ProjectView({
   const { locale, t } = useI18n();
   const analytics = useAnalytics();
   const iframeKeepAlivePool = useIframeKeepAlivePool();
+  // Team collaboration: presence for a shared project. Dormant (no heartbeat,
+  // renders nothing) unless the workspace context marks the viewer an active
+  // team member — safe to mount unconditionally.
+  const projectCollab = useProjectCollab(project?.id ?? null);
   const handleThemeChange = onThemeChange ?? (() => {});
   const projectDetail = useProjectDetail(project.id);
   const detailedProject = projectDetail.project?.id === project.id ? projectDetail.project : null;
@@ -1400,6 +1409,24 @@ export function ProjectView({
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) ?? null,
     [conversations, activeConversationId],
+  );
+  // Team collaboration: persist a comment that drifted to `lost` so its ghost
+  // pin survives reload. Only ProjectView has the active conversation id the
+  // anchor route needs; fed to the drift ladder through the collab context.
+  const handleLostAnchors = useCallback(
+    (writeBacks: AnchorWriteBack[]) => {
+      if (!activeConversationId || writeBacks.length === 0) return;
+      void persistCommentAnchors({
+        projectId: project.id,
+        conversationId: activeConversationId,
+        writeBacks,
+      });
+    },
+    [project.id, activeConversationId],
+  );
+  const collabValue = useMemo<CollabContextValue>(
+    () => ({ ...projectCollab, onLostAnchors: handleLostAnchors }),
+    [projectCollab, handleLostAnchors],
   );
   const activeSessionMode = activeConversation?.sessionMode ?? 'design';
   const [messagesConversationId, setMessagesConversationId] = useState<string | null>(null);
@@ -8019,6 +8046,7 @@ export function ProjectView({
   );
 
   return (
+    <CollabProvider value={collabValue}>
     <div className="app">
       <CritiqueTheaterMount
         projectId={project.id}
@@ -8052,7 +8080,9 @@ export function ProjectView({
               streaming={currentConversationControlStreaming}
               liveToolInput={liveToolInput}
               loading={currentConversationLoading}
-              sendDisabled={currentConversationSendDisabled}
+              // A read-only viewer of a team-shared project cannot drive artifact
+              // changes through chat (comments go through the separate overlay).
+              sendDisabled={currentConversationSendDisabled || projectCollab.viewerOnly}
               queuedItems={currentConversationQueuedItems}
               error={conversationLoadError ?? error}
               projectId={project.id}
@@ -8202,6 +8232,12 @@ export function ProjectView({
                   {projectTypeLabel ? (
                     <span className="meta" data-testid="project-meta">{projectTypeLabel}</span>
                   ) : null}
+                  {projectCollab.enabled ? (
+                    <PresenceBar
+                      members={projectCollab.present}
+                      {...(projectCollab.member ? { selfMemberId: projectCollab.member.memberId } : {})}
+                    />
+                  ) : null}
                 </span>
               )}
               designSystemPicker={(
@@ -8240,6 +8276,7 @@ export function ProjectView({
         ) : null}
         <FileWorkspace
           projectId={project.id}
+          viewerOnly={projectCollab.viewerOnly}
           projectKind={projectKindFromMetadataToTracking(currentProject.metadata) ?? 'prototype'}
           rootDirName={(() => {
             const baseDir = currentProject.metadata?.baseDir;
@@ -8428,6 +8465,7 @@ export function ProjectView({
         ) : null}
       </AnimatePresence>
     </div>
+    </CollabProvider>
   );
 }
 

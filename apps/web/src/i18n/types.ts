@@ -30,6 +30,45 @@ export const LOCALE_LABEL: Record<Locale, string> = {
 // flat (not deeply nested) so missing-key TS errors point straight at the
 // offending string instead of a generic object mismatch.
 export interface Dict {
+  // Workspace invite acceptance (C lane)
+  'invite.header.eyebrow': string;
+  'invite.loading': string;
+  'invite.landing.title': string;
+  'invite.landing.subtitle': string;
+  'invite.landing.roleLabel': string;
+  'invite.landing.invitedEmail': string;
+  'invite.landing.expires': string;
+  'invite.role.admin': string;
+  'invite.role.member': string;
+  'invite.role.admin.desc': string;
+  'invite.role.member.desc': string;
+  'invite.accept.cta': string;
+  'invite.accountMismatch.title': string;
+  'invite.accountMismatch.body': string;
+  'invite.accountMismatch.continue': string;
+  'invite.accountMismatch.switch': string;
+  'invite.accepting.title': string;
+  'invite.accepting.body': string;
+  'invite.success.title': string;
+  'invite.success.body': string;
+  'invite.success.roleReceipt': string;
+  'invite.success.enter': string;
+  'invite.open.cta': string;
+  'invite.open.opening': string;
+  'invite.open.retry': string;
+  'invite.notInstalled.title': string;
+  'invite.notInstalled.body': string;
+  'invite.notInstalled.download': string;
+  'invite.error.title': string;
+  'invite.error.invite_expired': string;
+  'invite.error.invite_consumed': string;
+  'invite.error.workspace_seat_limit_reached': string;
+  'invite.error.workspace_subscription_locked': string;
+  'invite.error.workspace_not_found': string;
+  'invite.error.workspace_forbidden': string;
+  'invite.error.invite_unavailable': string;
+  'invite.error.generic': string;
+  'invite.error.retry': string;
   // Common
   'common.cancel': string;
   'chat.selectFromLibrary': string;
@@ -303,6 +342,9 @@ export interface Dict {
   'settings.modeDaemonOfflineMeta': string;
   'settings.modeDaemonInstalledMeta': string;
   'settings.modeApi': string;
+  'settings.cloudCalloutTitle': string;
+  'settings.cloudCalloutBody': string;
+  'settings.cloudCalloutButton': string;
   'settings.modeApiMeta': string;
   'settings.byokNoFileToolsNotice': string;
   'settings.codeAgent': string;
@@ -380,6 +422,20 @@ export interface Dict {
   'settings.amrBalance': string;
   'settings.amrPlan': string;
   'settings.amrUpgrade': string;
+  // Settings > Workspace region (E-frontend, D4.3): the role-gated shell for
+  // other-lane workspace destinations. Shown only for a team workspace.
+  'settings.workspace': string;
+  'settings.workspaceHint': string;
+  'settings.workspaceLede': string;
+  'settings.workspaceBack': string;
+  'settings.workspaceMembers': string;
+  'settings.workspaceMembersHint': string;
+  'settings.workspaceBilling': string;
+  'settings.workspaceBillingHint': string;
+  'settings.workspaceAutoRecharge': string;
+  'settings.workspaceAutoRechargeHint': string;
+  'settings.workspaceTeamSpace': string;
+  'settings.workspaceTeamSpaceHint': string;
   'settings.amrLoginErrorCompact': string;
   'settings.apiSection': string;
   'settings.quickFillProvider': string;
@@ -976,6 +1032,9 @@ export interface Dict {
   'entry.useEverywhereTitle': string;
   'entry.useEverywhereAria': string;
   'entry.workspaceTeamsLabel': string;
+  'workspaceSwitcher.team': string;
+  'workspaceSwitcher.invite': string;
+  'workspaceSwitcher.createTeam': string;
   'entry.workspaceTeamsTitle': string;
   'entry.workspaceTeamsAria': string;
   // Left nav rail (icon-only) — surface labels also serve as tooltips
@@ -989,6 +1048,18 @@ export interface Dict {
   'entry.navDesignSystems': string;
   'entry.navBrands': string;
   'entry.navIntegrations': string;
+  // Team-edition navigation shell.
+  'entry.navMembers': string;
+  'entry.navWorkspaceSettings': string;
+  'entry.navDrafts': string;
+  'entry.navAllProjects': string;
+  'entry.navBoard': string;
+  'entry.navTeamSection': string;
+  'entry.teamSlotNote': string;
+  'entry.cloudCalloutTitle': string;
+  'entry.cloudCalloutBody': string;
+  'entry.workspaceLockedNote': string;
+  'entry.workspaceLockedRecover': string;
   'workspaceTabs.project': string;
   'workspaceTabs.pluginDetails': string;
   'workspaceTabs.marketplace': string;
@@ -1729,6 +1800,8 @@ export interface Dict {
   'dsManager.templateSourceAria': string;
   'dsManager.yourSystems': string;
   'dsManager.officialPresets': string;
+  'dsManager.shareToTeam': string;
+  'dsManager.shareToTeamFailed': string;
   'dsManager.enterprise': string;
   'dsManager.yourTemplates': string;
   'dsManager.yourSystemsAria': string;
@@ -3049,6 +3122,7 @@ export interface Dict {
   'workspace.showChat': string;
   'workspace.closeTab': string;
   'workspace.deleteFileConfirm': string;
+  'workspace.readonlyNotice': string;
   'workspace.deleteSelectedFilesConfirm': string;
   'workspace.deleteSelectedFilesPartial': string;
   'workspace.openFromDesignFiles': string;

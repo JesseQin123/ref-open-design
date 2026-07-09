@@ -85,6 +85,7 @@ export type IconName =
   | 'thumbs-up'
   | 'tweaks'
   | 'upload'
+  | 'users'
   | 'trash'
   | 'volume'
   | 'zoom-in'
@@ -636,6 +637,15 @@ export function Icon({ name, size = 14, strokeWidth = 1.6, ...rest }: Props) {
           <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" />
           <path d="m16 6-4-4-4 4" />
           <path d="M12 2v13" />
+        </svg>
+      );
+    case 'users':
+      return (
+        <svg {...common}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       );
     case 'sliders':

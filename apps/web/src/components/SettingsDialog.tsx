@@ -149,6 +149,9 @@ import { DesignSystemsSection } from './DesignSystemsSection';
 import { PrivacySection } from './PrivacySection';
 import { ProjectLocationsSection } from './ProjectLocationsSection';
 import { RoutinesSection } from './RoutinesSection';
+import { SettingsWorkspaceSection } from './SettingsWorkspaceSection';
+import { useWorkspaceContext } from '../collab/useWorkspaceContext';
+import { canShowWorkspaceSettings } from '../collab/settings-access';
 import { ConnectorsBrowser } from './ConnectorsBrowser';
 import { MemoryModelInline } from './MemoryModelInline';
 import { MemorySection } from './MemorySection';
@@ -190,6 +193,7 @@ import {
 
 export type SettingsSection =
   | 'execution'
+  | 'workspace'
   | 'instructions'
   | 'media'
   | 'composio'
@@ -1415,6 +1419,12 @@ export function SettingsDialog({
       : {},
   );
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
+  // Workspace region gating (E-frontend, D4.3). One shared read of the workspace
+  // context; the Workspace nav item + section only appear for a team workspace
+  // whose viewer may see workspace settings. Gate on the folded permission bits,
+  // never a role re-derivation (see `../collab/settings-access`).
+  const { context: workspaceContext } = useWorkspaceContext();
+  const showWorkspaceSettings = canShowWorkspaceSettings(workspaceContext);
   const [settingsSidebarCollapsed, setSettingsSidebarCollapsed] = useState(false);
   const [settingsFullscreen, setSettingsFullscreen] = useState(false);
   // Scroll the right-hand content pane back to the top whenever the user
@@ -3505,6 +3515,7 @@ export function SettingsDialog({
   // not twice (heading + tab).
   const sectionHeader: Record<SettingsSection, { title: string; subtitle: string }> = {
     execution: { title: t('settings.title'), subtitle: t('settings.subtitle') },
+    workspace: { title: t('settings.workspace'), subtitle: t('settings.workspaceHint') },
     instructions: {
       title: t('settings.instructionsTitle'),
       subtitle: t('settings.instructionsSubtitle'),
@@ -3910,6 +3921,20 @@ export function SettingsDialog({
                 <small>{`${t('settings.localCli')} / ${t('settings.modeApiMeta')}`}</small>
               </span>
             </button>
+            {showWorkspaceSettings ? (
+              <button
+                type="button"
+                className={`settings-nav-item${activeSection === 'workspace' ? ' active' : ''}`}
+                onClick={() => setActiveSection('workspace')}
+                data-testid="settings-nav-workspace"
+              >
+                <Icon name="users" size={18} />
+                <span>
+                  <strong>{t('settings.workspace')}</strong>
+                  <small>{t('settings.workspaceHint')}</small>
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'instructions' ? ' active' : ''}`}
@@ -4122,6 +4147,21 @@ export function SettingsDialog({
                   <span className="seg-meta">{t('settings.modeApi')}</span>
                 </button>
               </div>
+              {cfg.mode === 'daemon' ? (
+                <div className="settings-cloud-signin-callout">
+                  <div>
+                    <strong>{t('settings.cloudCalloutTitle')}</strong>
+                    <p>{t('settings.cloudCalloutBody')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="settings-cloud-signin-callout__button"
+                    onClick={() => navigateRoute({ kind: 'home', view: 'onboarding' })}
+                  >
+                    {t('settings.cloudCalloutButton')}
+                  </button>
+                </div>
+              ) : null}
               {cfg.mode === 'api' ? (
                 <div
                   className="protocol-chips protocol-chips--providers"
@@ -5598,6 +5638,10 @@ export function SettingsDialog({
                 </Button>
               </div>
             </section>
+          ) : null}
+
+          {activeSection === 'workspace' ? (
+            <SettingsWorkspaceSection context={workspaceContext} />
           ) : null}
           {aboutToast ? (
             <Toast

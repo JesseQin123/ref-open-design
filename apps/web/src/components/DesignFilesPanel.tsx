@@ -32,6 +32,8 @@ export interface DesignFilesNavState {
 
 interface Props {
   projectId: string;
+  /** Read-only viewer of a team-shared project: withholds create/upload actions. */
+  viewerOnly?: boolean;
   // Basename of the project's working directory when the user has chosen a
   // real folder (e.g. "openclaw"). Shown as the breadcrumb root instead of
   // the generic "project" label. Undefined for default-storage projects.
@@ -285,6 +287,7 @@ function RotatingTip() {
  */
 export function DesignFilesPanel({
   projectId,
+  viewerOnly = false,
   rootDirName,
   reloading,
   running = false,
@@ -752,27 +755,33 @@ export function DesignFilesPanel({
         >
           {relativeTime(f.mtime, t)}
         </span>
-        <span
-          data-testid={`design-file-menu-${f.name}`}
-          className="df-row-menu"
-          style={isHovered || active ? { opacity: 1 } : undefined}
-          role="button"
-          tabIndex={0}
-          aria-label={t('designFiles.rowMenu')}
-          onClick={(e) => {
-            e.stopPropagation();
-            openMenuFor(f.name, e.target as HTMLElement);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
+        {viewerOnly ? (
+          // Read-only viewer: the row menu (rename / delete / move) is a mutation
+          // entry point, so render an inert placeholder that keeps row layout.
+          <span className="df-row-menu df-row-menu-placeholder" aria-hidden />
+        ) : (
+          <span
+            data-testid={`design-file-menu-${f.name}`}
+            className="df-row-menu"
+            style={isHovered || active ? { opacity: 1 } : undefined}
+            role="button"
+            tabIndex={0}
+            aria-label={t('designFiles.rowMenu')}
+            onClick={(e) => {
               e.stopPropagation();
-              openMenuFor(f.name, e.currentTarget as HTMLElement);
-            }
-          }}
-        >
-          ⋯
-        </span>
+              openMenuFor(f.name, e.target as HTMLElement);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                openMenuFor(f.name, e.currentTarget as HTMLElement);
+              }
+            }}
+          >
+            ⋯
+          </span>
+        )}
       </div>
     );
   }
@@ -843,6 +852,9 @@ export function DesignFilesPanel({
     ev.preventDefault();
     dragDepthRef.current = 0;
     setDraggingFiles(false);
+    // Read-only viewer of a shared project: dropping files is a mutation, so
+    // ignore the drop entirely (the drag affordance is also suppressed below).
+    if (viewerOnly) return;
     setDropReadError(null);
     try {
       const dropped = await filesFromDataTransfer(ev.dataTransfer);
@@ -881,7 +893,7 @@ export function DesignFilesPanel({
     }
   }
 
-  const fileActions = (
+  const fileActions = viewerOnly ? null : (
     <div className="df-actions">
       {LIBRARY_UI_VISIBLE && onSelectFromLibrary ? (
         <button
@@ -1031,6 +1043,7 @@ export function DesignFilesPanel({
           className="df-body"
           onDragEnter={(ev) => {
             ev.preventDefault();
+            if (viewerOnly) return; // no "drop to upload" hint in read-only
             dragDepthRef.current += 1;
             setDraggingFiles(true);
           }}
@@ -1087,16 +1100,18 @@ export function DesignFilesPanel({
                   <Icon name="download" size={13} />
                   <span>{t('designFiles.download')}</span>
                 </button>
-                <button
-                  type="button"
-                  className="danger"
-                  data-testid="design-files-batch-delete"
-                  disabled={deleting}
-                  onClick={() => void handleBatchDelete()}
-                  title={t('designFiles.deleteSelected', { n: selected.size })}
-                >
-                  <span>{t('designFiles.delete')}</span>
-                </button>
+                {viewerOnly ? null : (
+                  <button
+                    type="button"
+                    className="danger"
+                    data-testid="design-files-batch-delete"
+                    disabled={deleting}
+                    onClick={() => void handleBatchDelete()}
+                    title={t('designFiles.deleteSelected', { n: selected.size })}
+                  >
+                    <span>{t('designFiles.delete')}</span>
+                  </button>
+                )}
                 <button type="button" className="df-batch-clear" onClick={clearSelection}>
                   {t('designFiles.clearSelection')}
                 </button>
@@ -1109,6 +1124,7 @@ export function DesignFilesPanel({
                 <span className="df-empty-title">
                   {t('designFiles.empty')}
                 </span>
+                {viewerOnly ? null : (
                 <div className="df-empty-actions">
                   <button
                     type="button"
@@ -1144,6 +1160,7 @@ export function DesignFilesPanel({
                     <span>{t('designFiles.paste.label')}</span>
                   </button>
                 </div>
+                )}
               </div>
             </div>
           ) : (
