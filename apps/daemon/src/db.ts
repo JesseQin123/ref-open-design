@@ -13,6 +13,7 @@ import { migrateCritique } from './critique/persistence.js';
 import { migrateMediaTasks } from './media/tasks.js';
 import { migrateLibrary } from './library-store.js';
 import { migratePlugins } from './plugins/persistence.js';
+import { migrateResourceSharing } from './resource-sharing/store.js';
 
 type SqliteDb = Database.Database;
 type DbRow = Record<string, any>;
@@ -395,6 +396,7 @@ function migrate(db: SqliteDb): void {
   migrateMediaTasks(db);
   migrateLibrary(db);
   migratePlugins(db);
+  migrateResourceSharing(db);
 }
 
 function migratePreviewCommentsSlideKey(db: SqliteDb): void {

@@ -9,9 +9,13 @@
 // principal is an open topology decision (services/api authenticates the daemon
 // and resolves the principal, vs internal-token forwarding). It currently
 // attaches whatever env-configured credentials it has; swapping schemes changes
-// only buildAuthHeaders. Shared DTOs will move to @open-design/contracts once
-// the platform publishes the canonical resource contracts; the local types
-// below are provisional.
+// only buildAuthHeaders. Hub-only request shapes stay local until the platform
+// publishes canonical resource contracts.
+
+import type {
+  PublicSnapshotResponse,
+  ResourceSnapshotRecord,
+} from '@open-design/contracts';
 
 const DEFAULT_RESOURCE_HUB_URL = 'http://127.0.0.1:18080';
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
@@ -124,6 +128,12 @@ export function readResourceHubConfig(
   const baseUrl = env.OD_RESOURCE_HUB_URL?.trim() || DEFAULT_RESOURCE_HUB_URL;
   const internalToken = env.OD_RESOURCE_HUB_TOKEN?.trim() || null;
   return { baseUrl, internalToken };
+}
+
+export function hasExplicitResourceHubConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return Boolean(env.OD_RESOURCE_HUB_URL?.trim());
 }
 
 // Provisional principal source. Real sourcing joins the signed-in Vela identity
@@ -396,6 +406,47 @@ export function createResourceHubClient(options: ResourceHubClientOptions = {}) 
         );
       }
       return new Uint8Array(await response.arrayBuffer());
+    },
+
+    // Publish a version as a public snapshot (authed; owner-gating is enforced
+    // server-side by the hub). Returns the opaque public slug.
+    async publishSnapshot(
+      principal: ResourceHubPrincipal,
+      resourceId: string,
+      input: { name: string; ref?: string; versionId?: string },
+    ): Promise<ResourceSnapshotRecord> {
+      return request<ResourceSnapshotRecord>(
+        principal,
+        'POST',
+        `/api/v1/resources/${encodeURIComponent(resourceId)}/snapshots`,
+        input,
+      );
+    },
+
+    // Read a public snapshot by slug. Carries NO principal/token — this
+    // faithfully exercises the hub's unauthenticated public plane.
+    async getPublicSnapshot(slug: string): Promise<PublicSnapshotResponse> {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetchImpl(
+          new URL(
+            `/api/v1/public/snapshots/${encodeURIComponent(slug)}`,
+            config.baseUrl,
+          ),
+          { method: 'GET', signal: controller.signal },
+        );
+        const text = await response.text();
+        const payload = text ? JSON.parse(text) : {};
+        if (!response.ok) {
+          const code =
+            typeof payload?.error === 'string' ? payload.error : 'unknown';
+          throw new ResourceHubError(response.status, code, payload?.message);
+        }
+        return payload as PublicSnapshotResponse;
+      } finally {
+        clearTimeout(timeout);
+      }
     },
   };
 }
