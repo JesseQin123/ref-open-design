@@ -31,8 +31,10 @@ export interface CreateTeamResourceShareOptions {
   kind: string;
   /** Colon-free id-namespace prefix distinguishing this kind on the shared hub. */
   idPrefix: string;
-  /** Resolve a resource's source directory (what gets packed and pushed). */
-  resolveDir: (resourceId: string) => string;
+  /** Resolve a resource's source directory (what gets packed and pushed). May be
+   *  async: the skill resolver awaits the skill index, and the publish adapter
+   *  awaits this before packing. */
+  resolveDir: (resourceId: string) => string | Promise<string>;
   /** Resolve the current principal (null = no team identity → share no-ops). */
   getPrincipal: () => ResourceHubPrincipal | null | Promise<ResourceHubPrincipal | null>;
   /** Injectable client for tests; built from env when omitted. */
