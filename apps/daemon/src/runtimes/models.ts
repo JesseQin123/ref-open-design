@@ -20,7 +20,16 @@ function liveModelCacheKey(agentId: string, scope?: string | null): string {
 
 export function rememberLiveModels(agentId: string, models: RuntimeModelOption[], scope?: string | null) {
   if (!Array.isArray(models)) return;
-  const ids = models
+  const orderedModels = [...models].sort((a, b) => {
+    const aDisabled = a?.enabled === false;
+    const bDisabled = b?.enabled === false;
+    if (aDisabled !== bDisabled) return aDisabled ? 1 : -1;
+    const aDefault = a?.default === true;
+    const bDefault = b?.default === true;
+    if (aDefault !== bDefault) return aDefault ? -1 : 1;
+    return 0;
+  });
+  const ids = orderedModels
     .map((m) => m && m.id)
     .filter((id) => typeof id === 'string');
   const key = liveModelCacheKey(agentId, scope);
@@ -29,6 +38,14 @@ export function rememberLiveModels(agentId: string, models: RuntimeModelOption[]
     new Set(ids),
   );
   liveModelOrder.set(key, ids);
+}
+
+export function resolveDefaultModelFromOptions(
+  models: RuntimeModelOption[],
+): string | null {
+  const candidates = models.filter((model) => model?.id && model.enabled !== false);
+  const defaultModel = candidates.find((model) => model.default === true);
+  return defaultModel?.id ?? candidates[0]?.id ?? null;
 }
 
 export function getRememberedLiveModels(agentId: string, scope?: string | null): RuntimeModelOption[] {
@@ -81,12 +98,11 @@ export function resolveModelForAgent(
   }
   const fallbacks = Array.isArray(def.fallbackModels) ? def.fallbackModels : [];
   if (fallbacks.some((m) => m.id === 'default')) return resolved;
-  const liveModels = liveModelOrder.get(liveModelCacheKey(def.id, liveModelScope)) ?? [];
-  const firstLive = liveModels[0];
-  if (firstLive) return firstLive;
+  const liveModels = getRememberedLiveModels(def.id, liveModelScope);
+  const defaultLive = resolveDefaultModelFromOptions(liveModels);
+  if (defaultLive) return defaultLive;
   if (fallbacks.length === 0) return resolved;
-  const firstFallback = fallbacks[0];
-  return firstFallback ? firstFallback.id : resolved;
+  return resolveDefaultModelFromOptions(fallbacks) ?? resolved;
 }
 
 // Permit user-typed model ids that didn't appear in either the live

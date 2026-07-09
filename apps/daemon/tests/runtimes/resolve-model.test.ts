@@ -22,6 +22,7 @@ import {
   isKnownModel,
   preferFreshLiveModels,
   rememberLiveModels,
+  resolveDefaultModelFromOptions,
   resolveModelForAgent,
 } from '../../src/runtimes/models.js';
 import type { RuntimeAgentDef } from '../../src/runtimes/types.js';
@@ -71,6 +72,35 @@ describe('resolveModelForAgent', () => {
     ]);
   });
 
+  it('prefers an enabled default remembered model over a disabled first catalog entry', () => {
+    const def = defWithId('amr-disabled-default-test', []);
+    rememberLiveModels(def.id, [
+      { id: 'locked-upgrade-model', label: 'Locked', enabled: false },
+      { id: 'enabled-default-model', label: 'Enabled default', enabled: true, default: true },
+      { id: 'enabled-model', label: 'Enabled', enabled: true },
+    ]);
+
+    expect(resolveModelForAgent(def, null)).toBe('enabled-default-model');
+    expect(resolveModelForAgent(def, 'default')).toBe('enabled-default-model');
+    expect(isKnownModel(def, 'locked-upgrade-model')).toBe(true);
+    expect(getRememberedLiveModels(def.id)).toEqual([
+      { id: 'enabled-default-model', label: 'enabled-default-model' },
+      { id: 'enabled-model', label: 'enabled-model' },
+      { id: 'locked-upgrade-model', label: 'locked-upgrade-model' },
+    ]);
+  });
+
+  it('uses the first enabled remembered model when no enabled model is marked default', () => {
+    const def = defWithId('amr-disabled-first-test', []);
+    rememberLiveModels(def.id, [
+      { id: 'locked-upgrade-model', label: 'Locked', enabled: false },
+      { id: 'enabled-model', label: 'Enabled', enabled: true },
+    ]);
+
+    expect(resolveModelForAgent(def, null)).toBe('enabled-model');
+    expect(resolveModelForAgent(def, 'default')).toBe('enabled-model');
+  });
+
   it('isolates remembered AMR live models by environment profile scope', () => {
     const def = defWithId('amr', []);
     rememberLiveModels(def.id, [
@@ -101,6 +131,21 @@ describe('resolveModelForAgent', () => {
 
     expect(preferFreshLiveModels(fresh, remembered)).toEqual(fresh);
     expect(preferFreshLiveModels([], remembered)).toEqual(remembered);
+  });
+
+  it('resolves fresh default candidates from enabled models only', () => {
+    expect(resolveDefaultModelFromOptions([
+      { id: 'locked-upgrade-model', label: 'Locked', enabled: false, default: true },
+      { id: 'enabled-default-model', label: 'Enabled default', enabled: true, default: true },
+      { id: 'enabled-model', label: 'Enabled', enabled: true },
+    ])).toBe('enabled-default-model');
+    expect(resolveDefaultModelFromOptions([
+      { id: 'locked-upgrade-model', label: 'Locked', enabled: false },
+      { id: 'enabled-model', label: 'Enabled' },
+    ])).toBe('enabled-model');
+    expect(resolveDefaultModelFromOptions([
+      { id: 'locked-upgrade-model', label: 'Locked', enabled: false, default: true },
+    ])).toBeNull();
   });
 
   it('keeps common default-capable defs untouched even when live models are remembered', () => {
