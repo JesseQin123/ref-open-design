@@ -522,7 +522,7 @@ export const id: Dict = {
   'settings.privacyHint': 'Data apa yang dibagikan kepada tim Open Design',
   'settings.privacyConsentKicker': 'Bantu kami meningkatkan Open Design',
   'settings.privacyConsentLead': 'Open Design dapat membagikan data penggunaan kepada tim kami untuk membantu peningkatan. Ini mencakup:',
-  'settings.privacyConsentFooter': 'Anda dapat mengubah opsi ini kapan saja di Settings → Privacy.',
+  'settings.privacyConsentFooter': 'Membagikan data ini membantu kami menemukan crash, permintaan lambat, dan kegagalan umum lebih cepat. Anda dapat mengubah opsi ini kapan saja di Settings → Privacy.',
   'settings.privacyConsentShare': 'Bagikan',
   'settings.privacyConsentDecline': 'Jangan bagikan',
   'settings.privacyConsentAccept': 'Saya mengerti',

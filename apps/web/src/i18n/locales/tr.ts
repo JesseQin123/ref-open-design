@@ -522,7 +522,7 @@ export const tr: Dict = {
   'settings.privacyHint': 'Open Design ekibiyle hangi veriler paylaşılır',
   'settings.privacyConsentKicker': 'Open Design\'ı geliştirmemize yardımcı olun',
   'settings.privacyConsentLead': 'Open Design, geliştirmemize yardımcı olmak için kullanım verilerini ekibimizle paylaşabilir. Buna şunlar dahildir:',
-  'settings.privacyConsentFooter': 'Bu seçenekleri istediğiniz zaman Ayarlar → Gizlilik bölümünden değiştirebilirsiniz.',
+  'settings.privacyConsentFooter': 'Bu verileri paylaşmak çökmeleri, yavaş istekleri ve yaygın hataları daha hızlı bulmamıza yardımcı olur. Bu seçenekleri istediğiniz zaman Ayarlar → Gizlilik bölümünden değiştirebilirsiniz.',
   'settings.privacyConsentShare': 'Paylaş',
   'settings.privacyConsentDecline': 'Paylaşma',
   'settings.privacyConsentAccept': 'Anladım',

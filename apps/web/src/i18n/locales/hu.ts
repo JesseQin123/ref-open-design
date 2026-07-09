@@ -522,7 +522,7 @@ export const hu: Dict = {
   'settings.privacyHint': 'Milyen adatokat osztunk meg az Open Design csapatával',
   'settings.privacyConsentKicker': 'Segíts jobbá tenni az Open Design alkalmazást',
   'settings.privacyConsentLead': 'Az Open Design megoszthat használati adatokat a csapatunkkal, hogy segítsen a fejlesztésben. Ez magában foglalja:',
-  'settings.privacyConsentFooter': 'Ezeket bármikor módosíthatod a Beállítások → Adatvédelem menüben.',
+  'settings.privacyConsentFooter': 'Ezeknek az adatoknak a megosztása segít gyorsabban megtalálni az összeomlásokat, lassú kéréseket és gyakori hibákat. Ezeket bármikor módosíthatod a Beállítások → Adatvédelem menüben.',
   'settings.privacyConsentShare': 'Megosztás',
   'settings.privacyConsentDecline': 'Ne ossza meg',
   'settings.privacyConsentAccept': 'Értem',

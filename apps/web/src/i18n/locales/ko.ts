@@ -522,7 +522,7 @@ export const ko: Dict = {
   'settings.privacyHint': 'Open Design 팀과 공유되는 데이터',
   'settings.privacyConsentKicker': 'Open Design 개선에 참여하기',
   'settings.privacyConsentLead': 'Open Design은 제품 개선을 위해 사용 데이터를 팀과 공유할 수 있습니다. 여기에는 다음이 포함됩니다:',
-  'settings.privacyConsentFooter': '설정 → 개인정보 보호에서 언제든지 이 옵션을 변경할 수 있습니다.',
+  'settings.privacyConsentFooter': '이 데이터를 공유하면 충돌, 느린 요청, 자주 발생하는 실패를 더 빠르게 찾을 수 있습니다. 설정 → 개인정보 보호에서 언제든지 이 옵션을 변경할 수 있습니다.',
   'settings.privacyConsentShare': '공유',
   'settings.privacyConsentDecline': '공유 안 함',
   'settings.privacyConsentAccept': '이해했어요',

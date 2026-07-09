@@ -522,7 +522,7 @@ export const fa: Dict = {
   'settings.privacyHint': 'چه داده‌هایی با تیم Open Design به اشتراک گذاشته می‌شود',
   'settings.privacyConsentKicker': 'به ما در بهبود Open Design کمک کنید',
   'settings.privacyConsentLead': 'Open Design می‌تواند داده‌های استفاده را با تیم ما به اشتراک بگذارد تا به بهبود کمک کند. این شامل موارد زیر است:',
-  'settings.privacyConsentFooter': 'می‌توانید این گزینه‌ها را هر زمان در Settings ← Privacy تغییر دهید.',
+  'settings.privacyConsentFooter': 'اشتراک‌گذاری این داده‌ها به ما کمک می‌کند خرابی‌ها، درخواست‌های کند و خطاهای رایج را سریع‌تر پیدا کنیم. می‌توانید این گزینه‌ها را هر زمان در Settings ← Privacy تغییر دهید.',
   'settings.privacyConsentShare': 'اشتراک‌گذاری',
   'settings.privacyConsentDecline': 'اشتراک‌گذاری نکن',
   'settings.privacyConsentAccept': 'متوجه شدم',

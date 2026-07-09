@@ -33,7 +33,8 @@ describe('PrivacyConsentModal', () => {
 
   it('tells the user choices are changeable in Settings', () => {
     renderModal();
-    const footer = screen.getByText(/You can change these any time/i);
+    const footer = screen.getByText(/Sharing this data helps us find crashes/i);
+    expect(footer.textContent ?? '').toMatch(/You can change these any time/i);
     expect(footer.textContent ?? '').toMatch(/Settings/);
     expect(footer.textContent ?? '').toMatch(/Privacy/);
   });

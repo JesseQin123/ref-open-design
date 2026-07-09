@@ -522,7 +522,7 @@ export const it: Dict = {
   'settings.privacyHint': 'Quali dati vengono condivisi con il team di Open Design',
   'settings.privacyConsentKicker': 'Aiutaci a migliorare Open Design',
   'settings.privacyConsentLead': 'Open Design può condividere dati di utilizzo con il nostro team per aiutarci a migliorare. Questo include:',
-  'settings.privacyConsentFooter': 'Puoi modificare queste opzioni in qualsiasi momento in Impostazioni → Privacy.',
+  'settings.privacyConsentFooter': 'Condividere questi dati ci aiuta a individuare più rapidamente arresti anomali, richieste lente ed errori comuni. Puoi modificare queste opzioni in qualsiasi momento in Impostazioni → Privacy.',
   'settings.privacyConsentShare': 'Condividi',
   'settings.privacyConsentDecline': 'Non condividere',
   'settings.privacyConsentAccept': 'Ho capito',

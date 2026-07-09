@@ -522,7 +522,7 @@ export const ar: Dict = {
   'settings.privacyHint': 'البيانات التي تتم مشاركتها مع فريق Open Design',
   'settings.privacyConsentKicker': 'ساعدنا في تحسين Open Design',
   'settings.privacyConsentLead': 'يمكن لـ Open Design مشاركة بيانات الاستخدام مع فريقنا لمساعدتنا على التحسين. يشمل ذلك:',
-  'settings.privacyConsentFooter': 'يمكنك تغيير هذه الخيارات في أي وقت من الإعدادات ← الخصوصية.',
+  'settings.privacyConsentFooter': 'تساعدنا مشاركة هذه البيانات في اكتشاف الأعطال والطلبات البطيئة والإخفاقات الشائعة بشكل أسرع. يمكنك تغيير هذه الخيارات في أي وقت من الإعدادات ← الخصوصية.',
   'settings.privacyConsentShare': 'مشاركة',
   'settings.privacyConsentDecline': 'عدم المشاركة',
   'settings.privacyConsentAccept': 'فهمت',

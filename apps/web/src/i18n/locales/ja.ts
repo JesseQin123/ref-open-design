@@ -522,7 +522,7 @@ export const ja: Dict = {
   'settings.privacyHint': 'Open Design チームと共有されるデータ',
   'settings.privacyConsentKicker': 'Open Design の改善にご協力ください',
   'settings.privacyConsentLead': 'Open Design は、改善のために使用状況データをチームと共有できます。これには次の内容が含まれます:',
-  'settings.privacyConsentFooter': 'これらはいつでも 設定 → プライバシー で変更できます。',
+  'settings.privacyConsentFooter': 'このデータを共有すると、クラッシュ、遅いリクエスト、よくある失敗をより早く見つけられます。これらはいつでも 設定 → プライバシー で変更できます。',
   'settings.privacyConsentShare': '共有',
   'settings.privacyConsentDecline': '共有しない',
   'settings.privacyConsentAccept': '了解しました',

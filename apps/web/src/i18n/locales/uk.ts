@@ -522,7 +522,7 @@ export const uk: Dict = {
   'settings.privacyHint': 'Якими даними ми ділимося з командою Open Design',
   'settings.privacyConsentKicker': 'Допоможіть нам покращити Open Design',
   'settings.privacyConsentLead': 'Open Design може ділитися даними про використання з нашою командою, щоб допомогти нам ставати кращими. Сюди входять:',
-  'settings.privacyConsentFooter': 'Ви можете будь-коли змінити ці параметри в розділі Налаштування → Конфіденційність.',
+  'settings.privacyConsentFooter': 'Передавання цих даних допомагає нам швидше знаходити збої, повільні запити та поширені помилки. Ви можете будь-коли змінити ці параметри в розділі Налаштування → Конфіденційність.',
   'settings.privacyConsentShare': 'Поділитися',
   'settings.privacyConsentDecline': 'Не ділитися',
   'settings.privacyConsentAccept': 'Зрозуміло',

@@ -82,6 +82,7 @@ describe('PrivacySection', () => {
       .toBe('true');
     expect(screen.getByRole('button', { name: /Conversation and tool content/ }).getAttribute('aria-pressed'))
       .toBe('true');
+    expect(screen.getByText(/Sharing this data helps us find crashes/i)).toBeTruthy();
   });
 
   it('shows the decline choice and telemetry toggles as off when sharing is disabled', () => {

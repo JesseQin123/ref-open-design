@@ -522,7 +522,7 @@ export const ru: Dict = {
   'settings.privacyHint': 'Какие данные передаются команде Open Design',
   'settings.privacyConsentKicker': 'Помогите нам улучшить Open Design',
   'settings.privacyConsentLead': 'Open Design может передавать данные об использовании нашей команде, чтобы помочь нам стать лучше. Сюда входят:',
-  'settings.privacyConsentFooter': 'Эти параметры можно изменить в любой момент в разделе «Настройки → Конфиденциальность».',
+  'settings.privacyConsentFooter': 'Передача этих данных помогает нам быстрее находить сбои, медленные запросы и частые ошибки. Эти параметры можно изменить в любой момент в разделе «Настройки → Конфиденциальность».',
   'settings.privacyConsentShare': 'Поделиться',
   'settings.privacyConsentDecline': 'Не передавать',
   'settings.privacyConsentAccept': 'Понятно',

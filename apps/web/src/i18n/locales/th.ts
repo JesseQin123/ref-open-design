@@ -522,7 +522,7 @@ export const th: Dict = {
   'settings.privacyHint': 'ข้อมูลที่แชร์กับทีม Open Design',
   'settings.privacyConsentKicker': 'ช่วยเราพัฒนา Open Design',
   'settings.privacyConsentLead': 'Open Design สามารถแชร์ข้อมูลการใช้งานกับทีมของเราเพื่อช่วยพัฒนา ซึ่งรวมถึง:',
-  'settings.privacyConsentFooter': 'คุณสามารถเปลี่ยนตัวเลือกเหล่านี้ได้ทุกเมื่อใน การตั้งค่า → ความเป็นส่วนตัว',
+  'settings.privacyConsentFooter': 'การแชร์ข้อมูลนี้ช่วยให้เราพบแครช คำขอที่ช้า และข้อผิดพลาดที่พบบ่อยได้เร็วขึ้น คุณสามารถเปลี่ยนตัวเลือกเหล่านี้ได้ทุกเมื่อใน การตั้งค่า → ความเป็นส่วนตัว',
   'settings.privacyConsentShare': 'แชร์',
   'settings.privacyConsentDecline': 'ไม่แชร์',
   'settings.privacyConsentAccept': 'เข้าใจแล้ว',
