@@ -2404,23 +2404,19 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
     try {
       // Crash-loop breaker open: park on the crash screen instead of reloading a
       // deterministically-crashing renderer. Re-arm once the cooldown has
-      // elapsed with no further crash, then actively recover — clear the HTTP +
-      // V8 code caches (the most common recoverable cause is a corrupt cached
-      // bundle / shader, and this is non-destructive: no cookies or storage) and
-      // fall through for one reload attempt.
+      // elapsed with no further crash, then fall through for one reload attempt.
+      // The retry is intentionally PASSIVE: mutating a wedged device's state
+      // (clearing caches/storage) on every cooldown risked amplifying the churn
+      // without helping a GPU/V8-CHECK crash, so we only stop the loop and let a
+      // transient fault clear on its own. The attempt is still logged + counted
+      // so the recovery is observable.
       if (rendererCrashLoop.isOpen()) {
         if (rendererCrashLoop.rearmIfCooledDown(Date.now())) {
           rendererRecoveryAttempts += 1;
           console.info(
-            "[open-design desktop] renderer crash-loop cooldown elapsed — clearing caches and attempting recovery reload",
+            "[open-design desktop] renderer crash-loop cooldown elapsed — attempting recovery reload",
             { attempt: rendererRecoveryAttempts },
           );
-          try {
-            await window.webContents.session.clearCache();
-            await window.webContents.session.clearCodeCaches({});
-          } catch {
-            // Best-effort: a failed cache clear must not block the reload attempt.
-          }
           void reportRendererCrash(options, {
             reason: "recovery-attempt",
             exit_code: null,
