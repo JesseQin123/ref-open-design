@@ -92,6 +92,11 @@ describe('workspace project routes', () => {
         workspaceId,
       },
     });
+    const batchShareStatus = await fetch(`${baseUrl}/api/projects/${moveProjectId}/collab/status`);
+    expect(batchShareStatus.status).toBe(200);
+    const batchShare = await batchShareStatus.json() as { syncState: string; ownerMemberId: string | null };
+    expect(['pending_upload', 'synced']).toContain(batchShare.syncState);
+    expect(batchShare.ownerMemberId).toBe('member-direct');
 
     const moveBackResp = await fetch(`${baseUrl}/api/workspaces/${workspaceId}/projects/${moveProjectId}/move`, {
       method: 'POST',
@@ -166,6 +171,11 @@ describe('workspace project routes', () => {
       body: JSON.stringify({ visibility: 'team' }),
     });
     expect(moveToTeam.status).toBe(200);
+    const shareStatus = await fetch(`${baseUrl}/api/projects/${projectId}/collab/status`);
+    expect(shareStatus.status).toBe(200);
+    const share = await shareStatus.json() as { syncState: string; ownerMemberId: string | null };
+    expect(['pending_upload', 'synced']).toContain(share.syncState);
+    expect(share.ownerMemberId).toBe('member-frozen');
 
     const lockedList = await fetch(`${baseUrl}/api/workspaces/${workspaceId}/projects?view=team`, {
       headers: headers('member-frozen', { 'x-od-workspace-lifecycle-state': 'locked' }),

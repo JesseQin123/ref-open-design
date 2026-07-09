@@ -54,7 +54,13 @@ import { auditDesignSystemPackage } from '../../tools-connectors-cli.js';
 import { parseOrchestratorWorkspace } from '../../workspace-contract.js';
 import { registerProjectConversationRoutes } from './conversations.js';
 
-export interface RegisterProjectRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'paths' | 'projectStore' | 'projectFiles' | 'conversations' | 'templates' | 'status' | 'events' | 'ids' | 'telemetry' | 'appConfig' | 'agents' | 'validation'> {}
+interface ProjectCollabRuntime {
+  requestTeamShare(projectId: string, ownerMemberId?: string): void;
+}
+
+export interface RegisterProjectRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'paths' | 'projectStore' | 'projectFiles' | 'conversations' | 'templates' | 'status' | 'events' | 'ids' | 'telemetry' | 'appConfig' | 'agents' | 'validation'> {
+  collab?: ProjectCollabRuntime;
+}
 
 function projectDetailResolvedDir(
   projectsRoot: string,
@@ -1147,6 +1153,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
   const { subscribeFileEvents, activeProjectEventSinks } = ctx.events;
   const { randomId } = ctx.ids;
   const { validateProjectDesignSystemId, validateProjectSkillId } = ctx.validation;
+  const projectCollab = ctx.collab;
   type WorkspaceProjectContext = {
     workspaceId: string;
     appUserId: string;
@@ -1622,6 +1629,12 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     if (targetVisibility === 'team') return summary.currentUserAccess.canMoveToTeam;
     return summary.currentUserAccess.canMoveToPersonal;
   }
+  function requestTeamShares(projectIds: string[], ctx: WorkspaceProjectContext, visibility: 'personal' | 'team') {
+    if (visibility !== 'team') return;
+    for (const projectId of projectIds) {
+      projectCollab?.requestTeamShare(projectId, ctx.workspaceMemberId);
+    }
+  }
 
   app.post('/api/workspaces/:workspaceId/projects/:projectId/move', async (req, res) => {
     try {
@@ -1647,6 +1660,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         cloudTombstonedAt: visibility === 'team' ? null : Date.now(),
         syncState: visibility === 'team' ? 'pending_upload' : 'local_only',
       });
+      requestTeamShares([project.id], ctx, visibility);
       const updatedRow = listWorkspaceProjects(db, ctx.workspaceId).find((item: any) => item.id === project.id);
       res.json({ project: normalizeWorkspaceProjectRow(updatedRow, ctx) });
     } catch (err: any) {
@@ -1685,6 +1699,7 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
         }
       });
       moveMany(projectIds);
+      requestTeamShares(projectIds, ctx, visibility);
       const updatedRows = listWorkspaceProjects(db, ctx.workspaceId);
       const projects = projectIds.map((id: string) => normalizeWorkspaceProjectRow(updatedRows.find((row: any) => row.id === id), ctx));
       res.json({ ok: true, projects });

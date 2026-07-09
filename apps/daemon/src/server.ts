@@ -4349,6 +4349,7 @@ export async function startServer({
     appConfig: appConfigDeps,
     agents: agentDeps,
     validation: validationDeps,
+    collab,
   });
   registerTerminalRoutes(app, {
     db,
