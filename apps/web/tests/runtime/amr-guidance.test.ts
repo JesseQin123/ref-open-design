@@ -189,7 +189,7 @@ describe('resolveRunFailureUi', () => {
   });
 
   it('offers upgrade + manual retry for an AMR tier entitlement failure', () => {
-    const ui = resolveRunFailureUi('AMR_TIER_UPGRADE_REQUIRED', 'amr');
+    const ui = resolveRunFailureUi('AMR_TIER_UPGRADE_REQUIRED', null, 'amr');
     expect(ui).toMatchObject({
       primaryAction: 'upgrade',
       titleKey: 'chat.amrBalanceGate.title',
