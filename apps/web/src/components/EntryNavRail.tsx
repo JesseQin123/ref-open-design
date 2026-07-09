@@ -306,6 +306,24 @@ export function EntryNavRail({
           </>
         ) : (
           <>
+            <NavButton
+              active={view === 'projects'}
+              ariaLabel={t('entry.navProjects')}
+              tooltip={t('entry.navProjects')}
+              onClick={() => selectView('projects')}
+              testId="entry-nav-projects"
+            >
+              <Icon name="folder" size={18} />
+            </NavButton>
+            <NavButton
+              active={view === 'tasks'}
+              ariaLabel={t('entry.navTasks')}
+              tooltip={t('entry.navTasks')}
+              onClick={() => selectView('tasks')}
+              testId="entry-nav-tasks"
+            >
+              <Icon name="check" size={18} />
+            </NavButton>
             <div className={styles.divider} aria-hidden />
             <NavButton
               active={view === 'design-systems'}
@@ -324,6 +342,15 @@ export function EntryNavRail({
               testId="entry-nav-plugins"
             >
               <Icon name="grid" size={18} />
+            </NavButton>
+            <NavButton
+              active={view === 'integrations'}
+              ariaLabel={t('entry.navIntegrations')}
+              tooltip={t('entry.navIntegrations')}
+              onClick={() => selectView('integrations')}
+              testId="entry-nav-integrations"
+            >
+              <Icon name="integrations-filled" size={18} />
             </NavButton>
             <button
               type="button"
