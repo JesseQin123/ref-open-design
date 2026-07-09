@@ -219,34 +219,79 @@ describe('web updater model', () => {
   });
 
   it('keeps the downloaded installer visible without surfacing newer incoming progress', () => {
-    const model = deriveUpdaterModel(
-      downloadedStatus({
-        incoming: {
-          arch: 'arm64',
-          artifact: {
-            name: 'Open Design Beta 1.2.3-beta.5.dmg',
-            platformKey: 'macAppleSilicon',
-            type: 'dmg',
-            url: 'https://fixture.test/Open Design Beta 1.2.3-beta.5.dmg',
-          },
-          channel: 'beta',
-          key: '1.2.3-beta.5-mac-arm64',
-          progress: {
-            receivedBytes: 64,
-            totalBytes: 256,
-          },
-          startedAt: '2026-05-19T00:00:00.000Z',
-          version: '1.2.3-beta.5',
+    const status = downloadedStatus({
+      active: {
+        arch: 'arm64',
+        artifact: {
+          name: 'Open Design Beta 1.2.3-beta.4.dmg',
+          platformKey: 'macAppleSilicon',
+          type: 'dmg',
+          url: 'https://fixture.test/Open Design Beta 1.2.3-beta.4.dmg',
         },
-        state: 'downloaded',
-      }),
-      { hostAvailable: true },
-    );
+        checksum: {
+          algorithm: 'sha256',
+          value: 'active-checksum',
+        },
+        channel: 'beta',
+        downloadedAt: '2026-05-19T00:00:00.000Z',
+        key: '1.2.3-beta.4-mac-arm64',
+        metadata: {
+          releaseNotes: {
+            jumpTo: {
+              kind: 'external',
+              url: 'https://releases.example.test/beta/versions/1.2.3-beta.4/details',
+            },
+          },
+        },
+        path: '/tmp/open-design-updater/Open Design Beta.dmg',
+        platformKey: 'macAppleSilicon',
+        version: '1.2.3-beta.4',
+      },
+      incoming: {
+        arch: 'arm64',
+        artifact: {
+          name: 'Open Design Beta 1.2.3-beta.5.dmg',
+          platformKey: 'macAppleSilicon',
+          type: 'dmg',
+          url: 'https://fixture.test/Open Design Beta 1.2.3-beta.5.dmg',
+        },
+        channel: 'beta',
+        key: '1.2.3-beta.5-mac-arm64',
+        metadata: {
+          releaseNotes: {
+            jumpTo: {
+              kind: 'external',
+              url: 'https://releases.example.test/beta/versions/1.2.3-beta.5/details',
+            },
+          },
+        },
+        progress: {
+          receivedBytes: 64,
+          totalBytes: 256,
+        },
+        startedAt: '2026-05-19T00:00:00.000Z',
+        version: '1.2.3-beta.5',
+      },
+      metadata: {
+        releaseNotes: {
+          jumpTo: {
+            kind: 'external',
+            url: 'https://releases.example.test/beta/versions/1.2.3-beta.5/details',
+          },
+        },
+      },
+      state: 'downloaded',
+    });
+    const model = deriveUpdaterModel(status, { hostAvailable: true });
 
     expect(model.busy).toBe(false);
     expect(model.hasDownloadedInstaller).toBe(true);
     expect(model.shouldPrompt).toBe(true);
     expect(model.downloadProgress).toBeNull();
+    expect(releaseNotesJumpToFromStatus(status)).toEqual({
+      kind: 'external',
+      url: 'https://releases.example.test/beta/versions/1.2.3-beta.4/details',
+    });
   });
 
   it('does not keep prompting after the installer has been opened', () => {

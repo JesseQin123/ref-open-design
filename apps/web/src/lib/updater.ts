@@ -105,8 +105,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function metadataFromStatus(status: OpenDesignHostUpdaterStatusSnapshot | null): Record<string, unknown> | null {
-  if (isRecord(status?.metadata)) return status.metadata;
   if (isRecord(status?.active?.metadata)) return status.active.metadata;
+  if (isRecord(status?.metadata)) return status.metadata;
   if (isRecord(status?.incoming?.metadata)) return status.incoming.metadata;
   return null;
 }
