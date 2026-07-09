@@ -146,7 +146,7 @@ describe("renderer crash-loop breaker wiring", () => {
 });
 
 describe("isSupportMailtoUrl", () => {
-  test("allows a mailto strictly to the support address (with or without a query)", () => {
+  test("allows a mailto to the support address carrying only subject/body", () => {
     expect(isSupportMailtoUrl("mailto:support@open-design.ai")).toBe(true);
     expect(isSupportMailtoUrl("mailto:support@open-design.ai?subject=Crash&body=hi")).toBe(true);
     // Address comparison is case-insensitive.
@@ -160,5 +160,15 @@ describe("isSupportMailtoUrl", () => {
     expect(isSupportMailtoUrl("javascript:alert(1)")).toBe(false);
     expect(isSupportMailtoUrl("file:///etc/passwd")).toBe(false);
     expect(isSupportMailtoUrl("not a url")).toBe(false);
+  });
+
+  test("rejects extra recipients/headers smuggled through the query (to/cc/bcc/unknown)", () => {
+    // The address alone passes pathname, so the query must be validated too or a
+    // compromised renderer could add recipients through the open-external bridge.
+    expect(isSupportMailtoUrl("mailto:support@open-design.ai?bcc=attacker@example.com")).toBe(false);
+    expect(isSupportMailtoUrl("mailto:support@open-design.ai?cc=attacker@example.com")).toBe(false);
+    expect(isSupportMailtoUrl("mailto:support@open-design.ai?to=attacker@example.com")).toBe(false);
+    expect(isSupportMailtoUrl("mailto:support@open-design.ai?subject=x&bcc=attacker@example.com")).toBe(false);
+    expect(isSupportMailtoUrl("mailto:support@open-design.ai?whatever=1")).toBe(false);
   });
 });

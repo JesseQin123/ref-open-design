@@ -992,13 +992,23 @@ const CRASH_REPORT_ISSUES_URL = "https://github.com/nexu-io/open-design/issues/n
 const SUPPORT_EMAIL = "support@open-design.ai";
 
 // Narrow allowlist for the crash screen's "Email us" action: only a mailto
-// addressed to our own support address opens, so widening `shell:open-external`
-// past http can't be abused into arbitrary-scheme launches. The ?subject/&body
-// query is ignored for the check (URL parses the address into `pathname`).
+// addressed to our own support address, carrying nothing but the crash-screen's
+// own `subject`/`body`, opens. Validating just protocol+pathname is not enough —
+// `mailto:support@open-design.ai?bcc=attacker@example.com` (or `?to=`/`?cc=`)
+// keeps `pathname === "support@open-design.ai"` yet smuggles extra recipients
+// and headers through to `shell.openExternal`. Because this predicate widens the
+// renderer-exposed `shell:open-external` bridge past http, a compromised
+// renderer could otherwise launch the mail client with arbitrary recipients, so
+// reject any `to`/`cc`/`bcc`/unknown query key.
 export function isSupportMailtoUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "mailto:" && parsed.pathname.toLowerCase() === SUPPORT_EMAIL;
+    if (parsed.protocol !== "mailto:") return false;
+    if (parsed.pathname.toLowerCase() !== SUPPORT_EMAIL) return false;
+    for (const key of parsed.searchParams.keys()) {
+      if (key !== "subject" && key !== "body") return false;
+    }
+    return true;
   } catch {
     return false;
   }
@@ -2571,7 +2581,14 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
         }),
       )
       .catch(() => undefined);
-    if (!window.isVisible()) window.show();
+    // Make the crash screen the revealed, active window and tear down the
+    // splash. Without this, a crash loop that trips DURING startup (before
+    // revealWhenReady() set revealed=true) would leave the splash open, and the
+    // runtime's show() keeps focusing the splash while !revealed — so a user
+    // re-focusing the app during a startup crash loop is sent back to the boot
+    // splash instead of this recovery screen. revealMainWindow() no-ops when the
+    // app already revealed normally (the common crash-after-boot case).
+    revealMainWindow();
   };
 
   const markRendererFailed = () => {
