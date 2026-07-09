@@ -33,6 +33,11 @@ on:
         required: false
         type: string
         default: ""
+      force_latest:
+        description: "Allow this run to move betas latest metadata backward. Use only for release metadata recovery."
+        required: true
+        type: boolean
+        default: false
       release_origin:
         description: "Release storage origin."
         required: true
@@ -192,6 +197,10 @@ on:
         required: false
         type: string
         default: ""
+      force_latest:
+        required: false
+        type: boolean
+        default: false
       release_origin:
         required: false
         type: string
@@ -473,6 +482,7 @@ jobs:
         env:
           GITHUB_REF_NAME: ${{ inputs.ref != '' && inputs.ref || github.ref_name }}
           GITHUB_SHA: ${{ steps.checkout.outputs.commit }}
+          OPEN_DESIGN_RELEASE_FORCE_LATEST: ${{ inputs.force_latest }}
         run: |
           set -euo pipefail
           if ! command -v rehash >/dev/null 2>&1; then
@@ -953,6 +963,7 @@ jobs:
           MAC_ARM64_RESULT: ${{ needs.build_mac_arm64.result }}
           MAC_X64_RESULT: skipped
           RELEASE_LATEST_CAS_REQUIRED: "true"
+          RELEASE_LATEST_FORCE: ${{ inputs.force_latest }}
           RELEASE_ASSET_SUFFIX: auto
           RELEASE_CHANNEL: betas
           RELEASE_MANIFEST_DIR: ${{ runner.temp }}/release-platform-manifests

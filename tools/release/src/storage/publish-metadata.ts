@@ -20,6 +20,8 @@ import {
 } from "@open-design/release";
 import {
   assertStableReleaseNotes,
+  discoverReleaseNotes,
+  readReleaseNotesJumpTo,
   releaseNotesMetadata,
   type ReleaseNotePublishedFile,
 } from "../release-notes.ts";
@@ -74,6 +76,7 @@ const versionLockKey = optional(
   countedReleaseChannel == null ? "" : versionLockObjectKey(releaseVersion, countedReleaseChannel),
 );
 const latestCasRequired = process.env.RELEASE_LATEST_CAS_REQUIRED === "true";
+const latestForce = process.env.RELEASE_LATEST_FORCE === "true";
 const storage = publishSideEffectsEnabled || versionLockRequired ? storageConfigFromEnv() : null;
 
 if (versionLockRequired) {
@@ -173,7 +176,11 @@ async function uploadLatestMetadataWithCas(path: string, objectKey: string): Pro
         throw new Error(`latest metadata is invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
       }
       if (latestReleaseVersion.length > 0 && compareReleaseVersions(latestReleaseVersion, releaseVersion) > 0) {
-        throw new Error(`refusing to move ${releaseChannel} latest backward from ${latestReleaseVersion} to ${releaseVersion}`);
+        if (latestForce) {
+          console.log(`force latest: moving ${releaseChannel} latest backward from ${latestReleaseVersion} to ${releaseVersion}`);
+        } else {
+          throw new Error(`refusing to move ${releaseChannel} latest backward from ${latestReleaseVersion} to ${releaseVersion}`);
+        }
       }
       if (latest.etag.length === 0) {
         throw new Error("latest metadata GET did not return an ETag for CAS update");
@@ -223,9 +230,17 @@ async function publishLatestPlatformObjects(manifests: Record<string, PlatformMa
   }
 }
 
-async function publishStableReleaseNotes(versionPrefix: string): Promise<ReturnType<typeof releaseNotesMetadata> | null> {
-  if (releaseChannel !== "stable") return null;
-  const files = assertStableReleaseNotes(releaseVersion);
+async function publishReleaseNotes(versionPrefix: string): Promise<ReturnType<typeof releaseNotesMetadata> | null> {
+  const files = releaseChannel === "stable" ? assertStableReleaseNotes(releaseVersion) : discoverReleaseNotes(releaseVersion);
+  const jumpTo = readReleaseNotesJumpTo(releaseVersion);
+  if (files.length === 0) {
+    if (jumpTo != null) {
+      throw new Error(`release notes jumpTo requires release note files under docs/CHANGELOG/v${releaseVersion}`);
+    }
+    console.log(`release notes: none found for ${releaseChannel} ${releaseVersion}`);
+    return null;
+  }
+
   const published: ReleaseNotePublishedFile[] = [];
   for (const file of files) {
     const objectKey = `${versionPrefix}/release-notes/${file.name}`;
@@ -240,7 +255,7 @@ async function publishStableReleaseNotes(versionPrefix: string): Promise<ReturnT
       url: publicUrl(publicOrigin, `${versionPrefix}/release-notes`, file.name),
     });
   }
-  return releaseNotesMetadata(releaseVersion, published);
+  return releaseNotesMetadata(releaseVersion, published, jumpTo);
 }
 
 function enabled(name: string): boolean {
@@ -317,7 +332,7 @@ if (assetVersionSuffix === "auto") {
   assetVersionSuffix = allReadyTargetsSigned ? ".signed" : ".unsigned";
 }
 const versionPrefix = optional("RELEASE_VERSION_PREFIX", `${releaseChannel}/versions/${releaseVersion}${assetVersionSuffix}`);
-const releaseNotes = await publishStableReleaseNotes(versionPrefix);
+const releaseNotes = await publishReleaseNotes(versionPrefix);
 
 const latestMetadataUpdated = releaseState === "complete";
 const metadata = {

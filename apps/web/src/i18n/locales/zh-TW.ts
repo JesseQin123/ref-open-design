@@ -3832,6 +3832,8 @@ export const zhTW: Dict = {
   "updater.downloading": "正在下載更新",
   "updater.downloadingPercent": "正在下載更新 {percent}%",
   "updater.done": "完成",
+  "updater.expandDetails": "展開更新詳細資訊",
+  "updater.compactDetails": "顯示精簡更新彈窗",
   "updater.failed": "更新失敗",
   "updater.installerOpenBody":
     "安裝器已開啟。Open Design 正在結束，以便你完成更新。",
@@ -3855,6 +3857,9 @@ export const zhTW: Dict = {
   "updater.readyGeneric": "新版本已就緒。Open Design 會關閉並開啟安裝器。",
   "updater.readyVersion":
     "Open Design {version} 已就緒。Open Design 會關閉並開啟安裝器。",
+  "updater.releaseNotesPreview":
+    "發布說明預覽\n\n此彈窗正在渲染本機常數文字，用於驗證展開後的更新 UI。\n\n安裝操作仍然使用打包版 updater 的交接流程。遠端 HTML 和 Markdown 發布說明暫時有意略過。",
+  "updater.viewFullReleaseNotes": "查看完整發布說明",
   "updater.upToDate": "您已經是最新版本啦",
 
   'designBrowser.copyScreenshot': '複製截圖',

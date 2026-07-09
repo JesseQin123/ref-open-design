@@ -126,6 +126,12 @@ export type ToolPackConfig = {
    * app host on its own, which is correct for the official project.
    */
   posthogCliHost?: string;
+  /**
+   * Release workflows set `RELEASE_PUBLISH_SIDE_EFFECTS=false` for dry-runs.
+   * tools-pack must honor that flag for external build-time publishers such as
+   * PostHog sourcemap upload, while still stripping sourcemaps locally.
+   */
+  publishSideEffectsEnabled?: boolean;
   to: ToolPackBuildOutput;
   webOutputMode: ToolPackWebOutputMode;
   workspaceRoot: string;
@@ -279,6 +285,10 @@ function resolveToolPackUpdateMetadataUrl(value: string | undefined): string | u
   return normalized;
 }
 
+function resolveToolPackPublishSideEffectsEnabled(value: string | undefined): boolean {
+  return value !== "false";
+}
+
 function resolveElectronVersion(workspaceRoot: string): string {
   const require = createRequire(join(workspaceRoot, "apps/desktop/package.json"));
   const desktopPackage = require(join(workspaceRoot, "apps/desktop/package.json")) as {
@@ -365,6 +375,7 @@ export function resolveToolPackConfig(
       process.env.POSTHOG_CLI_PROJECT_ID ?? process.env.POSTHOG_PROJECT_ID,
     ),
     posthogCliHost: resolveToolPackPosthogCliHost(process.env.POSTHOG_CLI_HOST),
+    publishSideEffectsEnabled: resolveToolPackPublishSideEffectsEnabled(process.env.RELEASE_PUBLISH_SIDE_EFFECTS),
     to: resolveToolPackBuildOutput(platform, options.to),
     webOutputMode: resolveToolPackWebOutputMode(platform, process.env.OD_WEB_OUTPUT_MODE),
     workspaceRoot: WORKSPACE_ROOT,

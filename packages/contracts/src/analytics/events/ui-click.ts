@@ -232,8 +232,8 @@ export interface StudioOnboardingHintClickProps {
 export interface UpdateIndicatorClickProps {
   page_name: 'home';
   area: 'update_indicator' | 'update_prompt';
-  element: 'ready_indicator' | 'later' | 'install_update';
-  action: 'open_prompt' | 'dismiss' | 'install';
+  element: 'ready_indicator' | 'later' | 'install_update' | 'release_notes';
+  action: 'open_prompt' | 'dismiss' | 'install' | 'open_link';
   app_version_before?: string;
   app_version_after?: string;
 }
@@ -1561,4 +1561,3 @@ export type UiClickProps =
   | SettingsDesignReviewClickProps
   | SettingsExternalMcpClickProps
   | OnboardingClickProps;
-

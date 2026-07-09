@@ -25,6 +25,7 @@ export type UpdaterFixtureOptions = {
   payloadBody?: Buffer | string;
   payloadPath?: string;
   port?: number;
+  releaseNotesJumpTo?: string;
   releaseNotes?: "none" | "markdown" | "html" | "mixed";
   version?: string;
 };
@@ -41,6 +42,7 @@ export type UpdaterFixtureInfo = {
   payloadSha256: string | null;
   payloadUrl: string | null;
   platform: "mac" | "win";
+  releaseNotesJumpTo: string | null;
   releaseNotes: Record<string, { html?: string; markdown?: string }>;
   sha256: string;
   version: string;
@@ -251,6 +253,17 @@ function fixtureReleaseNotes(mode: UpdaterFixtureOptions["releaseNotes"], versio
   return notes;
 }
 
+function readFixtureHttpsUrl(value: string | undefined): string | null {
+  if (value == null || value.length === 0) return null;
+  try {
+    const parsed = new URL(value.trim());
+    if (parsed.protocol === "https:") return parsed.href;
+  } catch {
+    // Fall through to the shared error below.
+  }
+  throw new Error("--release-notes-jump-to must be an HTTPS URL");
+}
+
 export async function startUpdaterFixtureServer(options: UpdaterFixtureOptions = {}): Promise<UpdaterFixtureServer> {
   const channel = normalizeChannel(options.channel);
   const host = options.host ?? "127.0.0.1";
@@ -298,6 +311,7 @@ export async function startUpdaterFixtureServer(options: UpdaterFixtureOptions =
     ? createHash("sha256").update(payloadBody).digest("hex")
     : await sha256File(options.payloadPath);
   const releaseNoteFiles = fixtureReleaseNotes(options.releaseNotes, version);
+  const releaseNotesJumpTo = readFixtureHttpsUrl(options.releaseNotesJumpTo);
 
   let info: UpdaterFixtureInfo | null = null;
   const server = createServer((request, response) => {
@@ -381,6 +395,9 @@ export async function startUpdaterFixtureServer(options: UpdaterFixtureOptions =
                   ]),
                 ),
                 requiredMarkdownLocales: ["en", "zh-CN"],
+                ...(releaseNotesJumpTo == null
+                  ? {}
+                  : { jumpTo: { kind: "external", url: releaseNotesJumpTo } }),
                 version,
               },
             }
@@ -441,6 +458,7 @@ export async function startUpdaterFixtureServer(options: UpdaterFixtureOptions =
     payloadSha256: includePayload ? payloadSha256 : null,
     payloadUrl,
     platform,
+    releaseNotesJumpTo,
     releaseNotes: Object.fromEntries(
       ["en", "zh-CN"].map((locale) => [
         locale,

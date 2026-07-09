@@ -32,6 +32,11 @@ export type UpdaterReleaseNoteCandidate = {
   url: string;
 };
 
+export type UpdaterReleaseNotesJumpTo = {
+  kind: 'external';
+  url: string;
+};
+
 export type UpdaterActionResult =
   | { ok: true; model: UpdaterModel; status: OpenDesignHostUpdaterStatusSnapshot }
   | OpenDesignHostFailure;
@@ -106,6 +111,17 @@ function metadataFromStatus(status: OpenDesignHostUpdaterStatusSnapshot | null):
   return null;
 }
 
+function readHttpsUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const raw = value.trim();
+  if (raw.length === 0) return null;
+  try {
+    return new URL(raw).protocol === 'https:' ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
 function readReleaseNoteCandidate(
   files: Record<string, unknown>,
   locale: string,
@@ -159,6 +175,17 @@ export function releaseNoteCandidatesFromStatus(
     candidates.push(candidate);
   }
   return candidates;
+}
+
+export function releaseNotesJumpToFromStatus(
+  status: OpenDesignHostUpdaterStatusSnapshot | null,
+): UpdaterReleaseNotesJumpTo | null {
+  const metadata = metadataFromStatus(status);
+  const releaseNotes = isRecord(metadata?.releaseNotes) ? metadata.releaseNotes : null;
+  const jumpTo = isRecord(releaseNotes?.jumpTo) ? releaseNotes.jumpTo : null;
+  const url = readHttpsUrl(jumpTo?.url);
+  if (url == null) return null;
+  return { kind: 'external', url };
 }
 
 export function deriveUpdaterModel(

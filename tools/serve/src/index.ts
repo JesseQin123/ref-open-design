@@ -13,6 +13,7 @@ type CliOptions = {
   port?: string;
   includePayload?: boolean;
   payloadPath?: string;
+  releaseNotesJumpTo?: string;
   releaseNotes?: string;
   version?: string;
 };
@@ -71,6 +72,7 @@ async function start(service: string, options: CliOptions): Promise<void> {
     includePayload: options.includePayload,
     payloadPath: options.payloadPath,
     port: parsePort(options.port),
+    releaseNotesJumpTo: options.releaseNotesJumpTo,
     releaseNotes: parseReleaseNotes(options.releaseNotes),
     version: options.version,
   });
@@ -108,6 +110,7 @@ cli
   .option("--payload-path <path>", "Serve launcher payload bytes from a real archive")
   .option("--platform <platform>", "Updater platform: mac|win", { default: "mac" })
   .option("--port <port>", "Port to bind, 0 for dynamic", { default: "0" })
+  .option("--release-notes-jump-to <url>", "HTTPS URL for release notes deep-link metadata")
   .option("--release-notes <mode>", "Release notes fixture: none|markdown|html|mixed", { default: "none" })
   .option("--version <version>", "Fixture update version", { default: "99.0.0" })
   .action((service: string, options: CliOptions) => {

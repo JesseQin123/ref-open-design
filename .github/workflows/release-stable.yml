@@ -302,6 +302,7 @@ jobs:
     runs-on: macos-14
     env:
       GH_TOKEN: ${{ github.token }}
+      RELEASE_PUBLISH_SIDE_EFFECTS: ${{ needs.metadata.outputs.publish_side_effects_enabled }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -559,6 +560,7 @@ jobs:
     runs-on: macos-15-intel
     env:
       GH_TOKEN: ${{ github.token }}
+      RELEASE_PUBLISH_SIDE_EFFECTS: ${{ needs.metadata.outputs.publish_side_effects_enabled }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -673,6 +675,7 @@ jobs:
     runs-on: windows-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      RELEASE_PUBLISH_SIDE_EFFECTS: ${{ needs.metadata.outputs.publish_side_effects_enabled }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -929,6 +932,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      RELEASE_PUBLISH_SIDE_EFFECTS: ${{ needs.metadata.outputs.publish_side_effects_enabled }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2

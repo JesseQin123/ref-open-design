@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 export type ReleaseNoteFormat = "html" | "markdown";
@@ -17,9 +17,15 @@ export type ReleaseNotePublishedFile = Omit<ReleaseNoteSourceFile, "path"> & {
   url: string;
 };
 
+export type ReleaseNotesJumpTo = {
+  kind: "external";
+  url: string;
+};
+
 export type ReleaseNotesMetadata = {
   defaultLocale: "en";
   files: Record<string, Partial<Record<ReleaseNoteFormat, ReleaseNotePublishedFile>>>;
+  jumpTo?: ReleaseNotesJumpTo;
   requiredMarkdownLocales: string[];
   version: string;
 };
@@ -33,6 +39,25 @@ function releaseNotesRoot(): string {
 
 export function releaseNotesSourceDir(releaseVersion: string): string {
   return join(releaseNotesRoot(), `v${releaseVersion}`);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value != null && !Array.isArray(value);
+}
+
+function assertHttpsUrl(value: unknown, label: string, path: string): string {
+  const message = `release notes ${label} must be an HTTPS URL: ${path}`;
+  if (typeof value !== "string") throw new Error(message);
+  const raw = value.trim();
+  if (raw.length === 0) throw new Error(message);
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(message);
+  }
+  if (parsed.protocol !== "https:") throw new Error(message);
+  return raw;
 }
 
 function releaseNoteFormat(extension: string): ReleaseNoteFormat | null {
@@ -60,8 +85,11 @@ function parseReleaseNoteFileName(name: string): { extension: "html" | "md"; for
 
 export function discoverReleaseNotes(releaseVersion: string): ReleaseNoteSourceFile[] {
   const sourceDir = releaseNotesSourceDir(releaseVersion);
-  if (!existsSync(sourceDir) || !statSync(sourceDir).isDirectory()) {
-    throw new Error(`stable release notes directory is required: ${sourceDir}`);
+  if (!existsSync(sourceDir)) {
+    return [];
+  }
+  if (!statSync(sourceDir).isDirectory()) {
+    throw new Error(`release notes path must be a directory: ${sourceDir}`);
   }
 
   const files: ReleaseNoteSourceFile[] = [];
@@ -85,6 +113,24 @@ export function discoverReleaseNotes(releaseVersion: string): ReleaseNoteSourceF
   return files;
 }
 
+export function readReleaseNotesJumpTo(releaseVersion: string): ReleaseNotesJumpTo | null {
+  const metaPath = join(releaseNotesSourceDir(releaseVersion), "meta.json");
+  if (!existsSync(metaPath)) return null;
+
+  const parsed = JSON.parse(readFileSync(metaPath, "utf8")) as unknown;
+  if (!isRecord(parsed)) {
+    throw new Error(`release notes meta must be a JSON object: ${metaPath}`);
+  }
+  if (parsed.jumpTo == null) return null;
+  if (!isRecord(parsed.jumpTo)) {
+    throw new Error(`release notes meta "jumpTo" must be a JSON object: ${metaPath}`);
+  }
+  return {
+    kind: "external",
+    url: assertHttpsUrl(parsed.jumpTo.url, "jumpTo.url", metaPath),
+  };
+}
+
 export function assertStableReleaseNotes(releaseVersion: string): ReleaseNoteSourceFile[] {
   const files = discoverReleaseNotes(releaseVersion);
   const names = new Set(files.map((file) => file.name));
@@ -102,6 +148,7 @@ export function assertStableReleaseNotes(releaseVersion: string): ReleaseNoteSou
 export function releaseNotesMetadata(
   releaseVersion: string,
   files: ReleaseNotePublishedFile[],
+  jumpTo: ReleaseNotesJumpTo | null = null,
 ): ReleaseNotesMetadata {
   const byLocale: ReleaseNotesMetadata["files"] = {};
   for (const file of files) {
@@ -111,6 +158,7 @@ export function releaseNotesMetadata(
   return {
     defaultLocale: RELEASE_NOTES_DEFAULT_LOCALE,
     files: byLocale,
+    ...(jumpTo == null ? {} : { jumpTo }),
     requiredMarkdownLocales: [...RELEASE_NOTES_REQUIRED_MARKDOWN_LOCALES],
     version: releaseVersion,
   };

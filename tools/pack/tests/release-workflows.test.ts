@@ -61,6 +61,10 @@ describe("release workflows", () => {
     const prereleaseWin = sectionBetween(prerelease, "  build_win:", "  build_linux:");
     const stableMetadata = sectionBetween(stable, "  metadata:", "  verify:");
     const stablePublish = sectionBetween(stable, "  publish:", "  cleanup_partial_release_assets:");
+    const stableMac = sectionBetween(stable, "  build_mac:", "  build_mac_intel:");
+    const stableMacX64 = sectionBetween(stable, "  build_mac_intel:", "  build_win:");
+    const stableWin = sectionBetween(stable, "  build_win:", "  build_linux:");
+    const stableLinux = sectionBetween(stable, "  build_linux:", "  publish:");
     const selfHostedMac = sectionBetween(betaSelfHosted, "  build_mac_arm64:", "  build_win_x64:");
     const selfHostedWin = sectionBetween(betaSelfHosted, "  build_win_x64:", "  publish:");
 
@@ -318,6 +322,11 @@ describe("release workflows", () => {
     expect(stable).toContain("if: ${{ needs.metadata.outputs.run_prepublish_jobs == 'true' }}");
     expect(stable).toContain("RELEASE_DRY_RUN_MODE: ${{ needs.metadata.outputs.dry_run_mode }}");
     expect(stable).toContain("RELEASE_PUBLISH_SIDE_EFFECTS: ${{ needs.metadata.outputs.publish_side_effects_enabled }}");
+    for (const stableBuildJob of [stableMac, stableMacX64, stableWin, stableLinux]) {
+      expect(stableBuildJob).toContain(
+        "RELEASE_PUBLISH_SIDE_EFFECTS: ${{ needs.metadata.outputs.publish_side_effects_enabled }}",
+      );
+    }
     expect(stable).toContain("pnpm exec tools-release prepare-github-assets");
     expect(stable).toContain('gh release upload "$VERSION_TAG" "$RUNNER_TEMP/github-release-assets"/*');
     expect(stable).toContain("RELEASE_METADATA_PATH:");

@@ -130,6 +130,28 @@ describe('UpdaterPopup', () => {
     expect(await screen.findByRole('dialog', { name: 'Update ready' })).toBeTruthy();
     expect(screen.getByText('Open Design 1.2.3-beta.4 is ready. Open Design will close and open the installer.')).toBeTruthy();
     expect(screen.getByTestId('updater-install-button').textContent).toBe('Install update');
+    expect(screen.getByTestId('updater-popup').className).toContain('updater-popup--expanded');
+  });
+
+  it('can shrink the expanded prompt back to the compact anchored prompt', async () => {
+    restoreHost = installMockOpenDesignHost({
+      host: {
+        updater: {
+          status: vi.fn(async () => downloadedStatus()),
+        },
+      },
+    });
+
+    render(<UpdaterPopup />);
+
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+    expect(await screen.findByTestId('updater-popup')).toBeTruthy();
+    expect(screen.getByTestId('updater-popup').className).toContain('updater-popup--expanded');
+
+    fireEvent.click(screen.getByTestId('updater-popup-size-button'));
+
+    expect(screen.getByTestId('updater-popup').className).toContain('updater-popup--compact');
+    expect(screen.getByTestId('updater-popup-size-button').getAttribute('aria-label')).toBe('Expand update details');
   });
 
   it('uses localized ready prompt copy from the app i18n provider', async () => {
@@ -178,7 +200,8 @@ describe('UpdaterPopup', () => {
     expect(screen.getByText('Open Design 1.2.3-beta.4 已就绪。Open Design 会关闭并自动重启。')).toBeTruthy();
   });
 
-  it('renders fetched release notes through the metadata fallback chain', async () => {
+  it('renders static release notes without fetching metadata URLs', async () => {
+    const openExternal = vi.fn(async () => ({ ok: true as const }));
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === '/api/version') {
@@ -187,17 +210,14 @@ describe('UpdaterPopup', () => {
           status: 200,
         });
       }
-      if (url.endsWith('/en.html')) {
-        return new Response('', { status: 404 });
-      }
-      return new Response('# 中文更新\n\n- 已支持发布说明。', {
-        headers: { 'content-type': 'text/markdown; charset=utf-8' },
-        status: 200,
-      });
+      return new Response('unexpected fetch', { status: 500 });
     });
     globalThis.fetch = fetchMock as typeof fetch;
     restoreHost = installMockOpenDesignHost({
       host: {
+        shell: {
+          openExternal,
+        },
         updater: {
           status: vi.fn(async () => downloadedStatus({
             metadata: {
@@ -221,6 +241,10 @@ describe('UpdaterPopup', () => {
                     },
                   },
                 },
+                jumpTo: {
+                  kind: 'external',
+                  url: 'https://releases.example.test/stable/versions/1.2.3/details',
+                },
               },
             },
           })),
@@ -229,23 +253,20 @@ describe('UpdaterPopup', () => {
     });
 
     render(
-      <I18nProvider initial="zh-CN">
+      <I18nProvider initial="en">
         <UpdaterPopup />
       </I18nProvider>,
     );
 
     fireEvent.click(await screen.findByTestId('entry-nav-updater'));
 
-    expect(await screen.findByTestId('updater-release-notes')).toBeTruthy();
-    expect(screen.getByText('中文更新')).toBeTruthy();
-    const enHtmlCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/en.html'));
-    const zhMarkdownCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/zh-CN.md'));
-    expect(enHtmlCall).toEqual(['https://releases.example.test/stable/versions/1.2.3/release-notes/en.html', {
-      headers: { 'Cache-Control': 'no-cache' },
-    }]);
-    expect(zhMarkdownCall).toEqual(['https://releases.example.test/stable/versions/1.2.3/release-notes/zh-CN.md', {
-      headers: { 'Cache-Control': 'no-cache' },
-    }]);
+    const releaseNotes = await screen.findByTestId('updater-release-notes');
+    expect(releaseNotes.textContent).toContain('Release notes preview');
+    expect(releaseNotes.textContent).toContain('local constant text');
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('releases.example.test'))).toBe(false);
+
+    fireEvent.click(screen.getByTestId('updater-release-notes-jump'));
+    expect(openExternal).toHaveBeenCalledWith('https://releases.example.test/stable/versions/1.2.3/details');
   });
 
   it('dismisses the confirmation prompt before installation starts', async () => {

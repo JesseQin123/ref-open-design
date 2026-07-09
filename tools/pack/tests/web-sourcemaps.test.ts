@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolPackConfig } from "../src/config.js";
 import { processWebSourcemaps } from "../src/web-sourcemaps.js";
@@ -46,6 +46,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (tempRoot != null) {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -53,7 +54,7 @@ afterEach(async () => {
   restoreEnv("POSTHOG_CLI_PROJECT_ID", SAVED_PROJECT_ID);
 });
 
-function fakeConfig(workspaceRoot: string): ToolPackConfig {
+function fakeConfig(workspaceRoot: string, overrides: Partial<ToolPackConfig> = {}): ToolPackConfig {
   return {
     appVersion: "0.0.0-test",
     containerized: false,
@@ -88,6 +89,7 @@ function fakeConfig(workspaceRoot: string): ToolPackConfig {
     to: "all",
     webOutputMode: "standalone",
     workspaceRoot,
+    ...overrides,
   };
 }
 
@@ -162,5 +164,26 @@ describe("processWebSourcemaps", () => {
 
     await expect(readFile(join(nestedDir, "x.js.map"), "utf8")).rejects.toThrow();
     await expect(readFile(join(nestedDir, "x.js"), "utf8")).resolves.toContain("/*");
+  });
+
+  it("skips PostHog upload when release publish side effects are disabled", async () => {
+    const chunksDir = await setupChunksDir(tempRoot, ["main-app-dry-run.js.map"]);
+    const config = fakeConfig(tempRoot, {
+      posthogCliApiKey: "phx_test",
+      posthogCliProjectId: "420348",
+      publishSideEffectsEnabled: false,
+    });
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    await processWebSourcemaps(config);
+
+    expect(stderr.mock.calls.map((call) => String(call[0])).join("")).toContain(
+      "RELEASE_PUBLISH_SIDE_EFFECTS=false; skipping PostHog upload",
+    );
+    await expect(readFile(join(chunksDir, "chunks", "main-app-dry-run.js.map"), "utf8")).rejects.toThrow();
+    await expect(readFile(join(chunksDir, "chunks", "main-app-dry-run.js"), "utf8")).resolves.toContain(
+      "fake bundle",
+    );
+    stderr.mockRestore();
   });
 });

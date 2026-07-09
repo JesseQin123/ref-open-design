@@ -271,6 +271,7 @@ function setOutput(name: string, value: string): void {
 
 const packagedVersion = await readPackagedVersion();
 const packagedParsed = parseReleaseBaseVersion(packagedVersion) ?? fail(`invalid packaged version: ${packagedVersion}`);
+const forceLatest = process.env.OPEN_DESIGN_RELEASE_FORCE_LATEST === "true";
 
 let latestStable: ParsedStableVersion | null = null;
 const stableMetadataUrl = process.env.OPEN_DESIGN_STABLE_METADATA_URL;
@@ -295,7 +296,13 @@ if (stableMetadataUrl != null && stableMetadataUrl.length > 0) {
 }
 
 if (latestStable != null && compareReleaseBaseVersions(packagedParsed, latestStable.parsed) <= 0) {
-  fail(`packaged base version ${packagedVersion} must be strictly greater than latest stable ${latestStable.value}`);
+  if (forceLatest) {
+    console.log(
+      `[release-beta] force latest: allowing packaged base version ${packagedVersion} to bypass latest stable ${latestStable.value}`,
+    );
+  } else {
+    fail(`packaged base version ${packagedVersion} must be strictly greater than latest stable ${latestStable.value}`);
+  }
 }
 
 const metadataUrl = process.env.OPEN_DESIGN_BETA_METADATA_URL;
@@ -333,7 +340,13 @@ if (latestBeta != null) {
 
   const ordering = compareReleaseBaseVersions(packagedParsed, existingBase);
   if (ordering < 0) {
-    fail(`packaged base version ${packagedVersion} regressed below current beta base version ${beta.baseVersion}`);
+    if (forceLatest) {
+      console.log(
+        `[release-beta] force latest: allowing packaged base version ${packagedVersion} to bypass current beta base version ${beta.baseVersion}`,
+      );
+    } else {
+      fail(`packaged base version ${packagedVersion} regressed below current beta base version ${beta.baseVersion}`);
+    }
   }
 
   if (ordering === 0) {

@@ -8,15 +8,13 @@ import {
   deriveUpdaterModel,
   openUpdaterInstaller,
   quitAfterUpdaterInstallerOpen,
-  releaseNoteCandidatesFromStatus,
+  releaseNotesJumpToFromStatus,
   readUpdaterStatus,
   subscribeToUpdaterStatus,
-  type UpdaterReleaseNoteCandidate,
   type UpdaterModel,
 } from '../lib/updater';
 import { useI18n } from '../i18n';
 import type { Dict } from '../i18n/types';
-import { renderMarkdown } from '../runtime/markdown';
 import { useAnalytics, useAppVersion } from '../analytics/provider';
 import {
   trackUpdateIndicatorClick,
@@ -24,13 +22,11 @@ import {
   trackUpdateInstallResult,
   trackUpdatePromptSurfaceView,
 } from '../analytics/events';
+import { openExternalUrl } from '../providers/registry';
 
 const INSTALL_HANDOFF_WATCHDOG_MS = 10_000;
 
 type InstallState = 'idle' | 'opening' | 'handoff' | 'recoverable';
-type ReleaseNotesState =
-  | { state: 'idle' | 'loading' | 'empty' }
-  | { candidate: UpdaterReleaseNoteCandidate; state: 'ready'; text: string };
 type Translator = (key: keyof Dict, vars?: Record<string, string | number>) => string;
 
 function versionText(t: Translator, model: UpdaterModel): string {
@@ -75,14 +71,14 @@ function updaterErrorCode(model: UpdaterModel): string | undefined {
 }
 
 export function UpdaterPopup() {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const actionInFlightRef = useRef(false);
   const handoffWatchdogRef = useRef<number | null>(null);
   const [model, setModel] = useState<UpdaterModel>(() => deriveUpdaterModel(null));
   const [panelOpen, setPanelOpen] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(true);
   const [installState, setInstallState] = useState<InstallState>('idle');
-  const [releaseNotesState, setReleaseNotesState] = useState<ReleaseNotesState>({ state: 'idle' });
 
   const clearHandoffWatchdog = useCallback(() => {
     if (handoffWatchdogRef.current == null) return;
@@ -94,6 +90,7 @@ export function UpdaterPopup() {
     handoffWatchdogRef.current = null;
     actionInFlightRef.current = false;
     setInstallState('recoverable');
+    setPanelExpanded(true);
     setPanelOpen(true);
   }, []);
 
@@ -133,19 +130,15 @@ export function UpdaterPopup() {
   const showControl = ready || installState !== 'idle';
   const controlLabel = model.updateKind === 'payload' ? t('updater.installRestart') : t('updater.openInstaller');
   const channelLabel = channelLabelFor(model.status?.channel);
-  const releaseNoteCandidates = useMemo(
-    () => releaseNoteCandidatesFromStatus(model.status, locale),
-    [locale, model.status],
-  );
-  const releaseNoteCandidatesKey = useMemo(
-    () => releaseNoteCandidates.map((candidate) => `${candidate.format}:${candidate.url}`).join('|'),
-    [releaseNoteCandidates],
-  );
   const analytics = useAnalytics();
   const appVersionBefore = useAppVersion();
   const versionProps = useMemo(
     () => updateVersionProps(model, appVersionBefore),
     [appVersionBefore, model.availableVersion],
+  );
+  const releaseNotesJumpTo = useMemo(
+    () => releaseNotesJumpToFromStatus(model.status),
+    [model.status],
   );
 
   const indicatorSurfaceKey = `${model.currentVersion ?? 'unknown'}->${model.availableVersion ?? 'unknown'}:${model.status?.downloadPath ?? 'unknown'}`;
@@ -179,39 +172,6 @@ export function UpdaterPopup() {
       ...versionProps,
     });
   }, [analytics.track, promptSurfaceKey, versionProps]);
-
-  useEffect(() => {
-    if (!panelOpen || releaseNoteCandidates.length === 0) {
-      setReleaseNotesState({ state: 'idle' });
-      return;
-    }
-
-    let cancelled = false;
-    setReleaseNotesState({ state: 'loading' });
-
-    const load = async () => {
-      for (const candidate of releaseNoteCandidates) {
-        try {
-          const response = await fetch(candidate.url, {
-            headers: { 'Cache-Control': 'no-cache' },
-          });
-          if (!response.ok) continue;
-          const text = await response.text();
-          if (cancelled) return;
-          setReleaseNotesState({ candidate, state: 'ready', text });
-          return;
-        } catch {
-          // Try the next metadata-provided fallback URL.
-        }
-      }
-      if (!cancelled) setReleaseNotesState({ state: 'empty' });
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [panelOpen, releaseNoteCandidates, releaseNoteCandidatesKey]);
 
   const close = useCallback(() => {
     if (installBusy) return;
@@ -248,6 +208,7 @@ export function UpdaterPopup() {
     actionInFlightRef.current = true;
     clearHandoffWatchdog();
     setInstallState('opening');
+    setPanelExpanded(true);
     setPanelOpen(true);
     trackUpdateIndicatorClick(analytics.track, {
       page_name: 'home',
@@ -312,6 +273,18 @@ export function UpdaterPopup() {
     }
   };
 
+  const openReleaseNotes = useCallback(() => {
+    if (releaseNotesJumpTo == null) return;
+    trackUpdateIndicatorClick(analytics.track, {
+      page_name: 'home',
+      area: 'update_prompt',
+      element: 'release_notes',
+      action: 'open_link',
+      ...versionProps,
+    });
+    void openExternalUrl(releaseNotesJumpTo.url);
+  }, [analytics.track, releaseNotesJumpTo, versionProps]);
+
   if (!showControl) return null;
 
   return (
@@ -338,6 +311,7 @@ export function UpdaterPopup() {
             action: 'open_prompt',
             ...versionProps,
           });
+          setPanelExpanded(true);
           setPanelOpen(true);
         }}
       >
@@ -349,7 +323,7 @@ export function UpdaterPopup() {
         {panelOpen ? (
           <motion.section
             aria-labelledby="updater-popup-title"
-            className="updater-popup is-ready"
+            className={`updater-popup is-ready${panelExpanded ? ' updater-popup--expanded' : ' updater-popup--compact'}`}
             data-testid="updater-popup"
             role="dialog"
             variants={popoverIn}
@@ -360,28 +334,36 @@ export function UpdaterPopup() {
             <div className="updater-popup__icon">
               <Icon name="arrow-up" size={20} strokeWidth={2.2} />
             </div>
+            <div className="updater-popup__tools">
+              <button
+                aria-label={panelExpanded ? t('updater.compactDetails') : t('updater.expandDetails')}
+                className="updater-popup__icon-button"
+                data-testid="updater-popup-size-button"
+                title={panelExpanded ? t('updater.compactDetails') : t('updater.expandDetails')}
+                type="button"
+                onClick={() => setPanelExpanded((current) => !current)}
+              >
+                <Icon name={panelExpanded ? 'minimize' : 'maximize'} size={15} strokeWidth={1.9} />
+              </button>
+            </div>
             <div className="updater-popup__body">
               <h2 id="updater-popup-title">{t('updater.ready')}</h2>
               <p>{versionText(t, model)}</p>
               {channelLabel != null ? <span className="updater-popup__badge">{channelLabel}</span> : null}
-              {releaseNotesState.state === 'ready' ? (
-                <div
-                  className={`updater-popup__release-notes updater-popup__release-notes--${releaseNotesState.candidate.format}`}
-                  data-testid="updater-release-notes"
-                >
-                  {releaseNotesState.candidate.format === 'html' ? (
-                    <iframe
-                      sandbox=""
-                      srcDoc={releaseNotesState.text}
-                      title={t('updater.ready')}
-                    />
-                  ) : (
-                    <div className="prose-block">
-                      {renderMarkdown(releaseNotesState.text)}
-                    </div>
-                  )}
-                </div>
-              ) : null}
+              <div className="updater-popup__release-notes" data-testid="updater-release-notes">
+                <p>{t('updater.releaseNotesPreview')}</p>
+                {releaseNotesJumpTo != null ? (
+                  <button
+                    className="updater-popup__release-notes-jump"
+                    data-testid="updater-release-notes-jump"
+                    type="button"
+                    onClick={openReleaseNotes}
+                  >
+                    {t('updater.viewFullReleaseNotes')}
+                    <Icon name="external-link" size={12} strokeWidth={2} />
+                  </button>
+                ) : null}
+              </div>
             </div>
             <div className="updater-popup__actions">
               <button className="updater-popup__button" disabled={installBusy} type="button" onClick={close}>

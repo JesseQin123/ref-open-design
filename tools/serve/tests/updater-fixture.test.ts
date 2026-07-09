@@ -74,6 +74,7 @@ describe("updater fixture server", () => {
   it("serves CORS-enabled release-note fixtures through updater metadata", async () => {
     const server = await startUpdaterFixtureServer({
       channel: "stable",
+      releaseNotesJumpTo: "https://releases.example.test/open-design/2.0.0",
       releaseNotes: "mixed",
       version: "2.0.0",
     });
@@ -89,10 +90,16 @@ describe("updater fixture server", () => {
             html?: { url?: string };
             markdown?: { url?: string };
           }>;
+          jumpTo?: { kind?: string; url?: string };
         };
       };
       expect(metadata.releaseNotes?.files?.en?.html?.url).toBe(server.info.releaseNotes.en?.html);
       expect(metadata.releaseNotes?.files?.["zh-CN"]?.markdown?.url).toBe(server.info.releaseNotes["zh-CN"]?.markdown);
+      expect(metadata.releaseNotes?.jumpTo).toEqual({
+        kind: "external",
+        url: "https://releases.example.test/open-design/2.0.0",
+      });
+      expect(server.info.releaseNotesJumpTo).toBe("https://releases.example.test/open-design/2.0.0");
 
       const options = await fetch(server.info.releaseNotes.en?.html ?? "", {
         method: "OPTIONS",

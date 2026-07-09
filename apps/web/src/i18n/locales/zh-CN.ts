@@ -3826,6 +3826,8 @@ export const zhCN: Dict = {
   "updater.downloading": "正在下载更新",
   "updater.downloadingPercent": "正在下载更新 {percent}%",
   "updater.done": "完成",
+  "updater.expandDetails": "展开更新详情",
+  "updater.compactDetails": "显示紧凑更新弹窗",
   "updater.failed": "更新失败",
   "updater.installerOpenBody":
     "安装器已打开。Open Design 正在退出，以便你完成更新。",
@@ -3849,6 +3851,9 @@ export const zhCN: Dict = {
   "updater.readyGeneric": "新版本已就绪。Open Design 会关闭并打开安装器。",
   "updater.readyVersion":
     "Open Design {version} 已就绪。Open Design 会关闭并打开安装器。",
+  "updater.releaseNotesPreview":
+    "发布说明预览\n\n此弹窗正在渲染本地常量文本，用于验证展开后的更新 UI。\n\n安装操作仍然使用打包版 updater 的交接流程。远程 HTML 和 Markdown 发布说明暂时有意绕过。",
+  "updater.viewFullReleaseNotes": "查看完整发布说明",
   "updater.upToDate": "您已经是最新版本啦",
 
   'designBrowser.copyScreenshot': '复制截图',

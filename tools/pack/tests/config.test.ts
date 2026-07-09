@@ -6,6 +6,7 @@ import { resolveToolPackConfig, WORKSPACE_ROOT } from "../src/config.js";
 const savedTelemetryRelayUrl = process.env.OPEN_DESIGN_TELEMETRY_RELAY_URL;
 const savedPosthogKey = process.env.POSTHOG_KEY;
 const savedPosthogHost = process.env.POSTHOG_HOST;
+const savedReleasePublishSideEffects = process.env.RELEASE_PUBLISH_SIDE_EFFECTS;
 const savedAmrProfile = process.env.OPEN_DESIGN_AMR_PROFILE;
 
 afterEach(() => {
@@ -28,6 +29,11 @@ afterEach(() => {
     delete process.env.OPEN_DESIGN_AMR_PROFILE;
   } else {
     process.env.OPEN_DESIGN_AMR_PROFILE = savedAmrProfile;
+  }
+  if (savedReleasePublishSideEffects == null) {
+    delete process.env.RELEASE_PUBLISH_SIDE_EFFECTS;
+  } else {
+    process.env.RELEASE_PUBLISH_SIDE_EFFECTS = savedReleasePublishSideEffects;
   }
 });
 
@@ -175,5 +181,17 @@ describe("resolveToolPackConfig PostHog analytics", () => {
     process.env.POSTHOG_HOST = "https://eu.i.posthog.com///";
     const config = resolveToolPackConfig("mac");
     expect(config.posthogHost).toBe("https://eu.i.posthog.com");
+  });
+
+  it("disables external publish side effects when RELEASE_PUBLISH_SIDE_EFFECTS=false", () => {
+    process.env.RELEASE_PUBLISH_SIDE_EFFECTS = "false";
+    const config = resolveToolPackConfig("mac", { namespace: "dry-run-side-effects-test" });
+    expect(config.publishSideEffectsEnabled).toBe(false);
+  });
+
+  it("keeps external publish side effects enabled by default", () => {
+    delete process.env.RELEASE_PUBLISH_SIDE_EFFECTS;
+    const config = resolveToolPackConfig("mac", { namespace: "publish-side-effects-test" });
+    expect(config.publishSideEffectsEnabled).toBe(true);
   });
 });

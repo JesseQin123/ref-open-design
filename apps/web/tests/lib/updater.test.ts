@@ -10,6 +10,7 @@ import {
   openUpdaterInstaller,
   quitAfterUpdaterInstallerOpen,
   releaseNoteCandidatesFromStatus,
+  releaseNotesJumpToFromStatus,
   readUpdaterStatus,
 } from '../../src/lib/updater';
 
@@ -185,6 +186,36 @@ describe('web updater model', () => {
       'en',
       'en',
     ]);
+  });
+
+  it('resolves the release-note jump target from metadata when it is HTTPS', () => {
+    const status = downloadedStatus({
+      metadata: {
+        releaseNotes: {
+          jumpTo: {
+            kind: 'external',
+            url: 'https://releases.example.test/beta/versions/1.2.3-beta.4/details',
+          },
+        },
+      },
+    });
+
+    expect(releaseNotesJumpToFromStatus(status)).toEqual({
+      kind: 'external',
+      url: 'https://releases.example.test/beta/versions/1.2.3-beta.4/details',
+    });
+    expect(
+      releaseNotesJumpToFromStatus(downloadedStatus({
+        metadata: {
+          releaseNotes: {
+            jumpTo: {
+              kind: 'external',
+              url: 'http://releases.example.test/beta/versions/1.2.3-beta.4/details',
+            },
+          },
+        },
+      })),
+    ).toBeNull();
   });
 
   it('keeps the downloaded installer visible without surfacing newer incoming progress', () => {

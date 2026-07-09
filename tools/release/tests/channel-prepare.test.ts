@@ -171,6 +171,15 @@ function countedMetadata(
   };
 }
 
+function nextPatchVersion(version: string): string {
+  const parts = version.split(".").map((part) => Number(part));
+  if (parts.length !== 3 || parts.some((part) => !Number.isSafeInteger(part) || part < 0)) {
+    throw new Error(`expected x.y.z package version, got ${version}`);
+  }
+  const [major, minor, patch] = parts as [number, number, number];
+  return `${major}.${minor}.${patch + 1}`;
+}
+
 function stablePrereleaseMetadata(publicOrigin: string, baseVersion: string): Record<string, unknown> {
   const releaseVersion = `${baseVersion}-prerelease.2`;
   const versionPrefix = `prerelease/versions/${releaseVersion}`;
@@ -297,6 +306,52 @@ describe("tools-release local channel prepare validation", () => {
     } finally {
       await server.close();
       await rm(ghRoot, { force: true, recursive: true });
+    }
+  });
+
+  it("can force beta and betas preparation when latest metadata is ahead of the package base version", async () => {
+    const packagedVersion = await readPackagedVersion();
+    const aheadVersion = nextPatchVersion(packagedVersion);
+    const objects: Record<string, unknown> = {
+      "beta/latest/metadata.json": countedMetadata("beta", `${aheadVersion}-beta.3`, 3, aheadVersion),
+      "betas/latest/metadata.json": countedMetadata("betas", `${aheadVersion}-betas.3`, 3, aheadVersion),
+      "stable/latest/metadata.json": {
+        baseVersion: aheadVersion,
+        channel: "stable",
+        releaseVersion: aheadVersion,
+        stableVersion: aheadVersion,
+      },
+    };
+    const server = await startMetadataServer(objects);
+
+    try {
+      const commonEnv = {
+        GITHUB_REF_NAME: "main",
+        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
+        OPEN_DESIGN_RELEASE_FORCE_LATEST: "true",
+        OPEN_DESIGN_STABLE_METADATA_URL: `${server.origin}/stable/latest/metadata.json`,
+      };
+
+      const beta = await runPrepare("beta", {
+        ...commonEnv,
+        OPEN_DESIGN_BETA_METADATA_URL: `${server.origin}/beta/latest/metadata.json`,
+      });
+      expect(beta.stdout).toContain(`force latest: allowing packaged base version ${packagedVersion} to bypass latest stable ${aheadVersion}`);
+      expect(beta.stdout).toContain(`force latest: allowing packaged base version ${packagedVersion} to bypass current beta base version ${aheadVersion}`);
+      expect(beta.outputs.release_version).toBe(`${packagedVersion}-beta.1`);
+      expect(beta.outputs.release_number).toBe("1");
+
+      const betas = await runPrepare("betas", {
+        ...commonEnv,
+        OPEN_DESIGN_BETAS_METADATA_URL: `${server.origin}/betas/latest/metadata.json`,
+      });
+      expect(betas.stdout).toContain(`force latest: allowing packaged base version ${packagedVersion} to bypass latest stable ${aheadVersion}`);
+      expect(betas.stdout).toContain(`force latest: allowing packaged base version ${packagedVersion} to bypass current betas base version ${aheadVersion}`);
+      expect(betas.outputs.release_version).toBe(`${packagedVersion}-betas.1`);
+      expect(betas.outputs.release_number).toBe("1");
+    } finally {
+      await server.close();
     }
   });
 
@@ -554,7 +609,7 @@ describe("tools-release local channel prepare validation", () => {
         OPEN_DESIGN_RELEASE_DRY_RUN: "metadata",
         OPEN_DESIGN_RELEASES_PUBLIC_ORIGIN: "https://releases.example.test",
         OPEN_DESIGN_STABLE_PRERELEASE_VERSION: `${packagedVersion}-prerelease.2`,
-      })).rejects.toThrow(/stable release notes directory is required/);
+      })).rejects.toThrow(/stable release notes require en\.md, zh-CN\.md/);
     } finally {
       await rm(ghRoot, { force: true, recursive: true });
       await rm(missingRoot, { force: true, recursive: true });

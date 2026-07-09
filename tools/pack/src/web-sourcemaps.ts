@@ -17,13 +17,14 @@
 // `processWebSourcemaps` does both:
 //
 //   - With `POSTHOG_CLI_API_KEY` + `POSTHOG_CLI_PROJECT_ID` (CI on
-//     release-{beta,stable,preview}): run `@posthog/cli sourcemap inject`
-//     to bake chunk IDs into the JS/map pair, then `sourcemap upload` to
-//     ship the maps to PostHog. Best-effort — if upload fails (rate limit,
-//     network blip), the strip step below still runs.
+//     release-{beta,stable,preview}) AND release side effects enabled: run
+//     `@posthog/cli sourcemap inject` to bake chunk IDs into the JS/map pair,
+//     then `sourcemap upload` to ship the maps to PostHog. Best-effort — if
+//     upload fails (rate limit, network blip), the strip step below still runs.
 //
 //   - Without those env vars (local `pnpm tools-pack mac build` by a
-//     contributor, fork PR builds): skip both inject and upload, just strip.
+//     contributor, fork PR builds) or when `RELEASE_PUBLISH_SIDE_EFFECTS=false`
+//     (release dry-runs): skip both inject and upload, just strip.
 //
 // Either way, the final step ALWAYS removes every `.map` under the
 // browser chunks directory. Stripping is a hard requirement; only the
@@ -105,6 +106,7 @@ async function deleteMapFiles(dir: string): Promise<number> {
 }
 
 function readUploadEnv(config: ToolPackConfig): SourcemapCliEnv | null {
+  if (config.publishSideEffectsEnabled === false) return null;
   if (config.posthogCliApiKey == null || config.posthogCliApiKey.length === 0) return null;
   if (config.posthogCliProjectId == null || config.posthogCliProjectId.length === 0) return null;
   return {
@@ -215,6 +217,8 @@ export async function processWebSourcemaps(
     } catch (error) {
       log(`upload failed: ${(error as Error).message}; continuing to strip`);
     }
+  } else if (config.publishSideEffectsEnabled === false) {
+    log("RELEASE_PUBLISH_SIDE_EFFECTS=false; skipping PostHog upload");
   } else {
     log("POSTHOG_CLI_API_KEY/POSTHOG_CLI_PROJECT_ID missing; skipping upload");
   }

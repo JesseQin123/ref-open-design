@@ -33,6 +33,11 @@ on:
         required: false
         type: string
         default: ""
+      force_latest:
+        description: "Allow this run to move beta latest metadata backward. Use only for release metadata recovery."
+        required: true
+        type: boolean
+        default: false
       release_origin:
         description: "Release storage origin."
         required: true
@@ -184,6 +189,10 @@ on:
         required: false
         type: string
         default: ""
+      force_latest:
+        required: false
+        type: boolean
+        default: false
       release_origin:
         required: false
         type: string
@@ -387,6 +396,7 @@ jobs:
         env:
           GITHUB_SHA: ${{ env.BUILT_SHA }}
           GITHUB_REF_NAME: ${{ inputs.ref != '' && inputs.ref || github.ref_name }}
+          OPEN_DESIGN_RELEASE_FORCE_LATEST: ${{ inputs.force_latest }}
         run: pnpm exec tools-release prepare beta
 
   build_mac_arm64:
@@ -1409,6 +1419,7 @@ jobs:
           MAC_X64_RESULT: ${{ needs.build_mac_x64.result }}
           RELEASE_ASSET_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
           RELEASE_CHANNEL: beta
+          RELEASE_LATEST_FORCE: ${{ inputs.force_latest }}
           RELEASE_MANIFEST_DIR: ${{ runner.temp }}/release-platform-manifests
           RELEASE_METADATA_DIR: ${{ runner.temp }}/release-metadata
           RELEASE_OUTPUTS_PATH: ${{ runner.temp }}/release-metadata/outputs.json

@@ -944,6 +944,8 @@ export interface Dict {
   'updater.downloading': string;
   'updater.downloadingPercent': string;
   'updater.done': string;
+  'updater.expandDetails': string;
+  'updater.compactDetails': string;
   'updater.failed': string;
   'updater.installerOpenBody': string;
   'updater.installerOpened': string;
@@ -962,6 +964,8 @@ export interface Dict {
   'updater.ready': string;
   'updater.readyGeneric': string;
   'updater.readyVersion': string;
+  'updater.releaseNotesPreview': string;
+  'updater.viewFullReleaseNotes': string;
   'updater.upToDate': string;
 
   // Newsletter email field on the onboarding About-you step.
