@@ -39,6 +39,7 @@ import {
 import { readProcessStamp } from "@open-design/platform";
 
 import { createDesktopRuntime, type DesktopRuntime } from "./runtime.js";
+import { registerInviteDeeplink, focusPrimaryWindow } from "./invite-deeplink.js";
 import { attachDesktopProcessErrorFilter } from "./uncaught-exception.js";
 import { createDesktopUpdater, createDesktopUpdaterScheduler, type DesktopUpdaterScheduler } from "./updater.js";
 import {
@@ -829,6 +830,11 @@ export async function runDesktopMain(
   disposeMenu = installDesktopMenu(runtime, options);
   removeDiagnosticsIpc = registerDesktopDiagnosticsIpc({
     discoverDaemonBaseUrl: resolveDaemonBaseUrl(runtime, options),
+  });
+  // Route opendesign:// team-invite deeplinks to the daemon (desktop wake-up).
+  registerInviteDeeplink({
+    resolveDaemonBaseUrl: resolveDaemonBaseUrl(runtime, options),
+    focus: focusPrimaryWindow,
   });
   updateScheduler = createDesktopUpdaterScheduler(updater, {
     backoffInitialMs: updater.config.checkBackoffInitialMs,
