@@ -55,6 +55,7 @@ const PROMOTE_AMR_CODES = new Set<string>([
 //   - retry:                       re-run with the current agent.
 //   - authorize:                   AMR sign-in/authorize flow, then auto-retry on success.
 //   - recharge:                    open the AMR wallet (manual retry afterwards).
+//   - upgrade:                     open the AMR plans view (manual retry afterwards).
 //   - launch-terminal-auth:        Antigravity-specific. agy's `-p`
 //                                  print mode cannot complete Google
 //                                  Sign-In on its own (no input field
@@ -77,6 +78,7 @@ export type RunFailurePrimaryAction =
   | 'retry'
   | 'authorize'
   | 'recharge'
+  | 'upgrade'
   | 'launch-terminal-auth'
   | 'launch-terminal-switch-model'
   // No self-contained recovery button. Used when retrying is futile (e.g. a
@@ -115,6 +117,7 @@ export type RunFailureTitleKey =
   | 'chat.runError.title.connectionDropped'
   | 'chat.runError.title.signInRequired'
   | 'chat.runError.title.rateLimited'
+  | 'chat.amrBalanceGate.title'
   | 'chat.runError.title.cliMissing'
   | 'chat.runError.title.promptTooLarge'
   | 'chat.runError.title.modelUnavailable'
@@ -244,6 +247,7 @@ const DETAIL_FAILURE_UI: Record<string, RunFailureUi> = {
 //     unavailable, tool loop, bad output, bad runtime def) → named type + fix
 //   - AMR agent, auth required      → authorize-and-retry button, clearer copy
 //   - AMR agent, insufficient funds → recharge button + manual retry, clearer copy
+//   - AMR agent, tier entitlement   → upgrade button + manual retry
 //   - AMR agent, anything else      → plain retry
 //   - fine-grained failure_detail (hard quota, workspace credits, text-detected
 //     cli-missing) → named type + fix, overriding a too-coarse code
@@ -277,6 +281,15 @@ export function resolveRunFailureUi(
         primaryAction: 'recharge',
         titleKey: 'chat.runError.title.balance',
         messageKey: 'chat.amrError.balanceMessage',
+        secondaryRetry: true,
+        showSwitchCard: false,
+      };
+    }
+    if (code === 'AMR_TIER_UPGRADE_REQUIRED') {
+      return {
+        primaryAction: 'upgrade',
+        titleKey: 'chat.amrBalanceGate.title',
+        messageKey: null,
         secondaryRetry: true,
         showSwitchCard: false,
       };
